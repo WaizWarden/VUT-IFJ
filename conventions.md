@@ -8,7 +8,7 @@
 
 | X | Convention |
 | :--- | :--- |
-| **Functions** | `camelCase` |
+| **Functions** | `snake_case` |
 | **Variables** | `camelCase` |
 | **Struct / typedef** | `PascalCase` |
 | **Macros / `#define` constants** | `UPPER_SNAKE_CASE` |
