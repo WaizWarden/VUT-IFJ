@@ -26,6 +26,8 @@ typedef struct {
   ht_cell *cells;
   uint32_t size;
   uint32_t count;
+  uint32_t active_cells;
+  uint32_t deleted_cells;
 } hashtable;
 
 /**
@@ -50,7 +52,7 @@ void ht_free(hashtable *ht);
  * @param key Identifier
  * @param value Pointer to data
  */
-bool ht_insert(hashtable *table, const char *key, const void *value);
+bool ht_insert(hashtable *table, const char *key, void *value);
 
 /**
  * @brief Retrieves a value from hashtable by key
@@ -67,5 +69,28 @@ void* ht_get(const hashtable *table, const char *key);
  * @param key Identifier
  */
 bool ht_remove(hashtable *table, const char *key);
+
+/**
+ * @brief Resizes the hash table
+ * @returns true if resizing was successful, false otherwise
+ * @param table Pointer to the hash table
+ * @param resize_factor Size gets multiplied by this factor, only powers of 2 are allowed
+ */
+bool ht_resize(hashtable *table, const uint32_t resize_factor);
+
+/**
+ * @brief Hash function for the hash table
+ * @returns Hash value
+ * @param key Identifier
+ * @param size Main array size from hash table
+ */
+uint32_t hash_f(const char *key, const uint32_t size);
+
+/**
+ * @brief Calculates the load factor of the hash table
+ * @returns Load factor
+ * @param table Pointer to the hash table
+ */
+float ht_load_factor(const hashtable *table);
 
 #endif HASHTABLE_H
