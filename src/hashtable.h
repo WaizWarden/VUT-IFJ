@@ -60,7 +60,7 @@ bool ht_insert(hashtable *table, const char *key, void *value);
  * @param table Pointer to the hash table
  * @param key Identifier
  */
-void* ht_get(const hashtable *table, const char *key);
+void *ht_get(const hashtable *table, const char *key);
 
 /**
  * @brief Removes a key-value pair from the hash table
@@ -74,9 +74,10 @@ bool ht_remove(hashtable *table, const char *key);
  * @brief Resizes the hash table
  * @returns true if resizing was successful, false otherwise
  * @param table Pointer to the hash table
- * @param resize_factor Size gets multiplied by this factor, only powers of 2 are allowed
+ * @param resize_factor Size gets multiplied by this factor, only powers of 2
+ * are allowed
  */
-bool ht_resize(hashtable *table, const uint32_t resize_factor);
+bool ht_resize(hashtable *table, uint32_t resize_factor);
 
 /**
  * @brief Hash function for the hash table
@@ -84,7 +85,7 @@ bool ht_resize(hashtable *table, const uint32_t resize_factor);
  * @param key Identifier
  * @param size Main array size from hash table
  */
-uint32_t hash_f(const char *key, const uint32_t size);
+uint32_t hash_f(const char *key, uint32_t size);
 
 /**
  * @brief Calculates the load factor of the hash table
@@ -93,4 +94,4 @@ uint32_t hash_f(const char *key, const uint32_t size);
  */
 float ht_load_factor(const hashtable *table);
 
-#endif HASHTABLE_H
+#endif
