@@ -10,11 +10,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef enum {
-  HT_CELL_EMPTY,
-  HT_CELL_OCCUPIED,
-  HT_CELL_DELETED
-} HtCellStatus;
+typedef enum { HT_CELL_EMPTY, HT_CELL_OCCUPIED, HT_CELL_DELETED } HtCellStatus;
 
 typedef struct {
   char *key;

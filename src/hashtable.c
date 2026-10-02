@@ -57,7 +57,8 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
 
   for (uint32_t offset = 0; offset < hashTable->size; offset++) {
 
-    HtCell *const currentCell = &hashTable->cells[(index + offset) % hashTable->size];
+    HtCell *const currentCell =
+        &hashTable->cells[(index + offset) % hashTable->size];
 
     // If the cell is empty and destination has not been found yet, set it as
     // dest. Otherwise program has found deleted space to save.
@@ -102,7 +103,7 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
   if (!dst->key) {
     return false;
   }
-  memcpy(dst->key, key, strlen(key) + 1);
+  memcpy(dst->key, key, strlen(key) + 1); // NOLINT
   dst->value = value;
   dst->status = HT_CELL_OCCUPIED;
   hashTable->activeCells++;
@@ -118,11 +119,18 @@ float ht_load_factor(const HashTable *hashTable) {
          (float)hashTable->size;
 }
 
+// DJB2 Hashing function implementation
+// source: https://theartincode.stanis.me/008-djb2/
 uint32_t hash_f(const char *key, uint32_t size) {
-  /// @todo todo
-  (void)key;
-  (void)size;
-  return 0;
+
+  uint32_t hash = 5381; // Initial hashing magic number
+  int c;
+  
+  while(c = *key++){
+    hash =( (hash << 5) + hash) + c;
+  }
+
+  return hash % size;
 }
 
 bool ht_resize(HashTable *hashTable, uint32_t resizeFactor) {
