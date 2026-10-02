@@ -13,6 +13,10 @@
 #define HASH_INITIAL_VALUE 5381
 
 bool ht_init(HashTable *hashTable, uint32_t size) {
+  if (hashTable == NULL || size == 0) {
+    return false;
+  }
+
   // Alloc memory for cells
   HtCell *cells = calloc(size, sizeof(*cells));
   if (cells == NULL) {
@@ -35,15 +39,29 @@ bool ht_init(HashTable *hashTable, uint32_t size) {
 }
 
 void ht_free(HashTable *hashTable) {
+  if (hashTable == NULL) {
+    return;
+  }
+
   for (uint32_t i = 0; i < hashTable->size; i++) {
-    if (hashTable->cells[i].status != HT_CELL_EMPTY) {
+    if (hashTable->cells != NULL &&
+        hashTable->cells[i].status != HT_CELL_EMPTY) {
       free(hashTable->cells[i].key);
     }
   }
   free(hashTable->cells);
+  hashTable->cells = NULL;
+  hashTable->size = 0;
+  hashTable->activeCells = 0;
+  hashTable->deletedCells = 0;
 }
 
 bool ht_insert(HashTable *hashTable, const char *key, void *value) {
+  if (hashTable == NULL || key == NULL || hashTable->cells == NULL ||
+      hashTable->size == 0) {
+    return false;
+  }
+
   // Determine if resize is neeeded
   if (ht_load_factor(hashTable) > LOAD_FACTOR_THRESHOLD) {
     if (!ht_resize(hashTable, DEFAULT_RESIZE_FACTOR)) {
@@ -51,8 +69,7 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
     }
   }
 
-  uint32_t index = hash_f(key, hashTable->size) % hashTable->size;
-  // cell to save key-value pair to
+  uint32_t index = hash_f(key, hashTable->size);
   HtCell *dst = NULL;
 
   for (uint32_t offset = 0; offset < hashTable->size; offset++) {
@@ -68,20 +85,15 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
       }
       break;
     }
-    if (currentCell->status == HT_CELL_OCCUPIED) {
-      if (strcmp(currentCell->key, key) == 0) {
-        // Unalowed redefinition - semantic error 4, returning false
-        return false;
-      }
-      continue;
+    if (currentCell->status == HT_CELL_OCCUPIED &&
+        strcmp(currentCell->key, key) == 0) {
+      // Unalowed redefinition - semantic error 4, returning false
+      return false;
     }
     // If deleted, mark first cell as dest to save, but continue search for same
     // key cell
-    if (currentCell->status == HT_CELL_DELETED) {
-      if (!dst) {
-        dst = currentCell;
-      }
-      continue;
+    if (currentCell->status == HT_CELL_DELETED && !dst) {
+      dst = currentCell;
     }
   }
 
@@ -94,16 +106,20 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
     if (hashTable->deletedCells == 0) {
       return false;
     }
+
+    char *newKey = malloc(strlen(key) + 1);
+    if (newKey == NULL) {
+      return false;
+    }
+
+    memcpy(newKey, key, strlen(key) + 1); // NOLINT
+
     hashTable->deletedCells--;
     free(dst->key);
+    dst->key = newKey;
   }
 
   // Saving data
-  dst->key = malloc(strlen(key) + 1);
-  if (!dst->key) {
-    return false;
-  }
-  memcpy(dst->key, key, strlen(key) + 1); // NOLINT
   dst->value = value;
   dst->status = HT_CELL_OCCUPIED;
   hashTable->activeCells++;
@@ -112,7 +128,7 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
 }
 
 float ht_load_factor(const HashTable *hashTable) {
-  if (hashTable->size == 0) {
+  if (hashTable == NULL || hashTable->size == 0) {
     return 0.0F;
   }
   return (float)(hashTable->activeCells + hashTable->deletedCells) /
@@ -122,6 +138,9 @@ float ht_load_factor(const HashTable *hashTable) {
 // DJB2 Hashing function implementation
 // source: https://theartincode.stanis.me/008-djb2/
 uint32_t hash_f(const char *key, uint32_t size) {
+  if (key == NULL || size == 0) {
+    return 0;
+  }
 
   uint32_t hash = HASH_INITIAL_VALUE; // Initial hashing magic number
   unsigned char current;
@@ -134,12 +153,13 @@ uint32_t hash_f(const char *key, uint32_t size) {
 }
 
 bool ht_resize(HashTable *hashTable, uint32_t resizeFactor) {
+  if (hashTable == NULL || hashTable->cells == NULL || resizeFactor == 0 ||
+      hashTable->size == 0 || UINT32_MAX / hashTable->size < resizeFactor) {
+    return false;
+  }
 
   // Memory alocation
   uint32_t newSize = hashTable->size * resizeFactor;
-  if (newSize == 0) {
-    return false;
-  }
   HtCell *newCellArray = calloc(newSize, sizeof(HtCell));
   if (!newCellArray) {
     return false; // memory alocation fault
@@ -190,4 +210,58 @@ bool ht_resize(HashTable *hashTable, uint32_t resizeFactor) {
   hashTable->size = newSize;
 
   return true;
+}
+
+void *ht_get(const HashTable *hashTable, const char *key) {
+  if (hashTable == NULL || key == NULL || hashTable->cells == NULL ||
+      hashTable->size == 0) {
+    return NULL;
+  }
+  uint32_t hash = hash_f(key, hashTable->size);
+
+  // Cycle through hash table from hash index
+  for (uint32_t i = 0; i < hashTable->size; i++) {
+    HtCell *current = &hashTable->cells[(hash + i) % hashTable->size];
+    if (current->status == HT_CELL_OCCUPIED && strcmp(current->key, key) == 0) {
+      return current->value; // Key found, return value
+    }
+
+    if (current->status == HT_CELL_EMPTY) {
+      break; // element is not in table
+    }
+  }
+
+  // Element not found
+  return NULL;
+}
+
+bool ht_remove(HashTable *hashTable, const char *key) {
+  if (hashTable == NULL || key == NULL || hashTable->cells == NULL ||
+      hashTable->size == 0) {
+    return false;
+  }
+
+  uint32_t hash = hash_f(key, hashTable->size);
+
+  // Cycle through hash table from hash index
+  for (uint32_t i = 0; i < hashTable->size; i++) {
+    HtCell *current = &hashTable->cells[(hash + i) % hashTable->size];
+    if (current->status == HT_CELL_OCCUPIED && strcmp(current->key, key) == 0) {
+
+      free(current->key); // element found, delete it
+      current->key = NULL;
+      current->value = NULL; // hashtable doesnt own the value
+      current->status = HT_CELL_DELETED;
+      hashTable->deletedCells++;
+      hashTable->activeCells--;
+      return true;
+    }
+
+    if (current->status == HT_CELL_EMPTY) {
+      break; // element is not in table
+    }
+  }
+
+  // Element not found
+  return false;
 }
