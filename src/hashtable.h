@@ -21,7 +21,6 @@ typedef struct {
 typedef struct {
   HtCell *cells;
   uint32_t size;
-  uint32_t count;
   uint32_t activeCells;
   uint32_t deletedCells;
 } HashTable;
@@ -76,10 +75,11 @@ bool ht_remove(HashTable *hashTable, const char *key);
 bool ht_resize(HashTable *hashTable, uint32_t resizeFactor);
 
 /**
- * @brief Hash function for the hash table
+ * @brief Hash function for the hash table - DJB2 hashing.
+ * Already returns hash % size.
  * @returns Hash value
  * @param key Identifier
- * @param size Main array size from hash table
+ * @param size Size of hashed array
  */
 uint32_t hash_f(const char *key, uint32_t size);
 

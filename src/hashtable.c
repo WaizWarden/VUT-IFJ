@@ -10,24 +10,24 @@
 
 #define LOAD_FACTOR_THRESHOLD 0.7
 #define DEFAULT_RESIZE_FACTOR 2
+#define HASH_INITIAL_VALUE 5381
 
 bool ht_init(HashTable *hashTable, uint32_t size) {
   // Alloc memory for cells
-  HtCell *cells = malloc(size * sizeof(*cells));
+  HtCell *cells = calloc(size, sizeof(*cells));
   if (cells == NULL) {
     return false;
   }
   hashTable->cells = cells;
 
   // Initialize cells
-  for (uint32_t index = 0; index < size; index++) {
-    hashTable->cells[index].status = HT_CELL_EMPTY;
-    hashTable->cells[index].key = NULL;
-    hashTable->cells[index].value = NULL;
+  for (uint32_t i = 0; i < size; i++) {
+    hashTable->cells[i].status = HT_CELL_EMPTY;
+    hashTable->cells[i].key = NULL;
+    hashTable->cells[i].value = NULL;
   }
 
   hashTable->size = size;
-  hashTable->count = 0;
   hashTable->activeCells = 0;
   hashTable->deletedCells = 0;
 
@@ -35,9 +35,9 @@ bool ht_init(HashTable *hashTable, uint32_t size) {
 }
 
 void ht_free(HashTable *hashTable) {
-  for (uint32_t index = 0; index < hashTable->size; index++) {
-    if (hashTable->cells[index].status != HT_CELL_EMPTY) {
-      free(hashTable->cells[index].key);
+  for (uint32_t i = 0; i < hashTable->size; i++) {
+    if (hashTable->cells[i].status != HT_CELL_EMPTY) {
+      free(hashTable->cells[i].key);
     }
   }
   free(hashTable->cells);
@@ -123,19 +123,71 @@ float ht_load_factor(const HashTable *hashTable) {
 // source: https://theartincode.stanis.me/008-djb2/
 uint32_t hash_f(const char *key, uint32_t size) {
 
-  uint32_t hash = 5381; // Initial hashing magic number
-  int c;
-  
-  while(c = *key++){
-    hash =( (hash << 5) + hash) + c;
+  uint32_t hash = HASH_INITIAL_VALUE; // Initial hashing magic number
+  unsigned char current;
+
+  while ((current = *key++)) {
+    hash = ((hash << 5) + hash) + current; // NOLINT
   }
 
   return hash % size;
 }
 
 bool ht_resize(HashTable *hashTable, uint32_t resizeFactor) {
-  /// @todo todo
-  (void)hashTable;
-  (void)resizeFactor;
+
+  // Memory alocation
+  uint32_t newSize = hashTable->size * resizeFactor;
+  if (newSize == 0) {
+    return false;
+  }
+  HtCell *newCellArray = calloc(newSize, sizeof(HtCell));
+  if (!newCellArray) {
+    return false; // memory alocation fault
+  }
+
+  // Cell inicializatin
+  for (uint32_t i = 0; i < newSize; i++) {
+    newCellArray[i].status = HT_CELL_EMPTY;
+    newCellArray[i].key = NULL;
+    newCellArray[i].value = NULL;
+  }
+
+  // Data copying (only active cells)
+  for (uint32_t i = 0; i < hashTable->size; i++) {
+    HtCell *currentOld = &(hashTable->cells[i]);
+    if (currentOld->status != HT_CELL_OCCUPIED || !currentOld->key) {
+      continue; // skip empty and faulty cells
+    }
+
+    uint32_t newHash = hash_f(currentOld->key, newSize);
+    HtCell *newDst = NULL;
+
+    // Find empty space
+    for (uint32_t j = 0; j < newSize; j++) {
+      HtCell *currentNew = &newCellArray[(newHash + j) % newSize];
+
+      if (currentNew->status == HT_CELL_EMPTY) {
+        newDst = currentNew;
+        break;
+      }
+    }
+
+    if (!newDst) {
+      free(newCellArray);
+      return false;
+    }
+
+    newDst->key = currentOld->key; // only change the pointer, key stays
+    newDst->value = currentOld->value;
+    newDst->status = HT_CELL_OCCUPIED;
+  }
+
+  // Put new cell array into hashtable
+  free(hashTable->cells);
+  hashTable->cells = newCellArray;
+
+  hashTable->deletedCells = 0;
+  hashTable->size = newSize;
+
   return true;
 }
