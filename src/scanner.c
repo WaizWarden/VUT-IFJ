@@ -61,6 +61,36 @@ Token get_token(FILE *input) {
         break;
       }
 
+      if (current_char == '+') {
+        token.type = TOKEN_PLUS;
+        return token;
+      }
+
+      if (current_char == '-') {
+        token.type = TOKEN_MINUS;
+        return token;
+      }
+
+      if (current_char == '*') {
+        token.type = TOKEN_MULTIPLY;
+        return token;
+      }
+
+      if (current_char == '/') {
+        token.type = TOKEN_DIVIDE;
+        return token;
+      }
+
+      if (current_char == '=') {
+        token.type = TOKEN_ASSIGN;
+        return token;
+      }
+
+      if (current_char == ':') {
+        token.type = TOKEN_COLON;
+        return token;
+      }
+
       if (isalpha(current_char) || current_char == '_') {
         state = S_STRING;
         str[len] = (char)current_char;
