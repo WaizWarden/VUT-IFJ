@@ -3,9 +3,10 @@
  * @author  xjuricl01
  * @brief   Scanner header file
  */
+#include <stdio.h>
 
 typedef enum {
-  TOKEN_IDENTIFICATOR,
+  TOKEN_IDENTIFIER,
   TOKEN_KEYWORD,
 
   TOKEN_INT,
@@ -46,3 +47,5 @@ typedef struct {
   TokenValue value;
 
 } Token;
+
+Token get_token(FILE *input);
