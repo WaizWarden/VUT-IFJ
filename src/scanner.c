@@ -6,12 +6,19 @@
 
 #include "scanner.h"
 #include <ctype.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-// TODO: REMOVE AND MAKE IT VIA MALLOC
+// NOTES:
+// Tell parser that it has to manage negative numbers on its own
+
+//  REMOVE AND MAKE IT VIA MALLOC
 #define TEMPORARY_STR_LEN 1024
+#define LEXER_ERROR 50
+#define BASE_TEN 10
 
 int is_keyword(char *str);
 
@@ -19,6 +26,7 @@ int is_keyword(char *str);
 typedef enum {
   S_START,
   S_STRING,
+  S_INT,
 } State;
 
 typedef struct {
@@ -96,6 +104,50 @@ Token get_token(FILE *input) {
         str[len] = (char)current_char;
         len++;
         break;
+      }
+
+      if (isdigit(current_char)) {
+        state = S_INT;
+        str[len] = (char)current_char;
+        len++;
+        break;
+      }
+
+      break;
+
+    case S_INT:
+
+      if (isdigit(current_char)) {
+        if (len < sizeof(str) - 1) {
+          str[len] = (char)current_char;
+          len++;
+        }
+      }
+
+      // check for doouble __
+      else if ((char)current_char == '_') {
+        int next = fgetc(input);
+
+        if (!isdigit(next)) {
+          fprintf(stderr, "Lexer error: %d\n", LEXER_ERROR);
+        }
+        ungetc(next, input);
+      }
+
+      else {
+        ungetc(current_char, input);
+        str[len] = '\0';
+
+        char *end;
+        int val = (int)strtol(str, &end, BASE_TEN);
+
+        if (end == str || *end != '\0' || errno == ERANGE) {
+          fprintf(stderr, "Error while converting to integer");
+        }
+
+        token.type = TOKEN_INT;
+        token.value.numberInt = val;
+        return token;
       }
 
       break;
