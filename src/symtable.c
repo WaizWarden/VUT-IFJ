@@ -6,6 +6,7 @@
 
 #include "symtable.h"
 #include <stdlib.h>
+#include <string.h>
 
 #define INITIAL_ST_SIZE 8
 
@@ -18,17 +19,19 @@
 SymtableNode *st_alloc_node(void) {
   SymtableNode *new = calloc(1, sizeof(SymtableNode));
   if (!new) {
-    return false;
+    return NULL;
   }
 
   new->table = malloc(sizeof(HashTable));
   if (!new->table) {
     free(new);
-    return false;
+    return NULL;
   }
 
   return new;
 }
+
+void st_free_symbol(void *symbol) { free(symbol); }
 
 bool st_init(Symtable *symtable) {
   if (!symtable) {
@@ -37,10 +40,17 @@ bool st_init(Symtable *symtable) {
 
   // allocate spece
   SymtableNode *new = st_alloc_node();
+  if (!new) {
+    return false;
+  }
 
   // assign start values
   new->parent = NULL;
-  ht_init(new->table, INITIAL_ST_SIZE);
+  if (!ht_init(new->table, INITIAL_ST_SIZE)) {
+    free(new->table);
+    free(new);
+    return false;
+  }
 
   symtable->top = new;
   return true;
@@ -56,7 +66,7 @@ void st_free(Symtable *symtable) {
   while (toFree != NULL) {
     SymtableNode *nextToFree = toFree->parent;
 
-    ht_free(toFree->table);
+    ht_free(toFree->table, st_free_symbol);
     free(toFree->table);
     free(toFree);
 
@@ -67,16 +77,23 @@ void st_free(Symtable *symtable) {
 }
 
 bool st_push_scope(Symtable *symtable) {
-  if (!symtable) {
+  if (!symtable || !symtable->top) {
     return false;
   }
 
   // allocate space
   SymtableNode *new = st_alloc_node();
+  if (!new) {
+    return false;
+  }
 
   // assign new values
   new->parent = symtable->top;
-  ht_init(new->table, INITIAL_ST_SIZE);
+  if (!ht_init(new->table, INITIAL_ST_SIZE)) {
+    free(new->table);
+    free(new);
+    return false;
+  }
 
   symtable->top = new;
   return true;
@@ -91,15 +108,18 @@ void st_pop_scope(Symtable *symtable) {
   SymtableNode *toFree = symtable->top;
   symtable->top = toFree->parent;
 
-  ht_free(toFree->table);
+  ht_free(toFree->table, st_free_symbol);
   free(toFree->table);
   free(toFree);
 }
 
 bool st_insert_var(Symtable *symtable, const char *name, DataType type,
                    bool modifiable) {
-  Symbol *new =
-      calloc(1, sizeof(Symbol)); // MUST BE FREED before freeing Hash table
+  if (!symtable || !symtable->top || !symtable->top->table || !name) {
+    return false;
+  }
+
+  Symbol *new = calloc(1, sizeof(Symbol));
   if (!new) {
     return false;
   }
@@ -109,7 +129,47 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
   new->data.var.modifiable = modifiable;
 
   // insert symbol while checking fail
-  if(!ht_insert(symtable->top->table, name, new)){
+  if (!ht_insert(symtable->top->table, name, new)) {
+    free(new);
+    return false;
+  }
+
+  return true;
+}
+
+bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
+                    Parameter *params, uint16_t paramCount, bool isMain,
+                    bool isDefined) {
+  if (!symtable || !symtable->top || !symtable->top->table || !name ||
+      (paramCount > 0 && !params)) {
+    return false;
+  }
+
+  for (uint16_t i = 0; i < paramCount; i++) {
+    if (!params[i].name) {
+      return false;
+    }
+  }
+
+  Symbol *new = calloc(1, sizeof(Symbol));
+  if (!new) {
+    return false;
+  }
+
+  new->type = ST_FUNC;
+  new->data.func.returnType = retType;
+  new->data.func.parameters = params;
+  new->data.func.paramCount = paramCount;
+  new->data.func.isMain = isMain;
+  new->data.func.isDefined = isDefined;
+
+  SymtableNode *globalScope = symtable->top;
+  while (globalScope->parent != NULL) {
+    globalScope = globalScope->parent;
+  }
+
+  // insert symbol while checking fail
+  if (!ht_insert(globalScope->table, name, new)) {
     free(new);
     return false;
   }

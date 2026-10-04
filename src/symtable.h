@@ -125,7 +125,9 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
  * @param ret_type Function return type.
  * @return true on succes, false if insertion fails.
  */
-bool st_insert_func(Symtable *symtable, const char *name, DataType ret_type);
+bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
+                    Parameter *params, uint16_t paramCount, bool isMain,
+                    bool isDefined);
 
 /**
  * @brief Find a symbol by name, searching the current and parent scopes.
@@ -133,6 +135,6 @@ bool st_insert_func(Symtable *symtable, const char *name, DataType ret_type);
  * @param name Symbol name.
  * @return The symbol if found, otherwise NULL.
  */
-Symbol *st_lookup(Symtable *symtable, const char *name);
+Symbol *st_get(Symtable *symtable, const char *name);
 
 #endif
