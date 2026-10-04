@@ -69,8 +69,8 @@ typedef struct {
 /**
  * @brief One lexical scope and its parent scope.
  */
-typedef struct {
-  HashTable table;
+typedef struct SymtableNode {
+  HashTable *table;
   struct SymtableNode *parent;
 } SymtableNode;
 
@@ -89,7 +89,7 @@ typedef struct {
 bool st_init(Symtable *symtable);
 
 /**
- * @brief Release all memory owned by a symbol table.
+ * @brief Release all memory owned by a symbol table linked list.
  * @param st Symbol table to free.
  */
 void st_free(Symtable *symtable);
