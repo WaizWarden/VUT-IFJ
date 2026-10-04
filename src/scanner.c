@@ -26,9 +26,14 @@ int is_keyword(char *str);
 typedef enum {
   S_START,
   S_STRING,
+  S_ID,
   S_INT,
 } State;
 
+/* AI usage - Gemini
+    AI was used here to give me a hint on how to create a struct to convert
+   string to keyword
+*/
 typedef struct {
   const char *name;
   Keyword keyword;
@@ -38,6 +43,7 @@ KeywordEntry keyword_table[] = {
     {"Double", KW_DOUBLE}, {"Int", KW_INT}, {"String", KW_STRING},
     {"val", KW_VAL},       {"var", KW_VAR},
 };
+//  End of AI usage
 
 /**
  * @brief Parses stdin and creates token
@@ -100,7 +106,7 @@ Token get_token(FILE *input) {
       }
 
       if (isalpha(current_char) || current_char == '_') {
-        state = S_STRING;
+        state = S_ID;
         str[len] = (char)current_char;
         len++;
         break;
@@ -124,7 +130,7 @@ Token get_token(FILE *input) {
         }
       }
 
-      // check for doouble __
+      // check for double __
       else if ((char)current_char == '_') {
         int next = fgetc(input);
 
@@ -138,12 +144,18 @@ Token get_token(FILE *input) {
         ungetc(current_char, input);
         str[len] = '\0';
 
+        /* AI usage - Gemini
+          AI was used here to move from atoi to strtol and explain difference
+          Prompt: whats the difference between atoi and strtol, convert it to
+          strtol
+        */
         char *end;
         int val = (int)strtol(str, &end, BASE_TEN);
 
         if (end == str || *end != '\0' || errno == ERANGE) {
           fprintf(stderr, "Error while converting to integer");
         }
+        //  End of AI snippet
 
         token.type = TOKEN_INT;
         token.value.numberInt = val;
@@ -152,7 +164,7 @@ Token get_token(FILE *input) {
 
       break;
 
-    case S_STRING:
+    case S_ID:
       if (isalnum(current_char) || current_char == '_') {
         if (len < sizeof(str) - 1) {
           str[len] = (char)current_char;

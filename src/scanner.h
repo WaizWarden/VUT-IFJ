@@ -24,6 +24,9 @@ typedef enum {
 
 } TokenType;
 
+/**
+ * @brief Reserved language keywords
+ */
 typedef enum {
   KW_DOUBLE,
   KW_INT,
@@ -33,6 +36,9 @@ typedef enum {
 
 } Keyword;
 
+/**
+ * @brief Union holding value of a token
+ */
 typedef union {
   Keyword keyword;
   int numberInt;
@@ -42,6 +48,9 @@ typedef union {
 
 } TokenValue;
 
+/**
+ * @brief Structure of a token
+ */
 typedef struct {
   TokenType type;
   TokenValue value;
