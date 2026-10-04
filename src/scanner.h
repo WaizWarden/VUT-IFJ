@@ -21,6 +21,7 @@ typedef enum {
   TOKEN_COLON,
   TOKEN_ASSIGN,
   TOKEN_EOF,
+  TOKEN_ERROR,
 
 } TokenType;
 
