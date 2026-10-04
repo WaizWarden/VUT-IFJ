@@ -176,3 +176,23 @@ bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
 
   return true;
 }
+
+Symbol *st_get(Symtable *symtable, const char *name) {
+  if (!symtable) {
+    return NULL;
+  }
+
+  // go through all scopes
+  SymtableNode *nextScope = symtable->top;
+  Symbol *symbol = NULL;
+  while (nextScope) {
+    symbol = ht_get(nextScope->table, name);
+    if (symbol) {
+      return symbol;
+    }
+
+    nextScope = nextScope->parent;
+  }
+
+  return NULL;
+}
