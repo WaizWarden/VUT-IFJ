@@ -95,3 +95,24 @@ void st_pop_scope(Symtable *symtable) {
   free(toFree->table);
   free(toFree);
 }
+
+bool st_insert_var(Symtable *symtable, const char *name, DataType type,
+                   bool modifiable) {
+  Symbol *new =
+      calloc(1, sizeof(Symbol)); // MUST BE FREED before freeing Hash table
+  if (!new) {
+    return false;
+  }
+
+  new->type = ST_VAR;
+  new->data.var.type = type;
+  new->data.var.modifiable = modifiable;
+
+  // insert symbol while checking fail
+  if(!ht_insert(symtable->top->table, name, new)){
+    free(new);
+    return false;
+  }
+
+  return true;
+}
