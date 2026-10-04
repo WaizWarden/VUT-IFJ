@@ -37,8 +37,9 @@ bool ht_init(HashTable *hashTable, uint32_t size);
 /**
  * @brief Deletes hash table and frees memory
  * @param hashTable Pointer to hash table
+ * @param data_free Callback to free function for data value in hash hable
  */
-void ht_free(HashTable *hashTable);
+void ht_free(HashTable *hashTable, void (*data_free)(void *));
 
 /**
  * @brief Inserts a new key-value pair
