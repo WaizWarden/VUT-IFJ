@@ -153,6 +153,8 @@ void first_iteration(void) {
   printf("\n");
   run_test("Invalid separator #1", "_1", TOKEN_IDENTIFIER, NULL, -1);
   run_test("Invalid separator #2", "12__34", TOKEN_ERROR, NULL, -1);
+  run_test("Invalid Int #2", "12__34x", TOKEN_ERROR, NULL, -1);
+    run_test("Invalid Int #2", "1x2__34x", TOKEN_ERROR, NULL, -1);
   run_test("Starting zero #1", "0123", TOKEN_ERROR, NULL, -1);
   run_test("Starting zero #2", "0", TOKEN_ERROR, NULL, -1);
 

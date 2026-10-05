@@ -25,6 +25,7 @@ typedef enum {
   S_STRING,
   S_ID,
   S_INT,
+  S_DOUBLE,
 } State;
 
 /* AI usage - Gemini
@@ -138,7 +139,7 @@ Token get_token(FILE *input) {
         return token;
       }
 
-      if (currentChar == -1) {
+      if (currentChar == EOF) {
         fprintf(stderr, "Lexer error: %d, Invalid EOF detected\n", LEXER_ERROR);
 
         token.type = TOKEN_ERROR;
@@ -187,50 +188,78 @@ Token get_token(FILE *input) {
 
     case S_INT:
 
-      if (isdigit(currentChar)) {
+      if (!isdigit(currentChar)) {
+        // check for double __
+        if (currentChar == '_') {
+          int next = fgetc(input);
+
+          if (!isdigit(next)) {
+            fprintf(stderr, "Lexer error: %d, double _ in int\n", LEXER_ERROR);
+
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+          ungetc(next, input);
+        }
+
+        else if (currentChar == 'e' || currentChar == 'E' ||
+                 currentChar == '.') {
+          state = S_DOUBLE;
+
+          if (len < sizeof(str) - 1) {
+            str[len] = (char)currentChar;
+            len++;
+          }
+
+          break;
+        }
+
+        else if (currentChar == '+' || currentChar == '-' ||
+                 currentChar == '*' || currentChar == '/' ||
+                 currentChar == '=' || isspace(currentChar) ||
+                 currentChar == EOF) {
+
+
+          str[len] = '\0';
+
+          /* AI usage - Gemini
+            AI was used here to move from atoi to strtol and explain difference
+            Prompt: whats the difference between atoi and strtol, convert it to
+            strtol
+          */
+          char *end;
+          int val = (int)strtol(str, &end, BASE_TEN);
+
+          if (end == str || *end != '\0' || errno == ERANGE) {
+            fprintf(stderr, "Error while converting to integer\n");
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+          //  End of AI snippet
+
+          token.type = TOKEN_INT;
+          token.value.numberInt = val;
+          return token;
+
+        }
+
+        else {
+          fprintf(stderr, "Lexer error: %d, invalid char detected in integer\n",
+                  LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          return token;
+        }
+
+      } else {
         if (len < sizeof(str) - 1) {
           str[len] = (char)currentChar;
           len++;
         }
       }
 
-      // check for double __
-      else if ((char)currentChar == '_') {
-        int next = fgetc(input);
+      break;
 
-        if (!isdigit(next)) {
-          fprintf(stderr, "Lexer error: %d, double _ in int\n", LEXER_ERROR);
-
-          token.type = TOKEN_ERROR;
-          return token;
-        }
-        ungetc(next, input);
-      }
-
-      else {
-        ungetc(currentChar, input);
-        str[len] = '\0';
-
-        /* AI usage - Gemini
-          AI was used here to move from atoi to strtol and explain difference
-          Prompt: whats the difference between atoi and strtol, convert it to
-          strtol
-        */
-        char *end;
-        int val = (int)strtol(str, &end, BASE_TEN);
-
-        if (end == str || *end != '\0' || errno == ERANGE) {
-          fprintf(stderr, "Error while converting to integer\n");
-          token.type = TOKEN_ERROR;
-          return token;
-        }
-        //  End of AI snippet
-
-        token.type = TOKEN_INT;
-        token.value.numberInt = val;
-        return token;
-      }
-
+    case S_DOUBLE:
       break;
 
     case S_ID:
@@ -252,7 +281,6 @@ Token get_token(FILE *input) {
         }
 
         else {
-
           token.type = TOKEN_IDENTIFIER;
           token.value.identifier = strdup(str);
         }
