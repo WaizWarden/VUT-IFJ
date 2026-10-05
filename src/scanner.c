@@ -12,9 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// NOTES:
-// Tell parser that it has to manage negative numbers on its own
-
 //  REMOVE AND MAKE IT VIA MALLOC
 #define TEMPORARY_STR_LEN 1024
 #define LEXER_ERROR 50
@@ -113,9 +110,14 @@ Token get_token(FILE *input) {
       }
 
       if (isdigit(currentChar)) {
+        if (currentChar == '0') {
+          token.type = TOKEN_ERROR;
+          return token;
+        }
         state = S_INT;
         str[len] = (char)currentChar;
         len++;
+
         break;
       }
 
@@ -131,6 +133,13 @@ Token get_token(FILE *input) {
       if (currentChar == '\n') {
         fprintf(stderr, "Lexer error: %d, \\n detected in single line string\n",
                 LEXER_ERROR);
+
+        token.type = TOKEN_ERROR;
+        return token;
+      }
+
+      if (currentChar == -1) {
+        fprintf(stderr, "Lexer error: %d, Invalid EOF detected\n", LEXER_ERROR);
 
         token.type = TOKEN_ERROR;
         return token;
@@ -262,7 +271,7 @@ Token get_token(FILE *input) {
 /**
  * @brief Decides if string is keyword or identifer
  *
- * @param str pointer to string
+ * @param[in] str pointer to string
  * @returns index to keyword_table array if true, -1 if false
  */
 int is_keyword(char *str) {

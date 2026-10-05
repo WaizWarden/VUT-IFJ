@@ -58,4 +58,10 @@ typedef struct {
 
 } Token;
 
+/**
+ * @brief Parses stdin and creates token
+ *
+ * @param[in,out] input Pointer to stdin
+ * @returns Next parsed token
+ */
 Token get_token(FILE *input);
