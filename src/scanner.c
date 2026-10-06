@@ -105,8 +105,20 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '.') {
-        token.type = TOKEN_DOUBLE;
-        return token;
+        int next = fgetc(input);
+        if (isdigit(next)) {
+          str[len] = '.';
+          len++;
+          str[len] = (char)next;
+          len++;
+
+          state = S_DOUBLE;
+        } else {
+          token.type = TOKEN_ERROR;
+          return token;
+        }
+
+        break;
       }
 
       if (isalpha(currentChar) || currentChar == '_') {
@@ -117,10 +129,6 @@ Token get_token(FILE *input) {
       }
 
       if (isdigit(currentChar)) {
-        if (currentChar == '0') {
-          token.type = TOKEN_ERROR;
-          return token;
-        }
         state = S_INT;
         str[len] = (char)currentChar;
         len++;
@@ -281,6 +289,12 @@ Token get_token(FILE *input) {
 
           ungetc(currentChar, input);
           str[len] = '\0';
+
+          // len > 1 because we want to pass "0" not "01"
+          if (str[0] == '0' && len > 1) {
+            token.type = TOKEN_ERROR;
+            return token;
+          }
 
           /* AI usage - Gemini
             AI was used here to move from atoi to strtol and explain
