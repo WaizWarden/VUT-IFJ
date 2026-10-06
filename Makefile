@@ -26,4 +26,4 @@ format:
 	clang-format -i $(ALL_SRCS)
 
 tidy:
-	clang-tidy -checks='bugprone-*,clang-analyzer-*,readability-*,portability-*' $(ALL_SRCS) -- $(CFLAGS)
+	clang-tidy $(ALL_SRCS) -- $(CFLAGS)
