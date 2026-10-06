@@ -9,8 +9,8 @@
 .PHONY: build format tidy docs dev
 CFLAGS = -Wall -Wextra -pedantic
 
-C_SRCS := $(shell find src -name '*.c')
-H_SRCS := $(shell find src -name '*.h')
+C_SRCS := $(shell find src tests -name '*.c')
+H_SRCS := $(shell find src tests -name '*.h')
 ALL_SRCS := $(C_SRCS) $(H_SRCS)
 
 build:
@@ -26,4 +26,4 @@ format:
 	clang-format -i $(ALL_SRCS)
 
 tidy:
-	clang-tidy -checks='bugprone-*,clang-analyzer-*,readability-*,portability-*' $(ALL_SRCS) -- $(CFLAGS)
+	clang-tidy $(ALL_SRCS) -- $(CFLAGS)

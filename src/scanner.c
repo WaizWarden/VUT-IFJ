@@ -1,0 +1,512 @@
+/**
+ * @file    scanner.c
+ * @author  xjuricl01
+ * @brief   Scanner implementation
+ */
+
+#include "scanner.h"
+#include <ctype.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define INITIAL_STR_LEN 1024
+#define REALLOC_CONST 10
+#define LEXER_ERROR 50
+#define INTERPRET_ERROR 60
+#define BASE_TEN 10
+
+int is_keyword(char *str);
+
+// All possible states in FSM
+typedef enum {
+  S_START,
+  S_STRING,
+  S_ID,
+  S_INT,
+  S_DOUBLE,
+  S_MULTI_LINE_STRING,
+} State;
+
+/* AI usage - Gemini
+    AI was used here to give me a hint on how to create a struct to convert
+   string to keyword
+*/
+typedef struct {
+  const char *name;
+  Keyword keyword;
+} KeywordEntry;
+
+KeywordEntry keywordTable[] = {
+    {"Double", KW_DOUBLE}, {"Int", KW_INT}, {"String", KW_STRING},
+    {"val", KW_VAL},       {"var", KW_VAR},
+};
+//  End of AI usage
+
+/**
+ * @brief Parses stdin and creates token
+ *
+ * @param[in,out] input Pointer to stdin
+ * @returns Next parsed token
+ */
+Token get_token(FILE *input) {
+  Token token;
+  State state = S_START;
+
+  int currentChar;
+  char *str = malloc(INITIAL_STR_LEN);
+  size_t capcaity = INITIAL_STR_LEN;
+  size_t len = 0;
+
+  if (str == NULL) {
+    token.type = TOKEN_ERROR;
+    fprintf(stderr, "Error: %d, str malloc failed\n", INTERPRET_ERROR);
+    goto return_token;
+  }
+
+  while (true) {
+    if (len + REALLOC_CONST >= capcaity) {
+      char *tmp = realloc(str, capcaity * 2);
+      if (tmp == NULL) {
+        token.type = TOKEN_ERROR;
+        fprintf(stderr, "Error: %d, tmp malloc failed\n", INTERPRET_ERROR);
+        goto return_token;
+      }
+      str = tmp;
+      capcaity *= 2;
+    }
+
+    currentChar = fgetc(input);
+
+    switch (state) {
+
+    case S_START:
+      if (currentChar == EOF) {
+        token.type = TOKEN_EOF;
+        goto return_token;
+      }
+
+      if (isspace(currentChar)) {
+        break;
+      }
+
+      if (currentChar == '+') {
+        token.type = TOKEN_PLUS;
+        goto return_token;
+      }
+
+      if (currentChar == '-') {
+        token.type = TOKEN_MINUS;
+        goto return_token;
+      }
+
+      if (currentChar == '*') {
+        token.type = TOKEN_MULTIPLY;
+        goto return_token;
+      }
+
+      if (currentChar == '/') {
+        token.type = TOKEN_DIVIDE;
+        goto return_token;
+      }
+
+      if (currentChar == '=') {
+        token.type = TOKEN_ASSIGN;
+        goto return_token;
+      }
+
+      if (currentChar == ':') {
+        token.type = TOKEN_COLON;
+        goto return_token;
+      }
+
+      if (currentChar == '.') {
+        int next = fgetc(input);
+        if (isdigit(next)) {
+          str[len] = '.';
+          len++;
+          str[len] = (char)next;
+          len++;
+
+          state = S_DOUBLE;
+        } else {
+          token.type = TOKEN_ERROR;
+          fprintf(stderr, "Error: %d, invalid double notation\n", LEXER_ERROR);
+          goto return_token;
+        }
+
+        break;
+      }
+
+      if (isalpha(currentChar) || currentChar == '_') {
+        state = S_ID;
+        str[len] = (char)currentChar;
+        len++;
+        break;
+      }
+
+      if (isdigit(currentChar)) {
+        state = S_INT;
+        str[len] = (char)currentChar;
+        len++;
+
+        break;
+      }
+
+      if (currentChar == '"') {
+        state = S_STRING;
+        break;
+      }
+
+      break;
+
+    case S_STRING:
+
+      if (currentChar == '\n') {
+        fprintf(stderr, "Lexer error: %d, \\n detected in single line string\n",
+                LEXER_ERROR);
+
+        token.type = TOKEN_ERROR;
+        goto return_token;
+      }
+
+      else if (currentChar == EOF) {
+        fprintf(stderr, "Lexer error: %d, Invalid EOF single line string\n",
+                LEXER_ERROR);
+        token.type = TOKEN_ERROR;
+        goto return_token;
+      }
+
+      // escape chars
+      else if (currentChar == '\\') {
+        // ungetc not needed
+        int next = fgetc(input);
+
+        if (next == 'n') {
+          str[len] = '\n';
+        }
+
+        else if (next == '\\') {
+          str[len] = '\\';
+        }
+
+        else if (next == '"') {
+          str[len] = '\"';
+        }
+
+        else if (next == 't') {
+          str[len] = '\t';
+        }
+
+        else if (next == 'r') {
+          str[len] = '\r';
+        }
+
+        else {
+          fprintf(stderr, "Lexer error: %d, Invalid escape char \n",
+                  LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          goto return_token;
+        }
+
+        len++;
+        continue;
+      }
+
+      // string end / move to multi-line string
+      else if (currentChar == '"') {
+
+        // third "
+        int next = fgetc(input);
+        if (next == '"') {
+          state = S_MULTI_LINE_STRING;
+
+        } else {
+
+          ungetc(next, input);
+          token.type = TOKEN_STRING;
+          str[len] = '\0';
+          token.value.string = strdup(str);
+          goto return_token;
+        }
+      }
+
+      // Write string to arr
+      else {
+        str[len] = (char)currentChar;
+        len++;
+      }
+
+      break;
+
+    case S_MULTI_LINE_STRING:
+      if (currentChar == EOF) {
+        fprintf(stderr, "Lexer error: %d, Invalid EOF in multi-line string\n",
+                LEXER_ERROR);
+        token.type = TOKEN_ERROR;
+        goto return_token;
+      }
+
+      else if (currentChar == '"') {
+        int next1 = fgetc(input);
+        int next2 = fgetc(input);
+
+        if (next1 == '"' && next2 == '"') {
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+          goto return_token;
+        }
+        ungetc(next2, input);
+        ungetc(next1, input);
+
+        str[len] = (char)currentChar;
+        len++;
+
+      } else {
+
+        str[len] = (char)currentChar;
+        len++;
+      }
+
+      break;
+
+    case S_INT:
+
+      if (!isdigit(currentChar)) {
+        // check for double __
+        if (currentChar == '_') {
+          int next = fgetc(input);
+
+          if (!isdigit(next)) {
+            fprintf(stderr, "Lexer error: %d, double _ in int\n", LEXER_ERROR);
+
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+          ungetc(next, input);
+        }
+
+        else if (currentChar == 'e' || currentChar == 'E' ||
+                 currentChar == '.') {
+          state = S_DOUBLE;
+
+          str[len] = (char)currentChar;
+          len++;
+
+          break;
+        }
+
+        else if (currentChar == '+' || currentChar == '-' ||
+                 currentChar == '*' || currentChar == '/' ||
+                 currentChar == '=' || isspace(currentChar) ||
+                 currentChar == EOF) {
+
+          ungetc(currentChar, input);
+          str[len] = '\0';
+
+          // len > 1 because we want to pass "0" not "01"
+          if (str[0] == '0' && len > 1) {
+            fprintf(stderr, "Error: %d, Int cant start with leading zero\n",
+                    LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+
+          /* AI usage - Gemini
+            AI was used here to move from atoi to strtol and explain
+            difference Prompt: whats the difference between atoi and strtol,
+            convert it to strtol
+          */
+          char *end;
+          int val = (int)strtol(str, &end, BASE_TEN);
+
+          if (end == str || *end != '\0' || errno == ERANGE) {
+            fprintf(stderr, "Error while converting to integer\n");
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+          //  End of AI snippet
+
+          token.type = TOKEN_INT;
+          token.value.numberInt = val;
+          goto return_token;
+        }
+
+        else {
+          fprintf(stderr, "Lexer error: %d, invalid char detected in integer\n",
+                  LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          goto return_token;
+        }
+      } else {
+
+        str[len] = (char)currentChar;
+        len++;
+      }
+
+      break;
+
+    case S_DOUBLE:
+
+      // Check for multiple E e . and invalid chars
+      if (!isdigit(currentChar)) {
+        if (currentChar == 'e' || currentChar == 'E' || currentChar == '.') {
+          for (size_t i = 0; i < len; i++) {
+            if (str[i] == 'e' || str[i] == 'E' ||
+                (currentChar == '.' && str[i] == '.')) {
+              fprintf(stderr,
+                      "Error: %d, multiple exponents in double format\n",
+                      LEXER_ERROR);
+              token.type = TOKEN_ERROR;
+              goto return_token;
+            }
+          }
+
+          // e/E/. cant be next to each other
+          if (!isdigit(str[len - 1])) {
+            fprintf(stderr, "Error: %d, exponents and dot next to each other\n",
+                    LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+
+          str[len++] = (char)currentChar;
+
+        }
+
+        // +- after e/E
+        else if ((currentChar == '+' || currentChar == '-') &&
+                 (str[len - 1] == 'e' || str[len - 1] == 'E')) {
+
+          str[len] = (char)currentChar;
+          len++;
+
+        }
+
+        // Underscore between digits
+        else if (currentChar == '_') {
+          int next = fgetc(input);
+          if (!isdigit(str[len - 1]) || !isdigit(next)) {
+            fprintf(stderr, "Error: %d, underscore is not between digits\n",
+                    LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+          ungetc(next, input);
+        }
+
+        // d / D suffix
+        else if (currentChar == 'd' || currentChar == 'D') {
+          int next = fgetc(input);
+
+          if (next != EOF && (!isdigit(str[len - 1]) || isdigit(next))) {
+            fprintf(stderr, "Error: %d, invalid suffix\n", LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+
+          ungetc(next, input);
+
+          str[len] = '\0';
+          token.type = TOKEN_DOUBLE;
+          token.value.numberDouble = strtod(str, NULL);
+          goto return_token;
+        }
+
+        // new token
+        else if (currentChar == '+' || currentChar == '-' ||
+                 currentChar == '*' || currentChar == '/' ||
+                 currentChar == '=' || isspace(currentChar) ||
+                 currentChar == EOF) {
+
+          // literal ends on e/E/.
+          if (!isdigit(str[len - 1])) {
+            fprintf(stderr, "Error: %d, double ends on exponent\n",
+                    LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
+
+          ungetc(currentChar, input);
+          str[len] = '\0';
+
+          token.type = TOKEN_DOUBLE;
+          token.value.numberDouble = strtod(str, NULL);
+          goto return_token;
+        }
+
+        else {
+          fprintf(stderr, "Error: %d, Random suffix/unknown error in double\n",
+                  LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          goto return_token;
+        }
+      }
+
+      // Write digit
+      else {
+
+        str[len] = (char)currentChar;
+        len++;
+      }
+
+      break;
+
+    case S_ID:
+      if (isalnum(currentChar) || currentChar == '_') {
+
+        str[len] = (char)currentChar;
+        len++;
+
+      }
+
+      else {
+        ungetc(currentChar, input);
+        str[len] = '\0';
+
+        int key = is_keyword(str);
+        if (key != -1) {
+          token.type = TOKEN_KEYWORD;
+          token.value.keyword = keywordTable[key].keyword;
+        }
+
+        else {
+          token.type = TOKEN_IDENTIFIER;
+          token.value.identifier = strdup(str);
+        }
+
+        goto return_token;
+      }
+
+      break;
+
+    default:
+      printf("'%c' Fell through\n", currentChar);
+    }
+  }
+return_token:
+  free(str);
+  return token;
+}
+
+/**
+ * @brief Decides if string is keyword or identifer
+ *
+ * @param[in] str pointer to string
+ * @returns index to keyword_table array if true, -1 if false
+ */
+int is_keyword(char *str) {
+
+  int size = sizeof(keywordTable) / sizeof(keywordTable[0]);
+
+  for (int i = 0; i < size; i++) {
+    if (strcmp(str, keywordTable[i].name) == 0) {
+      return i;
+    }
+  }
+
+  return -1;
+}
