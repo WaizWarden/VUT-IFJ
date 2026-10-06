@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* AI usage - Gemini
@@ -46,6 +47,9 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
 
   if (token.type == TOKEN_STRING || token.type == TOKEN_IDENTIFIER) {
 
+    char *str_ptr = (token.type == TOKEN_STRING) ? token.value.string
+                                                 : token.value.identifier;
+
     if (expectedOutput == NULL) {
       outputOk = true;
     }
@@ -77,6 +81,7 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
       printf("Test: %s Failed, expected: %s; got %s\n", testName,
              expectedOutput, token.value.string);
     }
+    free(str_ptr);
   }
 
   else if (token.type == TOKEN_INT || token.type == TOKEN_DOUBLE) {

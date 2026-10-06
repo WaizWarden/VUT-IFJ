@@ -12,8 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-//  REMOVE AND MAKE IT VIA MALLOC
-#define TEMPORARY_STR_LEN 1024
+#define INITIAL_STR_LEN 1024
+#define REALLOC_CONST 10
 #define LEXER_ERROR 50
 #define BASE_TEN 10
 
@@ -54,12 +54,22 @@ Token get_token(FILE *input) {
   Token token;
   State state = S_START;
 
-  char str[TEMPORARY_STR_LEN] = "";
+  int currentChar;
+  char *str = malloc(INITIAL_STR_LEN);
+  size_t capcaity = INITIAL_STR_LEN;
   size_t len = 0;
 
-  int currentChar;
-
   while (true) {
+    if (len + REALLOC_CONST >= capcaity) {
+      char *tmp = realloc(str, capcaity * 2);
+      if (tmp == NULL) {
+        token.type = TOKEN_ERROR;
+        goto return_token;
+      }
+      str = tmp;
+      capcaity *= 2;
+    }
+
     currentChar = fgetc(input);
 
     switch (state) {
@@ -67,7 +77,7 @@ Token get_token(FILE *input) {
     case S_START:
       if (currentChar == EOF) {
         token.type = TOKEN_EOF;
-        return token;
+        goto return_token;
       }
 
       if (isspace(currentChar)) {
@@ -76,32 +86,32 @@ Token get_token(FILE *input) {
 
       if (currentChar == '+') {
         token.type = TOKEN_PLUS;
-        return token;
+        goto return_token;
       }
 
       if (currentChar == '-') {
         token.type = TOKEN_MINUS;
-        return token;
+        goto return_token;
       }
 
       if (currentChar == '*') {
         token.type = TOKEN_MULTIPLY;
-        return token;
+        goto return_token;
       }
 
       if (currentChar == '/') {
         token.type = TOKEN_DIVIDE;
-        return token;
+        goto return_token;
       }
 
       if (currentChar == '=') {
         token.type = TOKEN_ASSIGN;
-        return token;
+        goto return_token;
       }
 
       if (currentChar == ':') {
         token.type = TOKEN_COLON;
-        return token;
+        goto return_token;
       }
 
       if (currentChar == '.') {
@@ -115,7 +125,7 @@ Token get_token(FILE *input) {
           state = S_DOUBLE;
         } else {
           token.type = TOKEN_ERROR;
-          return token;
+          goto return_token;
         }
 
         break;
@@ -150,14 +160,14 @@ Token get_token(FILE *input) {
                 LEXER_ERROR);
 
         token.type = TOKEN_ERROR;
-        return token;
+        goto return_token;
       }
 
       else if (currentChar == EOF) {
         fprintf(stderr, "Lexer error: %d, Invalid EOF single line string\n",
                 LEXER_ERROR);
         token.type = TOKEN_ERROR;
-        return token;
+        goto return_token;
       }
 
       // escape chars
@@ -189,7 +199,7 @@ Token get_token(FILE *input) {
           fprintf(stderr, "Lexer error: %d, Invalid escape char \n",
                   LEXER_ERROR);
           token.type = TOKEN_ERROR;
-          return token;
+          goto return_token;
         }
 
         len++;
@@ -210,7 +220,7 @@ Token get_token(FILE *input) {
           token.type = TOKEN_STRING;
           str[len] = '\0';
           token.value.string = strdup(str);
-          return token;
+          goto return_token;
         }
       }
 
@@ -227,7 +237,7 @@ Token get_token(FILE *input) {
         fprintf(stderr, "Lexer error: %d, Invalid EOF in multi-line string\n",
                 LEXER_ERROR);
         token.type = TOKEN_ERROR;
-        return token;
+        goto return_token;
       }
 
       else if (currentChar == '"') {
@@ -238,7 +248,7 @@ Token get_token(FILE *input) {
           str[len] = '\0';
           token.type = TOKEN_STRING;
           token.value.string = strdup(str);
-          return token;
+          goto return_token;
         }
         ungetc(next2, input);
         ungetc(next1, input);
@@ -265,7 +275,7 @@ Token get_token(FILE *input) {
             fprintf(stderr, "Lexer error: %d, double _ in int\n", LEXER_ERROR);
 
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
           ungetc(next, input);
         }
@@ -274,10 +284,8 @@ Token get_token(FILE *input) {
                  currentChar == '.') {
           state = S_DOUBLE;
 
-          if (len < sizeof(str) - 1) {
-            str[len] = (char)currentChar;
-            len++;
-          }
+          str[len] = (char)currentChar;
+          len++;
 
           break;
         }
@@ -293,7 +301,7 @@ Token get_token(FILE *input) {
           // len > 1 because we want to pass "0" not "01"
           if (str[0] == '0' && len > 1) {
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
 
           /* AI usage - Gemini
@@ -307,26 +315,25 @@ Token get_token(FILE *input) {
           if (end == str || *end != '\0' || errno == ERANGE) {
             fprintf(stderr, "Error while converting to integer\n");
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
           //  End of AI snippet
 
           token.type = TOKEN_INT;
           token.value.numberInt = val;
-          return token;
+          goto return_token;
         }
 
         else {
           fprintf(stderr, "Lexer error: %d, invalid char detected in integer\n",
                   LEXER_ERROR);
           token.type = TOKEN_ERROR;
-          return token;
+          goto return_token;
         }
       } else {
-        if (len < sizeof(str) - 1) {
-          str[len] = (char)currentChar;
-          len++;
-        }
+
+        str[len] = (char)currentChar;
+        len++;
       }
 
       break;
@@ -340,29 +347,27 @@ Token get_token(FILE *input) {
             if (str[i] == 'e' || str[i] == 'E' ||
                 (currentChar == '.' && str[i] == '.')) {
               token.type = TOKEN_ERROR;
-              return token;
+              goto return_token;
             }
           }
 
           // e/E/. cant be next to each other
           if (!isdigit(str[len - 1])) {
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
 
-          if (len < sizeof(str) - 1) {
-            str[len++] = (char)currentChar;
-          }
+          str[len++] = (char)currentChar;
+
         }
 
         // +- after e/E
         else if ((currentChar == '+' || currentChar == '-') &&
                  (str[len - 1] == 'e' || str[len - 1] == 'E')) {
 
-          if (len < sizeof(str) - 1) {
-            str[len] = (char)currentChar;
-            len++;
-          }
+          str[len] = (char)currentChar;
+          len++;
+
         }
 
         // Underscore between digits
@@ -370,7 +375,7 @@ Token get_token(FILE *input) {
           int next = fgetc(input);
           if (!isdigit(str[len - 1]) || !isdigit(next)) {
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
           ungetc(next, input);
         }
@@ -379,9 +384,9 @@ Token get_token(FILE *input) {
         else if (currentChar == 'd' || currentChar == 'D') {
           int next = fgetc(input);
 
-          if (next != EOF && (!isdigit(str[len - 1] || isdigit(next)))) {
+          if (next != EOF && (!isdigit(str[len - 1]) || isdigit(next))) {
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
 
           ungetc(next, input);
@@ -389,7 +394,7 @@ Token get_token(FILE *input) {
           str[len] = '\0';
           token.type = TOKEN_DOUBLE;
           token.value.numberDouble = strtod(str, NULL);
-          return token;
+          goto return_token;
         }
 
         // new token
@@ -401,7 +406,7 @@ Token get_token(FILE *input) {
           // literal ends on e/E/.
           if (!isdigit(str[len - 1])) {
             token.type = TOKEN_ERROR;
-            return token;
+            goto return_token;
           }
 
           ungetc(currentChar, input);
@@ -409,31 +414,30 @@ Token get_token(FILE *input) {
 
           token.type = TOKEN_DOUBLE;
           token.value.numberDouble = strtod(str, NULL);
-          return token;
+          goto return_token;
         }
 
         else {
           token.type = TOKEN_ERROR;
-          return token;
+          goto return_token;
         }
       }
 
       // Write digit
       else {
-        if (len < sizeof(str) - 1) {
-          str[len] = (char)currentChar;
-          len++;
-        }
+
+        str[len] = (char)currentChar;
+        len++;
       }
 
       break;
 
     case S_ID:
       if (isalnum(currentChar) || currentChar == '_') {
-        if (len < sizeof(str) - 1) {
-          str[len] = (char)currentChar;
-          len++;
-        }
+
+        str[len] = (char)currentChar;
+        len++;
+
       }
 
       else {
@@ -451,7 +455,7 @@ Token get_token(FILE *input) {
           token.value.identifier = strdup(str);
         }
 
-        return token;
+        goto return_token;
       }
 
       break;
@@ -460,6 +464,9 @@ Token get_token(FILE *input) {
       printf("'%c' Fell through\n", currentChar);
     }
   }
+return_token:
+  free(str);
+  return token;
 }
 
 /**
