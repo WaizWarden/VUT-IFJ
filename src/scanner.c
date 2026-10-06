@@ -103,6 +103,11 @@ Token get_token(FILE *input) {
         return token;
       }
 
+      if (currentChar == '.') {
+        token.type = TOKEN_DOUBLE;
+        return token;
+      }
+
       if (isalpha(currentChar) || currentChar == '_') {
         state = S_ID;
         str[len] = (char)currentChar;
@@ -219,7 +224,7 @@ Token get_token(FILE *input) {
                  currentChar == '=' || isspace(currentChar) ||
                  currentChar == EOF) {
 
-
+          ungetc(currentChar, input);
           str[len] = '\0';
 
           /* AI usage - Gemini
@@ -240,7 +245,6 @@ Token get_token(FILE *input) {
           token.type = TOKEN_INT;
           token.value.numberInt = val;
           return token;
-
         }
 
         else {
@@ -249,7 +253,6 @@ Token get_token(FILE *input) {
           token.type = TOKEN_ERROR;
           return token;
         }
-
       } else {
         if (len < sizeof(str) - 1) {
           str[len] = (char)currentChar;
@@ -260,6 +263,100 @@ Token get_token(FILE *input) {
       break;
 
     case S_DOUBLE:
+
+      // Check for multiple E e . and invalid chars
+      if (!isdigit(currentChar)) {
+        if (currentChar == 'e' || currentChar == 'E' || currentChar == '.') {
+          for (size_t i = 0; i < len; i++) {
+            if (str[i] == 'e' || str[i] == 'E' ||
+                (currentChar == '.' && str[i] == '.')) {
+              token.type = TOKEN_ERROR;
+              return token;
+            }
+          }
+
+          // e/E/. cant be next to each other
+          if (!isdigit(str[len - 1])) {
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+
+          if (len < sizeof(str) - 1) {
+            str[len++] = currentChar;
+          }
+        }
+
+        // +- after e/E
+        else if ((currentChar == '+' || currentChar == '-') &&
+                 (str[len - 1] == 'e' || str[len - 1] == 'E')) {
+
+          if (len < sizeof(str) - 1) {
+            str[len] = currentChar;
+            len++;
+          }
+        }
+
+        // Underscore between digits
+        else if (currentChar == '_') {
+          int next = getc(input);
+          if (!isdigit(str[len - 1]) || !isdigit(next)) {
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+          ungetc(next, input);
+        }
+
+        // d / D suffix
+        else if (currentChar == 'd' || currentChar == 'D') {
+          int next = getc(input);
+ 
+          if (next != EOF && (!isdigit(str[len - 1] || isdigit(next)))) {
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+
+          ungetc(next, input);
+
+          str[len] = '\0';
+          token.type = TOKEN_DOUBLE;
+          token.value.numberDouble = strtod(str, NULL);
+          return token;
+        }
+
+        // new token
+        else if (currentChar == '+' || currentChar == '-' ||
+                 currentChar == '*' || currentChar == '/' ||
+                 currentChar == '=' || isspace(currentChar) ||
+                 currentChar == EOF) {
+
+          // literal ends on e/E/.
+          if (!isdigit(str[len - 1])) {
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+
+          ungetc(currentChar, input);
+          str[len] = '\0';
+
+          token.type = TOKEN_DOUBLE;
+          token.value.numberDouble = strtod(str, NULL);
+          return token;
+        }
+
+        else {
+          token.type = TOKEN_ERROR;
+          return token;
+        }
+      }
+
+      // Write digit
+      else {
+        if (len < sizeof(str) - 1) {
+          str[len] = (char)currentChar;
+          len++;
+        }
+      }
+
       break;
 
     case S_ID:
