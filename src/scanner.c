@@ -15,6 +15,7 @@
 #define INITIAL_STR_LEN 1024
 #define REALLOC_CONST 10
 #define LEXER_ERROR 50
+#define INTERPRET_ERROR 60
 #define BASE_TEN 10
 
 int is_keyword(char *str);
@@ -59,11 +60,18 @@ Token get_token(FILE *input) {
   size_t capcaity = INITIAL_STR_LEN;
   size_t len = 0;
 
+  if (str == NULL) {
+    token.type = TOKEN_ERROR;
+    fprintf(stderr, "Error: %d, str malloc failed\n", INTERPRET_ERROR);
+    goto return_token;
+  }
+
   while (true) {
     if (len + REALLOC_CONST >= capcaity) {
       char *tmp = realloc(str, capcaity * 2);
       if (tmp == NULL) {
         token.type = TOKEN_ERROR;
+        fprintf(stderr, "Error: %d, tmp malloc failed\n", INTERPRET_ERROR);
         goto return_token;
       }
       str = tmp;
@@ -125,6 +133,7 @@ Token get_token(FILE *input) {
           state = S_DOUBLE;
         } else {
           token.type = TOKEN_ERROR;
+          fprintf(stderr, "Error: %d, invalid double notation\n", LEXER_ERROR);
           goto return_token;
         }
 
@@ -300,6 +309,8 @@ Token get_token(FILE *input) {
 
           // len > 1 because we want to pass "0" not "01"
           if (str[0] == '0' && len > 1) {
+            fprintf(stderr, "Error: %d, Int cant start with leading zero\n",
+                    LEXER_ERROR);
             token.type = TOKEN_ERROR;
             goto return_token;
           }
@@ -346,6 +357,9 @@ Token get_token(FILE *input) {
           for (size_t i = 0; i < len; i++) {
             if (str[i] == 'e' || str[i] == 'E' ||
                 (currentChar == '.' && str[i] == '.')) {
+              fprintf(stderr,
+                      "Error: %d, multiple exponents in double format\n",
+                      LEXER_ERROR);
               token.type = TOKEN_ERROR;
               goto return_token;
             }
@@ -353,6 +367,8 @@ Token get_token(FILE *input) {
 
           // e/E/. cant be next to each other
           if (!isdigit(str[len - 1])) {
+            fprintf(stderr, "Error: %d, exponents and dot next to each other\n",
+                    LEXER_ERROR);
             token.type = TOKEN_ERROR;
             goto return_token;
           }
@@ -374,6 +390,8 @@ Token get_token(FILE *input) {
         else if (currentChar == '_') {
           int next = fgetc(input);
           if (!isdigit(str[len - 1]) || !isdigit(next)) {
+            fprintf(stderr, "Error: %d, underscore is not between digits\n",
+                    LEXER_ERROR);
             token.type = TOKEN_ERROR;
             goto return_token;
           }
@@ -385,6 +403,7 @@ Token get_token(FILE *input) {
           int next = fgetc(input);
 
           if (next != EOF && (!isdigit(str[len - 1]) || isdigit(next))) {
+            fprintf(stderr, "Error: %d, invalid suffix\n", LEXER_ERROR);
             token.type = TOKEN_ERROR;
             goto return_token;
           }
@@ -405,6 +424,8 @@ Token get_token(FILE *input) {
 
           // literal ends on e/E/.
           if (!isdigit(str[len - 1])) {
+            fprintf(stderr, "Error: %d, double ends on exponent\n",
+                    LEXER_ERROR);
             token.type = TOKEN_ERROR;
             goto return_token;
           }
@@ -418,6 +439,8 @@ Token get_token(FILE *input) {
         }
 
         else {
+          fprintf(stderr, "Error: %d, Random suffix/unknown error in double\n",
+                  LEXER_ERROR);
           token.type = TOKEN_ERROR;
           goto return_token;
         }
