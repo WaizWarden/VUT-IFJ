@@ -26,6 +26,7 @@ typedef enum {
   S_ID,
   S_INT,
   S_DOUBLE,
+  S_MULTI_LINE_STRING,
 } State;
 
 /* AI usage - Gemini
@@ -144,15 +145,17 @@ Token get_token(FILE *input) {
         return token;
       }
 
-      if (currentChar == EOF) {
-        fprintf(stderr, "Lexer error: %d, Invalid EOF detected\n", LEXER_ERROR);
-
+      else if (currentChar == EOF) {
+        fprintf(stderr, "Lexer error: %d, Invalid EOF single line string\n",
+                LEXER_ERROR);
         token.type = TOKEN_ERROR;
         return token;
       }
 
-      if (currentChar == '\\') {
-        char next = (char)fgetc(input);
+      // escape chars
+      else if (currentChar == '\\') {
+        // ungetc not needed
+        int next = fgetc(input);
 
         if (next == 'n')
           str[len] = '\n';
@@ -180,15 +183,64 @@ Token get_token(FILE *input) {
         continue;
       }
 
-      if (currentChar == '"') {
-        token.type = TOKEN_STRING;
-        str[len] = '\0';
-        token.value.string = strdup(str);
+      // string end / move to multi-line string
+      else if (currentChar == '"') {
+
+        // third "
+        int next = fgetc(input);
+        if (next == '"') {
+          state = S_MULTI_LINE_STRING;
+          break;
+
+        } else {
+
+          ungetc(next, input);
+          token.type = TOKEN_STRING;
+          str[len] = '\0';
+          token.value.string = strdup(str);
+          return token;
+        }
+      }
+
+      // Write string to arr
+      else {
+        str[len] = (char)currentChar;
+        len++;
+      }
+
+      break;
+
+    case S_MULTI_LINE_STRING:
+      if (currentChar == EOF) {
+        fprintf(stderr, "Lexer error: %d, Invalid EOF in multi-line string\n",
+                LEXER_ERROR);
+        token.type = TOKEN_ERROR;
         return token;
       }
 
-      str[len] = currentChar;
-      len++;
+      else if (currentChar == '"') {
+        int next1 = fgetc(input);
+        int next2 = fgetc(input);
+
+        if (next1 == '"' && next2 == '"') {
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+          return token;
+        } else {
+          ungetc(next2, input);
+          ungetc(next1, input);
+
+          str[len] = (char)currentChar;
+          len++;
+        }
+
+      } else {
+
+        str[len] = (char)currentChar;
+        len++;
+      }
+
       break;
 
     case S_INT:
@@ -228,9 +280,9 @@ Token get_token(FILE *input) {
           str[len] = '\0';
 
           /* AI usage - Gemini
-            AI was used here to move from atoi to strtol and explain difference
-            Prompt: whats the difference between atoi and strtol, convert it to
-            strtol
+            AI was used here to move from atoi to strtol and explain
+            difference Prompt: whats the difference between atoi and strtol,
+            convert it to strtol
           */
           char *end;
           int val = (int)strtol(str, &end, BASE_TEN);
@@ -282,7 +334,7 @@ Token get_token(FILE *input) {
           }
 
           if (len < sizeof(str) - 1) {
-            str[len++] = currentChar;
+            str[len++] = (char)currentChar;
           }
         }
 
@@ -291,14 +343,14 @@ Token get_token(FILE *input) {
                  (str[len - 1] == 'e' || str[len - 1] == 'E')) {
 
           if (len < sizeof(str) - 1) {
-            str[len] = currentChar;
+            str[len] = (char)currentChar;
             len++;
           }
         }
 
         // Underscore between digits
         else if (currentChar == '_') {
-          int next = getc(input);
+          int next = fgetc(input);
           if (!isdigit(str[len - 1]) || !isdigit(next)) {
             token.type = TOKEN_ERROR;
             return token;
@@ -308,8 +360,8 @@ Token get_token(FILE *input) {
 
         // d / D suffix
         else if (currentChar == 'd' || currentChar == 'D') {
-          int next = getc(input);
- 
+          int next = fgetc(input);
+
           if (next != EOF && (!isdigit(str[len - 1] || isdigit(next)))) {
             token.type = TOKEN_ERROR;
             return token;

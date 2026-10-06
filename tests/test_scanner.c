@@ -133,6 +133,7 @@ void first_iteration(void) {
   run_test("Operator multiply", "*", TOKEN_MULTIPLY, NULL, -1, -1);
   run_test("Operator divide", "/", TOKEN_DIVIDE, NULL, -1, -1);
   run_test("Operator assign", "=", TOKEN_ASSIGN, NULL, -1, -1);
+  run_test("Colon", ":", TOKEN_COLON, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic string", "\"Hello World\"", TOKEN_STRING, "Hello World", -1,
@@ -173,7 +174,6 @@ void first_iteration(void) {
   run_test("Invalid Int #2", "1x2__34x", TOKEN_ERROR, NULL, -1, -1);
   run_test("Starting zero", "0123", TOKEN_ERROR, NULL, -1, -1);
 
-
   printf("\n");
   run_test("Double simple", "3.14", TOKEN_DOUBLE, NULL, -1, 3.14);
   run_test("Zero", "0.0", TOKEN_DOUBLE, NULL, -1, 0.0);
@@ -196,7 +196,17 @@ void first_iteration(void) {
   run_test("Random suffix", "3.14s", TOKEN_ERROR, NULL, -1, -1);
   run_test("Dot", ".", TOKEN_ERROR, NULL, -1, -1);
 
-
   printf("\n");
+  run_test("Multi simple", "\"\"\"abc\"\"\"", TOKEN_STRING, "abc", -1, -1);
+  run_test("Multi empty", "\"\"\"\"\"\"", TOKEN_STRING, "", -1, -1);
+  run_test("Multi newline", "\"\"\"a\nb\"\"\"", TOKEN_STRING, "a\nb", -1, -1);
+  run_test("Multi no esc", "\"\"\"a\\nb\"\"\"", TOKEN_STRING, "a\\nb", -1, -1);
+  run_test("Multi one q", "\"\"\"a\"b\"\"\"", TOKEN_STRING, "a\"b", -1, -1);
+  run_test("Multi two q", "\"\"\"a\"\"b\"\"\"", TOKEN_STRING, "a\"\"b", -1, -1);
+  run_test("Multi spec", "\"\"\"H\nello w\\orld\n\"\"\"", TOKEN_STRING,
+           "H\nello w\\orld\n", -1, -1);
+  run_test("Multi no end", "\"\"\"abc", TOKEN_ERROR, NULL, -1, -1);
+
+    printf("\n");
   printf("Scanner tests done\n");
 }
