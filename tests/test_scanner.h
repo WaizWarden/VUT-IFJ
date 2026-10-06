@@ -7,4 +7,4 @@
 /**
  * @brief Tests for first iteration
  */
-void first_iteration();
+void first_iteration(void);

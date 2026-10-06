@@ -16,6 +16,8 @@
     problem is that it needs a file on stdin and i dont want to create files
 */
 
+// NOLINTBEGIN
+
 /**
  * @brief Creates a virtual file containg testing data and tests scanner, prints
  * results to screen
@@ -77,25 +79,23 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
     }
   }
 
-  else if (token.type == TOKEN_INT || TOKEN_DOUBLE) {
-    if (expectedInt == -1) {
-      outputOk = true;
-    }
+  else if (token.type == TOKEN_INT || token.type == TOKEN_DOUBLE) {
 
-    else if (expectedDouble == -1) {
-      outputOk = true;
+    if (expectedTokenType == TOKEN_INT) {
+      if (expectedInt == token.value.numberInt) {
+        outputOk = true;
+      }
+      if (expectedInt == -1) {
+        outputOk = true;
+      }
     }
 
     else {
-      if (expectedTokenType == TOKEN_INT) {
-        if (expectedInt == token.value.numberInt)
-          outputOk = true;
+      if (expectedDouble == token.value.numberDouble) {
+        outputOk = true;
       }
-
-      else {
-        if (expectedDouble == token.value.numberDouble) {
-          outputOk = true;
-        }
+      if (expectedDouble == -1) {
+        outputOk = true;
       }
     }
 
@@ -207,6 +207,7 @@ void first_iteration(void) {
            "H\nello w\\orld\n", -1, -1);
   run_test("Multi no end", "\"\"\"abc", TOKEN_ERROR, NULL, -1, -1);
 
-    printf("\n");
+  printf("\n");
   printf("Scanner tests done\n");
 }
+// NOLINTEND

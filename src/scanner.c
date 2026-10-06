@@ -157,20 +157,25 @@ Token get_token(FILE *input) {
         // ungetc not needed
         int next = fgetc(input);
 
-        if (next == 'n')
+        if (next == 'n') {
           str[len] = '\n';
+        }
 
-        else if (next == '\\')
+        else if (next == '\\') {
           str[len] = '\\';
+        }
 
-        else if (next == '"')
+        else if (next == '"') {
           str[len] = '\"';
+        }
 
-        else if (next == 't')
+        else if (next == 't') {
           str[len] = '\t';
+        }
 
-        else if (next == 'r')
+        else if (next == 'r') {
           str[len] = '\r';
+        }
 
         else {
           fprintf(stderr, "Lexer error: %d, Invalid escape char \n",
@@ -190,7 +195,6 @@ Token get_token(FILE *input) {
         int next = fgetc(input);
         if (next == '"') {
           state = S_MULTI_LINE_STRING;
-          break;
 
         } else {
 
@@ -227,13 +231,12 @@ Token get_token(FILE *input) {
           token.type = TOKEN_STRING;
           token.value.string = strdup(str);
           return token;
-        } else {
-          ungetc(next2, input);
-          ungetc(next1, input);
-
-          str[len] = (char)currentChar;
-          len++;
         }
+        ungetc(next2, input);
+        ungetc(next1, input);
+
+        str[len] = (char)currentChar;
+        len++;
 
       } else {
 
