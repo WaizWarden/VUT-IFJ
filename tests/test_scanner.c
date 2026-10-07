@@ -139,6 +139,18 @@ void first_iteration(void) {
   run_test("Operator divide", "/", TOKEN_DIVIDE, NULL, -1, -1);
   run_test("Operator assign", "=", TOKEN_ASSIGN, NULL, -1, -1);
   run_test("Colon", ":", TOKEN_COLON, NULL, -1, -1);
+  run_test("Operator equal", "==", TOKEN_EQ, NULL, -1, -1);
+  run_test("Operator not equal", "!=", TOKEN_NOT_EQ, NULL, -1, -1);
+  run_test("Operator not", "!", TOKEN_NOT, NULL, -1, -1);
+  run_test("Operator lower", "<", TOKEN_LOWER, NULL, -1, -1);
+  run_test("Operator lower or equal", "<=", TOKEN_LOWER_EQ, NULL, -1, -1);
+  run_test("Operator greater", ">", TOKEN_GREAER, NULL, -1, -1);
+  run_test("Operator greater or equal", ">=", TOKEN_GREATER_EQ, NULL, -1, -1);
+  run_test("Semicolon", ";", TOKEN_SEMICOLON, NULL, -1, -1);
+  run_test("Opening bracket", "(", TOKEN_OPENING_BRACKET, NULL, -1, -1);
+  run_test("Closing bracket", ")", TOKEN_CLOSING_BRACKET, NULL, -1, -1);
+  run_test("Newline outside brackets", "\n", TOKEN_NEWLINE, NULL, -1, -1);
+  run_test("Unmatched closing bracket error", ")", TOKEN_ERROR, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic string", "\"Hello World\"", TOKEN_STRING, "Hello World", -1,
@@ -164,6 +176,7 @@ void first_iteration(void) {
   run_test("Identifer double", "double", TOKEN_IDENTIFIER, "double", -1, -1);
   run_test("Identifer Random", "RanDom", TOKEN_IDENTIFIER, "RanDom", -1, -1);
   run_test("Identifer Hello", "HELLO", TOKEN_IDENTIFIER, "HELLO", -1, -1);
+  run_test("Identifier _", "_", TOKEN_ERROR, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic int", "1234", TOKEN_INT, NULL, 1234, -1);

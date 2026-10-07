@@ -14,8 +14,8 @@
 
 #define INITIAL_STR_LEN 1024
 #define REALLOC_CONST 10
-#define LEXER_ERROR 50
-#define INTERPRET_ERROR 60
+#define LEXER_ERROR 1
+#define INTERPRET_ERROR 99
 #define BASE_TEN 10
 
 int is_keyword(char *str);
