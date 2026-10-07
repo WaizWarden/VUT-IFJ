@@ -550,6 +550,12 @@ Token get_token(FILE *input) {
         }
 
         else {
+          if (strcmp(str, "_") == 0) {
+            fprintf(stderr, "Error: %d, '_' is not valid identifier\n",
+                    LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
           token.type = TOKEN_IDENTIFIER;
           token.value.identifier = strdup(str);
         }
