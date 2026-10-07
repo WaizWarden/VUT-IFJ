@@ -45,6 +45,8 @@ KeywordEntry keywordTable[] = {
 };
 //  End of AI usage
 
+static int bracketDepth = 0;
+
 /**
  * @brief Parses stdin and creates token
  *
@@ -88,6 +90,15 @@ Token get_token(FILE *input) {
         goto return_token;
       }
 
+      if (currentChar == '\n') {
+        if (bracketDepth == 0) {
+          token.type = TOKEN_NEWLINE;
+          goto return_token;
+        }
+
+        break;
+      }
+
       if (isspace(currentChar)) {
         break;
       }
@@ -113,12 +124,77 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '=') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
         token.type = TOKEN_ASSIGN;
+        goto return_token;
+      }
+
+      if (currentChar == '>') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_GREATER_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
+        token.type = TOKEN_GREAER;
+        goto return_token;
+      }
+
+      if (currentChar == '<') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_LOWER_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
+        token.type = TOKEN_LOWER;
+        goto return_token;
+      }
+
+      if (currentChar == '!') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_NOT_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
+        token.type = TOKEN_NOT;
         goto return_token;
       }
 
       if (currentChar == ':') {
         token.type = TOKEN_COLON;
+        goto return_token;
+      }
+
+      if (currentChar == ';') {
+        token.type = TOKEN_SEMICOLON;
+        goto return_token;
+      }
+
+      if (currentChar == '(') {
+        bracketDepth++;
+        token.type = TOKEN_OPENING_BRACKET;
+        goto return_token;
+      }
+
+      if (currentChar == ')') {
+        if (bracketDepth == 0) {
+          fprintf(stderr, "Error %d, Invalid closing bracket\n", LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          goto return_token;
+        }
+        bracketDepth--;
+        token.type = TOKEN_CLOSING_BRACKET;
         goto return_token;
       }
 
