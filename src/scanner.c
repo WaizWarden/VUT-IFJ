@@ -19,6 +19,7 @@
 #define BASE_TEN 10
 
 int is_keyword(char *str);
+bool number_token_end(int currentChar);
 
 // All possible states in FSM
 typedef enum {
@@ -236,6 +237,10 @@ Token get_token(FILE *input) {
         break;
       }
 
+      fprintf(stderr, "Unknown character '%c' \n", currentChar);
+      token.type = TOKEN_ERROR;
+      goto return_token;
+
       break;
 
     case S_STRING:
@@ -375,10 +380,7 @@ Token get_token(FILE *input) {
           break;
         }
 
-        else if (currentChar == '+' || currentChar == '-' ||
-                 currentChar == '*' || currentChar == '/' ||
-                 currentChar == '=' || isspace(currentChar) ||
-                 currentChar == EOF) {
+        else if (number_token_end(currentChar)) {
 
           ungetc(currentChar, input);
           str[len] = '\0';
@@ -493,10 +495,7 @@ Token get_token(FILE *input) {
         }
 
         // new token
-        else if (currentChar == '+' || currentChar == '-' ||
-                 currentChar == '*' || currentChar == '/' ||
-                 currentChar == '=' || isspace(currentChar) ||
-                 currentChar == EOF) {
+        else if (number_token_end(currentChar)) {
 
           // literal ends on e/E/.
           if (!isdigit(str[len - 1])) {
@@ -566,7 +565,9 @@ Token get_token(FILE *input) {
       break;
 
     default:
-      printf("'%c' Fell through\n", currentChar);
+      fprintf(stderr, "'%c' Default case triggered\n", currentChar);
+      token.type = TOKEN_ERROR;
+      goto return_token;
     }
   }
 return_token:
@@ -591,4 +592,21 @@ int is_keyword(char *str) {
   }
 
   return -1;
+}
+
+/**
+ * @brief Checks if character ends token (Int/Double)
+ *
+ * @param[in] character from input
+ * @returns true if token ends, else false
+ */
+bool number_token_end(int currentChar) {
+  int result =
+      (currentChar == '+' || currentChar == '-' || currentChar == '*' ||
+       currentChar == '/' || currentChar == '=' || currentChar == '<' ||
+       currentChar == '>' || currentChar == '!' || currentChar == ')' ||
+       currentChar == '(' || currentChar == ':' || currentChar == ';' ||
+       isspace(currentChar) || currentChar == EOF);
+
+  return (bool)result;
 }
