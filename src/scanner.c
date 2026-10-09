@@ -14,11 +14,12 @@
 
 #define INITIAL_STR_LEN 1024
 #define REALLOC_CONST 10
-#define LEXER_ERROR 50
-#define INTERPRET_ERROR 60
+#define LEXER_ERROR 1
+#define INTERPRET_ERROR 99
 #define BASE_TEN 10
 
 int is_keyword(char *str);
+bool number_token_end(int currentChar);
 
 // All possible states in FSM
 typedef enum {
@@ -44,6 +45,8 @@ KeywordEntry keywordTable[] = {
     {"val", KW_VAL},       {"var", KW_VAR},
 };
 //  End of AI usage
+
+static int bracketDepth = 0;
 
 /**
  * @brief Parses stdin and creates token
@@ -88,6 +91,15 @@ Token get_token(FILE *input) {
         goto return_token;
       }
 
+      if (currentChar == '\n') {
+        if (bracketDepth == 0) {
+          token.type = TOKEN_NEWLINE;
+          goto return_token;
+        }
+
+        break;
+      }
+
       if (isspace(currentChar)) {
         break;
       }
@@ -113,12 +125,77 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '=') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
         token.type = TOKEN_ASSIGN;
+        goto return_token;
+      }
+
+      if (currentChar == '>') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_GREATER_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
+        token.type = TOKEN_GREAER;
+        goto return_token;
+      }
+
+      if (currentChar == '<') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_LOWER_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
+        token.type = TOKEN_LOWER;
+        goto return_token;
+      }
+
+      if (currentChar == '!') {
+        int next = fgetc(input);
+
+        if (next == '=') {
+          token.type = TOKEN_NOT_EQ;
+          goto return_token;
+        }
+        ungetc(next, input);
+        token.type = TOKEN_NOT;
         goto return_token;
       }
 
       if (currentChar == ':') {
         token.type = TOKEN_COLON;
+        goto return_token;
+      }
+
+      if (currentChar == ';') {
+        token.type = TOKEN_SEMICOLON;
+        goto return_token;
+      }
+
+      if (currentChar == '(') {
+        bracketDepth++;
+        token.type = TOKEN_OPENING_BRACKET;
+        goto return_token;
+      }
+
+      if (currentChar == ')') {
+        if (bracketDepth == 0) {
+          fprintf(stderr, "Error %d, Invalid closing bracket\n", LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          goto return_token;
+        }
+        bracketDepth--;
+        token.type = TOKEN_CLOSING_BRACKET;
         goto return_token;
       }
 
@@ -159,6 +236,10 @@ Token get_token(FILE *input) {
         state = S_STRING;
         break;
       }
+
+      fprintf(stderr, "Unknown character '%c' \n", currentChar);
+      token.type = TOKEN_ERROR;
+      goto return_token;
 
       break;
 
@@ -299,10 +380,7 @@ Token get_token(FILE *input) {
           break;
         }
 
-        else if (currentChar == '+' || currentChar == '-' ||
-                 currentChar == '*' || currentChar == '/' ||
-                 currentChar == '=' || isspace(currentChar) ||
-                 currentChar == EOF) {
+        else if (number_token_end(currentChar)) {
 
           ungetc(currentChar, input);
           str[len] = '\0';
@@ -417,10 +495,7 @@ Token get_token(FILE *input) {
         }
 
         // new token
-        else if (currentChar == '+' || currentChar == '-' ||
-                 currentChar == '*' || currentChar == '/' ||
-                 currentChar == '=' || isspace(currentChar) ||
-                 currentChar == EOF) {
+        else if (number_token_end(currentChar)) {
 
           // literal ends on e/E/.
           if (!isdigit(str[len - 1])) {
@@ -474,6 +549,12 @@ Token get_token(FILE *input) {
         }
 
         else {
+          if (strcmp(str, "_") == 0) {
+            fprintf(stderr, "Error: %d, '_' is not valid identifier\n",
+                    LEXER_ERROR);
+            token.type = TOKEN_ERROR;
+            goto return_token;
+          }
           token.type = TOKEN_IDENTIFIER;
           token.value.identifier = strdup(str);
         }
@@ -484,7 +565,9 @@ Token get_token(FILE *input) {
       break;
 
     default:
-      printf("'%c' Fell through\n", currentChar);
+      fprintf(stderr, "'%c' Default case triggered\n", currentChar);
+      token.type = TOKEN_ERROR;
+      goto return_token;
     }
   }
 return_token:
@@ -509,4 +592,21 @@ int is_keyword(char *str) {
   }
 
   return -1;
+}
+
+/**
+ * @brief Checks if character ends token (Int/Double)
+ *
+ * @param[in] character from input
+ * @returns true if token ends, else false
+ */
+bool number_token_end(int currentChar) {
+  int result =
+      (currentChar == '+' || currentChar == '-' || currentChar == '*' ||
+       currentChar == '/' || currentChar == '=' || currentChar == '<' ||
+       currentChar == '>' || currentChar == '!' || currentChar == ')' ||
+       currentChar == '(' || currentChar == ':' || currentChar == ';' ||
+       isspace(currentChar) || currentChar == EOF);
+
+  return (bool)result;
 }

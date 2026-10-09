@@ -6,12 +6,14 @@
 #include <stdio.h>
 
 typedef enum {
-  TOKEN_IDENTIFIER,
-  TOKEN_KEYWORD,
+  TOKEN_IDENTIFIER, /** Uses strdup() - muse use free() ; Stored data in
+                       token.value.identifier*/
+  TOKEN_KEYWORD,    /** Stored data in token.value.keyword */
 
-  TOKEN_INT,
-  TOKEN_DOUBLE,
-  TOKEN_STRING,
+  TOKEN_INT,    /** Stored data in token.value.numberInt */
+  TOKEN_DOUBLE, /** Stored data in token.value.numberDouble */
+  TOKEN_STRING, /** Uses strdup() - muse use free() ; Stored data in
+                   token.value.string*/
 
   TOKEN_PLUS,
   TOKEN_MINUS,
@@ -19,8 +21,20 @@ typedef enum {
   TOKEN_MULTIPLY,
 
   TOKEN_COLON,
+  TOKEN_SEMICOLON,
   TOKEN_ASSIGN,
+  TOKEN_OPENING_BRACKET,
+  TOKEN_CLOSING_BRACKET,
+  TOKEN_EQ,
+  TOKEN_NOT_EQ,
+  TOKEN_NOT,
+  TOKEN_GREAER,
+  TOKEN_LOWER,
+  TOKEN_LOWER_EQ,
+  TOKEN_GREATER_EQ,
+
   TOKEN_EOF,
+  TOKEN_NEWLINE,
   TOKEN_ERROR,
 
 } TokenType;
