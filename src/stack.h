@@ -1,7 +1,7 @@
 /**
     * @file    stack.h
     * @author  xhorakj01
-    * @brief   Stack for precedence parser
+    * @brief   Stack header file.
     */
 
 #ifndef STACK_H
