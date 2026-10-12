@@ -5,8 +5,7 @@
  */
 
 #ifndef AST_H
-
-#endif //VUT_IFJ_AST_H
+#define AST_H
 
 typedef enum {
     AST_BINARY,
@@ -38,8 +37,8 @@ typedef struct AstNode{
         }binary;
 
         struct{
-            BinaryOperation op;
-            struct AstNode *operation;
+            UnaryOperation op;
+            struct AstNode *operand;
         }unary;
 
         int intValue;
@@ -61,5 +60,4 @@ AstNode *ast_new_identifier(char *name, int line);  // steals `name`
 void ast_free(AstNode *node);
 void ast_print(const AstNode *node, int indent);
 
-
-#define AST_H
+#endif //AST_H
