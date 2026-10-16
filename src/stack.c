@@ -44,11 +44,11 @@ void stack_push(StackItem item){
 }
 
 StackItem stack_pop(void){
-       if (size == 0) {
+    if (size == 0) {
            exit(INTERPRET_ERROR);
-       }
-       return items[--size];
-   }
+    }
+    return items[--size];
+}
 
 StackItem *stack_top(void){
     if (size == 0){
@@ -71,8 +71,8 @@ StackItem *stack_top_terminal(void){
 }
 
 void stack_free(void){
-       free(items);
-       items = NULL;
-       size = 0;
-       capacity = 0;
-   }
+    free(items);
+    items = NULL;
+    size = 0;
+    capacity = 0;
+}
