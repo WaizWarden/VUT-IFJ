@@ -116,7 +116,6 @@ void stack_insert_handle_start(void){
     items[insertIndex].symbol = SYM_HANDLE_START;
     items[insertIndex].token = TOKEN_EOF;
     items[insertIndex].node = NULL;
-    items[insertIndex].isHandleStart = false;
 
     size++;
 }

@@ -8,7 +8,6 @@
 #define STACK_H
 
 #include "scanner.h"
-#include <stdbool.h>
 #include "ast.h"
 
 typedef enum {
@@ -20,7 +19,6 @@ typedef struct {
     PrecSymbol symbol;
     TokenType token;
     AstNode *node;
-    bool isHandleStart;
 } StackItem;
 
 void stack_init(void);
