@@ -13,7 +13,7 @@
 
 typedef enum {
        SYM_PLUS_MINUS, SYM_MUL_DIV, SYM_LPAREN, SYM_RPAREN,
-       SYM_TERM, SYM_DOLLAR, SYM_NONTERM
+       SYM_TERM, SYM_DOLLAR, SYM_NONTERM, SYM_HANDLE_START
 } PrecSymbol;
 
 typedef struct {
@@ -29,5 +29,6 @@ StackItem stack_pop(void);
 StackItem *stack_top(void);
 StackItem *stack_top_terminal(void);
 void stack_free(void);
+void stack_insert_handle_start(void);
 
 #endif

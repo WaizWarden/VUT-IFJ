@@ -194,6 +194,36 @@ static void test_stack_growth(void) {
 }
 
 /**
+ * @brief Tests the stack_insert_handle_start() fun.
+ */
+static void test_insert_handle_start(void) {
+    stack_init();
+
+    StackItem item;
+    item.symbol = SYM_DOLLAR;
+    item.token = TOKEN_EOF;
+    item.node = NULL;
+    item.isHandleStart = false;
+
+    stack_push(item);
+
+    item.symbol = SYM_NONTERM;
+    item.token = TOKEN_EOF;
+    item.node = NULL;
+    item.isHandleStart = false;
+    stack_push(item);
+
+    stack_insert_handle_start();
+    StackItem popped = stack_pop();
+    assert(popped.symbol == SYM_NONTERM);
+    popped = stack_pop();
+    assert(popped.symbol == SYM_HANDLE_START);
+    popped = stack_pop();
+    assert(popped.symbol == SYM_DOLLAR);
+
+    stack_free();
+}
+/**
  * @brief Main function of test stack.
  */
 void test_stack(void) {
@@ -201,4 +231,5 @@ void test_stack(void) {
     test_lifo_order();
     test_top_terminal();
     test_stack_growth();
+    test_insert_handle_start();
 }
