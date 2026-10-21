@@ -126,3 +126,7 @@ void stack_free(void){
     size = 0;
     capacity = 0;
 }
+
+size_t stack_size(void){
+    return size;
+}

@@ -9,6 +9,7 @@
 
 #include "scanner.h"
 #include "ast.h"
+#include <stddef.h>
 
 typedef enum {
        SYM_PLUS_MINUS, SYM_MUL_DIV, SYM_LPAREN, SYM_RPAREN,
@@ -28,5 +29,6 @@ StackItem *stack_top(void);
 StackItem *stack_top_terminal(void);
 void stack_free(void);
 void stack_insert_handle_start(void);
+size_t stack_size(void);
 
 #endif
