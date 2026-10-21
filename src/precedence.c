@@ -92,16 +92,16 @@ static StackItem stack_item_create(Token token){
     return item;
 }
 
-static void precedence_simplify(void){
+static int precedence_simplify(void){
     StackItem handle[3];
     size_t cnt = 0;
 
     while(stack_top()->symbol != SYM_HANDLE_START){
-        if(stack_top()->symbol == SYM_DOLLAR){
-            exit(2);
+        if (stack_top()->symbol == SYM_DOLLAR) {
+            goto syntax_error;
         }
-        if(cnt == 3){
-            exit(2);
+        if (cnt == 3) {
+            goto syntax_error;
         }
 
         handle[cnt] = stack_pop();
@@ -118,7 +118,7 @@ static void precedence_simplify(void){
             result.node = handle[0].node;
 
             stack_push(result);
-            return;
+            return 0;
         }
     }
 
@@ -131,7 +131,7 @@ static void precedence_simplify(void){
             result.node = handle[1].node;
 
             stack_push(result);
-            return;
+            return 0;
         }
     }
 
@@ -161,9 +161,24 @@ static void precedence_simplify(void){
         result.node = ast_new_binary(operation, handle[2].node, handle[0].node, 0);
         stack_push(result);
 
-        return;
+        return 0;
     }
-    exit(2);
+
+syntax_error:
+    for (size_t i = 0; i < cnt; i++) {
+        ast_free(handle[i].node);
+    }
+
+    return 2;
+}
+
+static void precedence_free_stack(void) {
+    while (stack_size() > 0) {
+        StackItem item = stack_pop();
+        ast_free(item.node);
+    }
+
+    stack_free();
 }
 
 AstNode *precedence_parse(FILE *input, Token *currentToken){
@@ -200,10 +215,14 @@ AstNode *precedence_parse(FILE *input, Token *currentToken){
                 inputSymbol = convert_token_to_symbol(currentToken->type);
                 break;
             case PRECEDENCE_GREATER:
-                precedence_simplify();
+                if (precedence_simplify() != 0) {
+                    precedence_free_stack();
+                    return NULL;
+                }
                 break;
             case PRECEDENCE_EMPTY:
-                exit(2);
+                precedence_free_stack();
+                return NULL;
         }
     }
 }
