@@ -53,6 +53,8 @@ static PrecSymbol convert_token_to_symbol(TokenType tokenType){
         case TOKEN_IDENTIFIER:
             return SYM_TERM;
         case TOKEN_EOF:
+        case TOKEN_NEWLINE:
+        case TOKEN_SEMICOLON:
             return SYM_DOLLAR;
         case TOKEN_ERROR:
             exit(1);
@@ -158,7 +160,7 @@ static void precedence_simplify(void){
     exit(2);
 }
 
-AstNode *precedence_parse(FILE *input){
+AstNode *precedence_parse(FILE *input, Token *currentToken){
     stack_init();
 
     StackItem bot;
@@ -167,8 +169,7 @@ AstNode *precedence_parse(FILE *input){
     bot.node = NULL;
     stack_push(bot);
 
-    Token currentToken = get_token(input);
-    PrecSymbol inputSymbol = convert_token_to_symbol(currentToken.type);
+    PrecSymbol inputSymbol = convert_token_to_symbol(currentToken->type);
 
     while (1) {
         if (inputSymbol == SYM_DOLLAR && stack_size() == 2 &&stack_top()->symbol == SYM_NONTERM) {
@@ -182,15 +183,15 @@ AstNode *precedence_parse(FILE *input){
 
         switch (relation) {
             case PRECEDENCE_EQUAL:
-                stack_push(stack_item_create(currentToken));
-                currentToken = get_token(input);
-                inputSymbol = convert_token_to_symbol(currentToken.type);
+                stack_push(stack_item_create(*currentToken));
+                *currentToken = get_token(input);
+                inputSymbol = convert_token_to_symbol(currentToken->type);
                 break;
             case PRECEDENCE_LESS:
                 stack_insert_handle_start();
-                stack_push(stack_item_create(currentToken));
-                currentToken = get_token(input);
-                inputSymbol = convert_token_to_symbol(currentToken.type);
+                stack_push(stack_item_create(*currentToken));
+                *currentToken = get_token(input);
+                inputSymbol = convert_token_to_symbol(currentToken->type);
                 break;
             case PRECEDENCE_GREATER:
                 precedence_simplify();

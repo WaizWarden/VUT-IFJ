@@ -12,7 +12,8 @@ typedef enum {
     AST_UNARY,
     AST_LITERAL_INT,
     AST_LITERAL_DOUBLE,
-    AST_IDENTIFIER
+    AST_IDENTIFIER,
+    AST_ASSIGN
 }AstNodeType;
 
 typedef enum {
@@ -41,6 +42,11 @@ typedef struct AstNode{
             struct AstNode *operand;
         }unary;
 
+        struct{
+            char *name;
+            struct AstNode *value;
+        }assign;
+
         int intValue;
         double doubleValue;
         char *identif;
@@ -56,6 +62,7 @@ AstNode *ast_new_unary(UnaryOperation op, AstNode *operand, int line);
 AstNode *ast_new_int(int value, int line);
 AstNode *ast_new_double(double value, int line);
 AstNode *ast_new_identifier(char *name, int line);  // steals `name`
+AstNode *ast_new_assign(char *name, AstNode *value, int line);
 
 void ast_free(AstNode *node);
 void ast_print(const AstNode *node, int indent);

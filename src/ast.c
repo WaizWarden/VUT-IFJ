@@ -137,6 +137,10 @@ void ast_free(AstNode *node){
         case AST_IDENTIFIER:
             free(node->as.identif);
             break;
+        case AST_ASSIGN:
+               free(node->as.assign.name);
+               ast_free(node->as.assign.value);
+               break;
         default:
             // If literals -> nothing to free
             break;
@@ -179,5 +183,24 @@ void ast_print(const AstNode *node, int indent){
         case AST_IDENTIFIER:
             printf("Identifier %s\n", node->as.identif);
             break;
+        case AST_ASSIGN:
+            printf("Assign %s\n", node->as.assign.name);
+            ast_print(node->as.assign.value, indent + 1);
+            break;
     }
+}
+/**
+ * @brief node for assigning
+ * @param char *name
+ * @param AstNode *value
+ * @paramint line
+ * @return node
+ */
+AstNode *ast_new_assign(char *name, AstNode *value, int line){
+    AstNode *node = ast_allocate(AST_ASSIGN, line);
+
+    node->as.assign.name = name;
+    node->as.assign.value = value;
+
+    return node;
 }
