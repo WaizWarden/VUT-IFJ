@@ -21,5 +21,5 @@ typedef enum {
  * @returns precedent relation
  */
 PrecedenceRelation precedence_get_relation(PrecSymbol stackSymbol, PrecSymbol inputSymbol);
-
+AstNode *precedence_parse(FILE *input);
 #endif

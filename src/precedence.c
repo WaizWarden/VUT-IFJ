@@ -157,3 +157,46 @@ static void precedence_simplify(void){
     }
     exit(2);
 }
+
+AstNode *precedence_parse(FILE *input){
+    stack_init();
+
+    StackItem bot;
+    bot.symbol = SYM_DOLLAR;
+    bot.token = TOKEN_EOF;
+    bot.node = NULL;
+    stack_push(bot);
+
+    Token currentToken = get_token(input);
+    PrecSymbol inputSymbol = convert_token_to_symbol(currentToken.type);
+
+    while (1) {
+        if (inputSymbol == SYM_DOLLAR && stack_size() == 2 &&stack_top()->symbol == SYM_NONTERM) {
+            AstNode *result = stack_pop().node;
+            stack_free();
+            return result;
+        }
+
+        PrecSymbol stackSymbol = stack_top_terminal()->symbol;
+        PrecedenceRelation relation = precedence_get_relation(stackSymbol, inputSymbol);
+
+        switch (relation) {
+            case PRECEDENCE_EQUAL:
+                stack_push(stack_item_create(currentToken));
+                currentToken = get_token(input);
+                inputSymbol = convert_token_to_symbol(currentToken.type);
+                break;
+            case PRECEDENCE_LESS:
+                stack_insert_handle_start();
+                stack_push(stack_item_create(currentToken));
+                currentToken = get_token(input);
+                inputSymbol = convert_token_to_symbol(currentToken.type);
+                break;
+            case PRECEDENCE_GREATER:
+                precedence_simplify();
+                break;
+            case PRECEDENCE_EMPTY:
+                exit(2);
+        }
+    }
+}
