@@ -1,3 +1,9 @@
+/**
+ * @file    precedence.c
+ * @author  xhorakj01
+ * @brief   Implementation of precedence
+ */
+
 #include "precedence.h"
 #include "ast.h"
 #include "hashtable.h"
