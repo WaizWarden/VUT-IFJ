@@ -6,7 +6,7 @@
 #
 #########################
 
-.PHONY: build format tidy docs dev
+.PHONY: build format tidy docs dev pdf, export
 CFLAGS = -Wall -Wextra -pedantic
 
 C_SRCS := $(shell find src tests -name '*.c')
@@ -27,3 +27,6 @@ format:
 
 tidy:
 	clang-tidy $(ALL_SRCS) -- $(CFLAGS)
+
+pdf:
+	pandoc documentation/documentation.md -o documentation/documentation.pdf --pdf-engine=weasyprint --css=documentation/styles.css
