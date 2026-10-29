@@ -120,6 +120,39 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '/') {
+        int next = fgetc(input);
+
+        // One-line comment
+        if (next == '/') {
+          while (next != '\n' && next != EOF) {
+            next = fgetc(input);
+          }
+          break;
+        }
+
+        // Multi-line comment
+        if (next == '*') {
+          int prev = 0;
+
+          while (true) {
+            next = fgetc(input);
+            if (next == EOF) {
+              fprintf(stderr, "Lexer error: %d, Never ending block comment\n",
+                      LEXER_ERROR);
+              token.type = TOKEN_ERROR;
+              goto return_token;
+            }
+
+            if (prev == '*' && next == '/') {
+              break;
+            }
+            prev = next;
+          }
+          break;
+        }
+
+        // not a comment
+        ungetc(next, input);
         token.type = TOKEN_DIVIDE;
         goto return_token;
       }
@@ -303,7 +336,6 @@ Token get_token(FILE *input) {
         int next = fgetc(input);
         if (next == '"') {
           state = S_MULTI_LINE_STRING;
-
         } else {
 
           ungetc(next, input);
@@ -345,7 +377,6 @@ Token get_token(FILE *input) {
 
         str[len] = (char)currentChar;
         len++;
-
       } else {
 
         str[len] = (char)currentChar;
@@ -452,7 +483,6 @@ Token get_token(FILE *input) {
           }
 
           str[len++] = (char)currentChar;
-
         }
 
         // +- after e/E
@@ -461,7 +491,6 @@ Token get_token(FILE *input) {
 
           str[len] = (char)currentChar;
           len++;
-
         }
 
         // Underscore between digits
@@ -535,7 +564,6 @@ Token get_token(FILE *input) {
 
         str[len] = (char)currentChar;
         len++;
-
       }
 
       else {

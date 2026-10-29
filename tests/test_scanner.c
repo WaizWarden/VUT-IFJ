@@ -18,6 +18,8 @@
 */
 
 // NOLINTBEGIN
+int totalTests = 0;
+int passedTests = 0;
 
 /**
  * @brief Creates a virtual file containg testing data and tests scanner, prints
@@ -32,7 +34,9 @@
  * @param[in] expectedDouble Expected double value, -1 if not needed
  */
 void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
-              char *expectedOutput, int expectedInt, double expectedDouble) {
+              char *expectedOutput, int expectedInt, double expectedDouble)
+{
+  totalTests++;
 
   FILE *file = fmemopen(inputStr, strlen(inputStr), "r");
   Token token = get_token(file);
@@ -41,88 +45,116 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
   bool tokenTypeOk = false;
   bool outputOk = false;
 
-  if (token.type == expectedTokenType) {
+  if (token.type == expectedTokenType)
+  {
     tokenTypeOk = true;
   }
 
-  if (token.type == TOKEN_STRING || token.type == TOKEN_IDENTIFIER) {
+  if (token.type == TOKEN_STRING || token.type == TOKEN_IDENTIFIER)
+  {
 
     char *str_ptr = (token.type == TOKEN_STRING) ? token.value.string
                                                  : token.value.identifier;
 
-    if (expectedOutput == NULL) {
+    if (expectedOutput == NULL)
+    {
       outputOk = true;
     }
 
-    else {
-      if (token.type == TOKEN_STRING) {
-        if (strcmp(expectedOutput, token.value.string) == 0) {
+    else
+    {
+      if (token.type == TOKEN_STRING)
+      {
+        if (strcmp(expectedOutput, token.value.string) == 0)
+        {
           outputOk = true;
         }
       }
 
-      if (token.type == TOKEN_IDENTIFIER) {
-        if (strcmp(expectedOutput, token.value.identifier) == 0) {
+      if (token.type == TOKEN_IDENTIFIER)
+      {
+        if (strcmp(expectedOutput, token.value.identifier) == 0)
+        {
           outputOk = true;
         }
       }
     }
 
-    if (tokenTypeOk && outputOk) {
+    if (tokenTypeOk && outputOk)
+    {
       printf("Test: %s Passed\n", testName);
+      passedTests++;
     }
 
-    else if (!tokenTypeOk) {
+    else if (!tokenTypeOk)
+    {
       printf("Test: %s Failed, unexpected token type: %u\n", testName,
              token.type);
     }
 
-    else if (!outputOk) {
+    else if (!outputOk)
+    {
       printf("Test: %s Failed, expected: %s; got %s\n", testName,
              expectedOutput, token.value.string);
     }
     free(str_ptr);
   }
 
-  else if (token.type == TOKEN_INT || token.type == TOKEN_DOUBLE) {
+  else if (token.type == TOKEN_INT || token.type == TOKEN_DOUBLE)
+  {
 
-    if (expectedTokenType == TOKEN_INT) {
-      if (expectedInt == token.value.numberInt) {
+    if (expectedTokenType == TOKEN_INT)
+    {
+      if (expectedInt == token.value.numberInt)
+      {
         outputOk = true;
       }
-      if (expectedInt == -1) {
+      if (expectedInt == -1)
+      {
         outputOk = true;
       }
     }
 
-    else {
-      if (expectedDouble == token.value.numberDouble) {
+    else
+    {
+      if (expectedDouble == token.value.numberDouble)
+      {
         outputOk = true;
       }
-      if (expectedDouble == -1) {
+      if (expectedDouble == -1)
+      {
         outputOk = true;
       }
     }
 
-    if (tokenTypeOk && outputOk) {
+    if (tokenTypeOk && outputOk)
+    {
       printf("Test: %s Passed\n", testName);
+      passedTests++;
     }
 
-    else if (!tokenTypeOk) {
+    else if (!tokenTypeOk)
+    {
       printf("Test: %s Failed, unexpected token type: %u\n", testName,
              token.type);
     }
 
-    else if (!outputOk) {
+    else if (!outputOk)
+    {
       printf("Test: %s Failed, expected: %d; got %d\n", testName, expectedInt,
              token.value.numberInt);
     }
   }
 
-  else {
-    if (tokenTypeOk) {
+  else
+  {
+    if (tokenTypeOk)
+    {
       printf("Test: %s Passed\n", testName);
-    } else {
+      passedTests++;
+    }
+    else
+    {
       printf("Test: %s Failed, unexpected token type: %u\n", testName,
              token.type);
     }
@@ -132,7 +164,8 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
 /**
  * @brief Tests for first iteration
  */
-void first_iteration(void) {
+void first_iteration(void)
+{
   run_test("Operator plus", "+", TOKEN_PLUS, NULL, -1, -1);
   run_test("Operator minus", "-", TOKEN_MINUS, NULL, -1, -1);
   run_test("Operator multiply", "*", TOKEN_MULTIPLY, NULL, -1, -1);
@@ -226,6 +259,25 @@ void first_iteration(void) {
   run_test("Multi no end", "\"\"\"abc", TOKEN_ERROR, NULL, -1, -1);
 
   printf("\n");
+  run_test("One-line comment Hello", "// Hello \n+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Empty one-line comment", "//\n+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("One-line comment EOF", "//", TOKEN_EOF, NULL, -1, -1);
+
+  run_test("multi-line comment Hello", "/*Hello*/+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("multi-line contains \\n Hello", "/*\n\nHel\nlo*/+", TOKEN_PLUS,
+           NULL, -1, -1);
+  run_test("Empty multi-line comment", "/**/+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Multi-line comment error 1", "/**/", TOKEN_EOF, NULL, -1, -1);
+  run_test("Multi-line comment error 2", "/**/\n+", TOKEN_NEWLINE, NULL, -1,
+           -1);
+  run_test("Multi-line comment error 3", "/*", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Multi-line comment error 4", "/*", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Multi-line comment error 5", "/* *", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Multi-line comment error 6", "/*/", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Multi-line comment error 7", "/* /", TOKEN_ERROR, NULL, -1, -1);
+
+  printf("\n");
   printf("Scanner tests done\n");
+  printf("Test count: %d\t Tests passed %d\n", totalTests, passedTests);
 }
 // NOLINTEND
