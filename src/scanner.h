@@ -37,6 +37,8 @@ typedef enum {
   TOKEN_NEWLINE,
   TOKEN_ERROR,
 
+  TOKEN_DOT,
+
 } TokenType;
 
 /**
@@ -48,7 +50,12 @@ typedef enum {
   KW_STRING,
   KW_VAL,
   KW_VAR,
-
+  KW_IMPORT,
+  KW_IF,
+  KW_ELSE,
+  KW_THEN,
+  KW_DO,
+  KW_WHILE
 } Keyword;
 
 /**

@@ -34,8 +34,7 @@ int passedTests = 0;
  * @param[in] expectedDouble Expected double value, -1 if not needed
  */
 void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
-              char *expectedOutput, int expectedInt, double expectedDouble)
-{
+              char *expectedOutput, int expectedInt, double expectedDouble) {
   totalTests++;
 
   FILE *file = fmemopen(inputStr, strlen(inputStr), "r");
@@ -45,116 +44,91 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
   bool tokenTypeOk = false;
   bool outputOk = false;
 
-  if (token.type == expectedTokenType)
-  {
+  if (token.type == expectedTokenType) {
     tokenTypeOk = true;
   }
 
-  if (token.type == TOKEN_STRING || token.type == TOKEN_IDENTIFIER)
-  {
+  if (token.type == TOKEN_STRING || token.type == TOKEN_IDENTIFIER) {
 
     char *str_ptr = (token.type == TOKEN_STRING) ? token.value.string
                                                  : token.value.identifier;
 
-    if (expectedOutput == NULL)
-    {
+    if (expectedOutput == NULL) {
       outputOk = true;
     }
 
-    else
-    {
-      if (token.type == TOKEN_STRING)
-      {
-        if (strcmp(expectedOutput, token.value.string) == 0)
-        {
+    else {
+      if (token.type == TOKEN_STRING) {
+        if (strcmp(expectedOutput, token.value.string) == 0) {
           outputOk = true;
         }
       }
 
-      if (token.type == TOKEN_IDENTIFIER)
-      {
-        if (strcmp(expectedOutput, token.value.identifier) == 0)
-        {
+      if (token.type == TOKEN_IDENTIFIER) {
+        if (strcmp(expectedOutput, token.value.identifier) == 0) {
           outputOk = true;
         }
       }
     }
 
-    if (tokenTypeOk && outputOk)
-    {
+    if (tokenTypeOk && outputOk) {
       printf("Test: %s Passed\n", testName);
       passedTests++;
     }
 
-    else if (!tokenTypeOk)
-    {
+    else if (!tokenTypeOk) {
       printf("Test: %s Failed, unexpected token type: %u\n", testName,
              token.type);
     }
 
-    else if (!outputOk)
-    {
+    else if (!outputOk) {
       printf("Test: %s Failed, expected: %s; got %s\n", testName,
              expectedOutput, token.value.string);
     }
     free(str_ptr);
   }
 
-  else if (token.type == TOKEN_INT || token.type == TOKEN_DOUBLE)
-  {
+  else if (token.type == TOKEN_INT || token.type == TOKEN_DOUBLE) {
 
-    if (expectedTokenType == TOKEN_INT)
-    {
-      if (expectedInt == token.value.numberInt)
-      {
+    if (expectedTokenType == TOKEN_INT) {
+      if (expectedInt == token.value.numberInt) {
         outputOk = true;
       }
-      if (expectedInt == -1)
-      {
+      if (expectedInt == -1) {
         outputOk = true;
       }
     }
 
-    else
-    {
-      if (expectedDouble == token.value.numberDouble)
-      {
+    else {
+      if (expectedDouble == token.value.numberDouble) {
         outputOk = true;
       }
-      if (expectedDouble == -1)
-      {
+      if (expectedDouble == -1) {
         outputOk = true;
       }
     }
 
-    if (tokenTypeOk && outputOk)
-    {
+    if (tokenTypeOk && outputOk) {
       printf("Test: %s Passed\n", testName);
       passedTests++;
     }
 
-    else if (!tokenTypeOk)
-    {
+    else if (!tokenTypeOk) {
       printf("Test: %s Failed, unexpected token type: %u\n", testName,
              token.type);
     }
 
-    else if (!outputOk)
-    {
+    else if (!outputOk) {
       printf("Test: %s Failed, expected: %d; got %d\n", testName, expectedInt,
              token.value.numberInt);
     }
   }
 
-  else
-  {
-    if (tokenTypeOk)
-    {
+  else {
+    if (tokenTypeOk) {
       printf("Test: %s Passed\n", testName);
       passedTests++;
-    }
-    else
-    {
+    } else {
       printf("Test: %s Failed, unexpected token type: %u\n", testName,
              token.type);
     }
@@ -164,8 +138,7 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
 /**
  * @brief Tests for first iteration
  */
-void first_iteration(void)
-{
+void first_iteration(void) {
   run_test("Operator plus", "+", TOKEN_PLUS, NULL, -1, -1);
   run_test("Operator minus", "-", TOKEN_MINUS, NULL, -1, -1);
   run_test("Operator multiply", "*", TOKEN_MULTIPLY, NULL, -1, -1);
@@ -184,6 +157,7 @@ void first_iteration(void)
   run_test("Closing bracket", ")", TOKEN_CLOSING_BRACKET, NULL, -1, -1);
   run_test("Newline outside brackets", "\n", TOKEN_NEWLINE, NULL, -1, -1);
   run_test("Unmatched closing bracket error", ")", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Dot", ".", TOKEN_DOT, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic string", "\"Hello World\"", TOKEN_STRING, "Hello World", -1,
@@ -204,6 +178,12 @@ void first_iteration(void)
   printf("\n");
   run_test("Keyword var", "var", TOKEN_KEYWORD, NULL, -1, -1);
   run_test("Keyword Double", "Double", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Keyword if", "if", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Keyword else", "else", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Keyword then", "then", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Keyword do", "do", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Keyword while", "while", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Keyword import", "import", TOKEN_KEYWORD, NULL, -1, -1);
 
   printf("\n");
   run_test("Identifer double", "double", TOKEN_IDENTIFIER, "double", -1, -1);
@@ -235,6 +215,7 @@ void first_iteration(void)
   run_test("d suffix", "3.14d", TOKEN_DOUBLE, NULL, -1, 3.14);
   run_test("dot plus", "1.5+2", TOKEN_DOUBLE, NULL, -1, 1.5);
   run_test("missing zero", ".45", TOKEN_DOUBLE, NULL, -1, 0.45);
+  run_test("double dot", "..45", TOKEN_ERROR, NULL, -1, -1);
 
   printf("\n");
   run_test("No number #1", "5.", TOKEN_ERROR, NULL, -1, -1);
@@ -245,7 +226,6 @@ void first_iteration(void)
   run_test("Underscore not between numbers", "1._5", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double underscore", "1.5__5", TOKEN_ERROR, NULL, -1, -1);
   run_test("Random suffix", "3.14s", TOKEN_ERROR, NULL, -1, -1);
-  run_test("Dot", ".", TOKEN_ERROR, NULL, -1, -1);
 
   printf("\n");
   run_test("Multi simple", "\"\"\"abc\"\"\"", TOKEN_STRING, "abc", -1, -1);
@@ -277,7 +257,8 @@ void first_iteration(void)
   run_test("Multi-line comment error 7", "/* /", TOKEN_ERROR, NULL, -1, -1);
 
   run_test("Nested comment", "/* a /* b */ c */+", TOKEN_PLUS, NULL, -1, -1);
-  run_test("Inline comment in nested", "/* a /* b\\\\ \n */ c */+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Inline comment in nested", "/* a /* b\\\\ \n */ c */+", TOKEN_PLUS,
+           NULL, -1, -1);
   run_test("Nested empty inside", "/*/**/*/+", TOKEN_PLUS, NULL, -1, -1);
   run_test("Nested with spaces", "/* /**/ */+", TOKEN_PLUS, NULL, -1, -1);
   run_test("Nested 3 levels", "/*/*/**/*/*/+", TOKEN_PLUS, NULL, -1, -1);

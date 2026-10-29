@@ -41,8 +41,10 @@ typedef struct {
 } KeywordEntry;
 
 KeywordEntry keywordTable[] = {
-    {"Double", KW_DOUBLE}, {"Int", KW_INT}, {"String", KW_STRING},
-    {"val", KW_VAL},       {"var", KW_VAR},
+    {"Double", KW_DOUBLE}, {"Int", KW_INT},       {"String", KW_STRING},
+    {"val", KW_VAL},       {"var", KW_VAR},       {"if", KW_IF},
+    {"else", KW_ELSE},     {"then", KW_THEN},     {"while", KW_WHILE},
+    {"do", KW_DO},         {"import", KW_IMPORT},
 };
 //  End of AI usage
 
@@ -244,16 +246,24 @@ Token get_token(FILE *input) {
 
       if (currentChar == '.') {
         int next = fgetc(input);
-        if (isdigit(next)) {
+
+        if (next == '.') {
+          fprintf(stderr, "Lexer error: %d, invalid double dot\n", LEXER_ERROR);
+          token.type = TOKEN_ERROR;
+          goto return_token;
+        }
+
+        else if (isdigit(next)) {
           str[len] = '.';
           len++;
           str[len] = (char)next;
           len++;
 
           state = S_DOUBLE;
-        } else {
-          token.type = TOKEN_ERROR;
-          fprintf(stderr, "Error: %d, invalid double notation\n", LEXER_ERROR);
+        }
+
+        else {
+          token.type = TOKEN_DOT;
           goto return_token;
         }
 
@@ -580,12 +590,14 @@ Token get_token(FILE *input) {
         ungetc(currentChar, input);
         str[len] = '\0';
 
+        // its keyword
         int key = is_keyword(str);
         if (key != -1) {
           token.type = TOKEN_KEYWORD;
           token.value.keyword = keywordTable[key].keyword;
         }
 
+        // its id
         else {
           if (strcmp(str, "_") == 0) {
             fprintf(stderr, "Error: %d, '_' is not valid identifier\n",
