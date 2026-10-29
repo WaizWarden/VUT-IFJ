@@ -276,6 +276,16 @@ void first_iteration(void)
   run_test("Multi-line comment error 6", "/*/", TOKEN_ERROR, NULL, -1, -1);
   run_test("Multi-line comment error 7", "/* /", TOKEN_ERROR, NULL, -1, -1);
 
+  run_test("Nested comment", "/* a /* b */ c */+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Inline comment in nested", "/* a /* b\\\\ \n */ c */+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Nested empty inside", "/*/**/*/+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Nested with spaces", "/* /**/ */+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Nested 3 levels", "/*/*/**/*/*/+", TOKEN_PLUS, NULL, -1, -1);
+  run_test("Comment divide", "/+", TOKEN_DIVIDE, NULL, -1, -1);
+  run_test("Nested error 1", "/* /* */", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Nested error 2", "/*/*/", TOKEN_ERROR, NULL, -1, -1);
+  run_test("Nested error 3", "/*/*/*/", TOKEN_ERROR, NULL, -1, -1);
+
   printf("\n");
   printf("Scanner tests done\n");
   printf("Test count: %d\t Tests passed %d\n", totalTests, passedTests);

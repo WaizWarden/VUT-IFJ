@@ -132,9 +132,10 @@ Token get_token(FILE *input) {
 
         // Multi-line comment
         if (next == '*') {
+          int depth = 1;
           int prev = 0;
 
-          while (true) {
+          while (depth > 0) {
             next = fgetc(input);
             if (next == EOF) {
               fprintf(stderr, "Lexer error: %d, Never ending block comment\n",
@@ -143,10 +144,19 @@ Token get_token(FILE *input) {
               goto return_token;
             }
 
-            if (prev == '*' && next == '/') {
-              break;
+            if (prev == '/' && next == '*') {
+              depth++;
+              prev = 0;
             }
-            prev = next;
+
+            else if (prev == '*' && next == '/') {
+              depth--;
+              prev = 0;
+            }
+
+            else {
+              prev = next;
+            }
           }
           break;
         }
