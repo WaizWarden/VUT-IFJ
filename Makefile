@@ -38,7 +38,7 @@ pdf:
 
 export: pdf
 	rm -rf result
-	rm export.zip
+	rm -f export.zip
 	mkdir result
 	cp documentation/dokumentace.pdf result/
 	cp -r src result/
