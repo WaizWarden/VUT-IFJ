@@ -6,15 +6,20 @@
 #
 #########################
 
-.PHONY: build format tidy docs dev
+.PHONY: build test format tidy docs dev
 CFLAGS = -Wall -Wextra -pedantic
 
-C_SRCS := $(shell find src tests -name '*.c')
+SRC_SRCS := $(shell find src -name '*.c')
+TEST_SRCS := $(shell find tests -name '*.c')
 H_SRCS := $(shell find src tests -name '*.h')
-ALL_SRCS := $(C_SRCS) $(H_SRCS)
+ALL_SRCS := $(SRC_SRCS) $(TEST_SRCS) $(H_SRCS)
 
 build:
-	gcc $(CFLAGS) $(C_SRCS) -o Output
+	gcc $(CFLAGS) $(SRC_SRCS) -o Output
+
+test:
+	gcc $(CFLAGS) $(filter-out src/main.c,$(SRC_SRCS)) $(TEST_SRCS) -o test_runner
+	./test_runner
 
 dev: format tidy build
 
