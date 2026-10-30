@@ -40,8 +40,7 @@ static AstNode *ast_allocate(AstNodeType type, int line) {
  * @returns pointer to AstNode
  */
 
-AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
-                        AstNode *right, int line) {
+AstNode *ast_new_binary(BinaryOperation operation, AstNode *left, AstNode *right, int line) {
   AstNode *node = ast_allocate(AST_BINARY, line);
 
   node->as.binary.operation = operation;
@@ -53,16 +52,16 @@ AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
 
 /**
  * @brief Creates a new unary operation AST node
- * @param UnaryOperation op
+ * @param UnaryOperation operation
  * @param AstNode *operand
  * @param int line
  *
  * @returns pointer to AstNode
  */
-AstNode *ast_new_unary(UnaryOperation op, AstNode *operand, int line) {
+AstNode *ast_new_unary(UnaryOperation operation, AstNode *operand, int line) {
   AstNode *node = ast_allocate(AST_UNARY, line);
 
-  node->as.unary.op = op;
+  node->as.unary.op = operation;
   node->as.unary.operand = operand;
 
   return node;
