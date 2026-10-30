@@ -20,7 +20,7 @@ static size_t capacity = 0;
  * @returns Pointer to allocated memory.
  */
 
-void stack_init() {
+void stack_init(void) {
   size = 0;
   capacity = 8;
   items = malloc(capacity * sizeof(StackItem));
