@@ -1,6 +1,9 @@
 docs/
 .idea/
 Output
+result/
+export.zip
+*.log
 
 # Prerequisites
 *.d
