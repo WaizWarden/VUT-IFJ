@@ -6,3 +6,4 @@ Checks: >
   -readability-function-cognitive-complexity,
   -bugprone-easily-swappable-parameters,
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -readability-magic-numbers

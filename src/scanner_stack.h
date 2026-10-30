@@ -6,9 +6,10 @@
 
 #include <stdlib.h>
 
-void scanner_stack_init();
+void scanner_stack_init(void);
 void scanner_stack_push(int item);
 int scanner_stack_pop(void);
 int *scanner_stack_top(void);
 void scanner_stack_free(void);
-size_t scanner_stack_size(void);
+int find_number_in_stack(int searchedNumber);
+int scanner_stack_size(void);

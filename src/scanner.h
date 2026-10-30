@@ -38,6 +38,8 @@ typedef enum {
   TOKEN_ERROR,
 
   TOKEN_DOT,
+  TOKEN_INDENT,
+  TOKEN_DEDENT,
 
 } TokenType;
 

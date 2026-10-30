@@ -40,7 +40,8 @@ static AstNode *ast_allocate(AstNodeType type, int line) {
  * @returns pointer to AstNode
  */
 
-AstNode *ast_new_binary(BinaryOperation operation, AstNode *left, AstNode *right, int line) {
+AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
+                        AstNode *right, int line) {
   AstNode *node = ast_allocate(AST_BINARY, line);
 
   node->as.binary.operation = operation;
