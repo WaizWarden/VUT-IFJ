@@ -20,6 +20,7 @@
 
 int is_keyword(char *str);
 bool number_token_end(int currentChar);
+int calculateIndent(FILE *input, int *error);
 
 // All possible states in FSM
 typedef enum {
@@ -48,7 +49,13 @@ KeywordEntry keywordTable[] = {
 };
 //  End of AI usage
 
+// TODO
+/*
+reformat the comment detection as function - DRY
+*/
+
 static int bracketDepth = 0;
+bool lineStart = true;
 
 /**
  * @brief Parses stdin and creates token
@@ -67,16 +74,44 @@ Token get_token(FILE *input) {
 
   if (str == NULL) {
     token.type = TOKEN_ERROR;
-    fprintf(stderr, "Error: %d, str malloc failed\n", INTERPRET_ERROR);
+    fprintf(stderr, "Lexer error: %d, str malloc failed\n", INTERPRET_ERROR);
     goto return_token;
   }
 
+  // indent calculation
+  int error = 0;
+  int spaces = calculateIndent(input, &error);
+  if (spaces == -1) {
+    if (error == -1) {
+
+      token.type = TOKEN_ERROR;
+      goto return_token;
+    } else if (error == 2) {
+
+      token.type = TOKEN_EOF;
+      goto return_token;
+    } else if (error == 1) {
+
+      token.type = TOKEN_NEWLINE;
+      goto return_token;
+    } else {
+      fprintf(stderr, "Lexer error: %d, Unknown error in indent calculation",
+              LEXER_ERROR);
+      token.type = TOKEN_ERROR;
+      goto return_token;
+    }
+  }
+
   while (true) {
+
+    // realloc test
     if (len + REALLOC_CONST >= capcaity) {
       char *tmp = realloc(str, capcaity * 2);
       if (tmp == NULL) {
+        fprintf(stderr, "Lexer error: %d, tmp malloc failed\n",
+                INTERPRET_ERROR);
+
         token.type = TOKEN_ERROR;
-        fprintf(stderr, "Error: %d, tmp malloc failed\n", INTERPRET_ERROR);
         goto return_token;
       }
       str = tmp;
@@ -99,6 +134,7 @@ Token get_token(FILE *input) {
           goto return_token;
         }
 
+        lineStart = true;
         break;
       }
 
@@ -659,4 +695,94 @@ bool number_token_end(int currentChar) {
        isspace(currentChar) || currentChar == EOF);
 
   return (bool)result;
+}
+
+/**
+ * @brief Calculates indent for control flow, functions, etc.
+ *
+ * @param[in, out] input stream
+ * @param[out] Possible error states: 0 = No error, -1 = Error, 1 = New line, 2
+ * = EOF
+ * @returns space count, if value is -1, error happened
+ */
+int calculateIndent(FILE *input, int *error) {
+  *error = 0;
+  if (lineStart && bracketDepth == 0) {
+    int spaces = 0;
+    int indentChar;
+
+    while (true) {
+      indentChar = fgetc(input);
+
+      if (indentChar == ' ') {
+        spaces++;
+      } else if (indentChar == '\t') {
+        fprintf(stderr, "Lexer error: %d, tab at the start of a line\n",
+                LEXER_ERROR);
+
+        *error = -1;
+        return -1;
+      } else if (indentChar == '\n') {
+        *error = 1;
+        return -1;
+      } else if (indentChar == '/') {
+        int next = fgetc(input);
+
+        // One-line comment
+        if (next == '/') {
+          while (next != '\n' && next != EOF) {
+            next = fgetc(input);
+          }
+          continue;
+        }
+
+        // Multi-line comment
+        if (next == '*') {
+          int depth = 1;
+          int prev = 0;
+
+          while (depth > 0) {
+            next = fgetc(input);
+            if (next == EOF) {
+              fprintf(stderr, "Lexer error: %d, Never ending block comment\n",
+                      LEXER_ERROR);
+              *error = -1;
+              return -1;
+            }
+
+            if (prev == '/' && next == '*') {
+              depth++;
+              prev = 0;
+            }
+
+            else if (prev == '*' && next == '/') {
+              depth--;
+              prev = 0;
+            }
+
+            else {
+              prev = next;
+            }
+          }
+          spaces = 0;
+          continue;
+        }
+
+        // not a comment
+        ungetc(next, input);
+        ungetc(indentChar, input);
+        break;
+      }
+
+      else if (indentChar == EOF) {
+        *error = 2;
+        return -1;
+      } else {
+        ungetc(indentChar, input);
+        return spaces;
+      }
+    }
+    lineStart = false;
+  }
+  return 0;
 }
