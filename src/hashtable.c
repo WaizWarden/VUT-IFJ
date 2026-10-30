@@ -38,7 +38,7 @@ bool ht_init(HashTable *hashTable, uint32_t size) {
   return true;
 }
 
-void ht_free(HashTable *hashTable) {
+void ht_free(HashTable *hashTable, void (*data_free)(void *)) {
   if (hashTable == NULL) {
     return;
   }
@@ -47,6 +47,11 @@ void ht_free(HashTable *hashTable) {
     if (hashTable->cells != NULL &&
         hashTable->cells[i].status != HT_CELL_EMPTY) {
       free(hashTable->cells[i].key);
+
+      // free data if function is provided
+      if (data_free != NULL && hashTable->cells[i].value != NULL) {
+        data_free(hashTable->cells[i].value);
+      }
     }
   }
   free(hashTable->cells);
