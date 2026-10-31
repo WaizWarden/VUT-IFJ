@@ -182,7 +182,6 @@ Token get_token(FILE *input) {
           goto return_token;
         }
 
-        lineStart = true;
         break;
       }
 
