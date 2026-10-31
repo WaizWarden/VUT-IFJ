@@ -88,3 +88,4 @@ typedef struct {
  * @returns Next parsed token
  */
 Token get_token(FILE *input);
+void scanner_reset(void);

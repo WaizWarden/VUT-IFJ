@@ -271,4 +271,165 @@ void first_iteration(void) {
   printf("Scanner tests done\n");
   printf("Test count: %d\t Tests passed %d\n", totalTests, passedTests);
 }
+
+/* AI USAGE - Gemini
+  I need to test whole sequence of tokens for indentation and dedentation, can
+  you help create it? Ai was also used to help me create tests
+*/
+
+/**
+ * @brief Tests a sequence of tokens from input string
+ * @param[in] testName - Name of the test
+ * @param[in] inputStr - Source code to tokenize
+ * @param[in] expectedTypes - Array of expected token types, in order
+ * @param[in] expectedCount - Number of items in expectedTypes
+ */
+void run_sequence_test(char *testName, char *inputStr, TokenType *expectedTypes,
+                       int expectedCount) {
+  totalTests++;
+
+  FILE *file = fmemopen(inputStr, strlen(inputStr), "r");
+  bool failed = false;
+
+  for (int i = 0; i < expectedCount; i++) {
+    Token token = get_token(file);
+
+    if (token.type == TOKEN_STRING) {
+      free(token.value.string);
+    } else if (token.type == TOKEN_IDENTIFIER) {
+      free(token.value.identifier);
+    }
+
+    if (token.type != expectedTypes[i]) {
+      printf("Test: %s Failed at token index %d, expected type: %u, got: %u\n",
+             testName, i, expectedTypes[i], token.type);
+      failed = true;
+      break;
+    }
+  }
+
+  fclose(file);
+
+  if (!failed) {
+    printf("Test: %s Passed\n", testName);
+    passedTests++;
+  }
+}
+
+void indentation_flow_tests(void) {
+  printf("\nIndentation & Dedent Tests\n");
+
+  // Test 1: Basic test
+  // Code:
+  // var x = 1
+  //     var y = 2
+  // x = 3
+  char *code1 = "var x = 1\n    var y = 2\nx = 3\n";
+  TokenType expected1[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,        TOKEN_NEWLINE,    TOKEN_INDENT,
+                           TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,        TOKEN_NEWLINE,    TOKEN_DEDENT,
+                           TOKEN_IDENTIFIER, TOKEN_ASSIGN,     TOKEN_INT,
+                           TOKEN_NEWLINE,    TOKEN_EOF};
+  run_sequence_test("1. Indent & Dedent basic flow", code1, expected1,
+                    sizeof(expected1) / sizeof(expected1[0]));
+
+  // Test 2, Invalid Indentation
+  scanner_reset();
+  char *code2 = "var x = 1\n    var y = 2\n  var z = 3\n";
+  TokenType expected2[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_INDENT,
+                           TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_ERROR};
+  run_sequence_test("2. Invalid indentation error", code2, expected2,
+                    sizeof(expected2) / sizeof(expected2[0]));
+
+  // Test 3: No Indednt, no Dedent
+  scanner_reset();
+  char *code3 = "var x = 1\nvar y = 2\n";
+  TokenType expected3[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,        TOKEN_NEWLINE,    TOKEN_KEYWORD,
+                           TOKEN_IDENTIFIER, TOKEN_ASSIGN,     TOKEN_INT,
+                           TOKEN_NEWLINE,    TOKEN_EOF};
+  run_sequence_test("Same indentation level", code3, expected3,
+                    sizeof(expected3) / sizeof(expected3[0]));
+
+  // Test 4: Double Indent, Double dedent
+  // if x
+  //     if y
+  //         z
+  // w
+  scanner_reset();
+  char *code4 = "if x\n    if y\n        z\nw\n";
+  TokenType expected4[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_NEWLINE,
+                           TOKEN_INDENT,     TOKEN_KEYWORD,    TOKEN_IDENTIFIER,
+                           TOKEN_NEWLINE,    TOKEN_INDENT,     TOKEN_IDENTIFIER,
+                           TOKEN_NEWLINE,    TOKEN_DEDENT,     TOKEN_DEDENT,
+                           TOKEN_IDENTIFIER, TOKEN_NEWLINE,    TOKEN_EOF};
+
+  run_sequence_test("4. Multiple dedent at once", code4, expected4,
+                    sizeof(expected4) / sizeof(expected4[0]));
+
+  // Test 5:
+  // if a
+  //     if b
+  //         c
+  //     d
+  scanner_reset();
+  char *code5 = "if a\n    if b\n        c\n    d\n";
+  TokenType expected5[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_NEWLINE,
+                           TOKEN_INDENT,  TOKEN_KEYWORD,    TOKEN_IDENTIFIER,
+                           TOKEN_NEWLINE, TOKEN_INDENT,     TOKEN_IDENTIFIER,
+                           TOKEN_NEWLINE, TOKEN_DEDENT,     TOKEN_IDENTIFIER,
+                           TOKEN_NEWLINE, TOKEN_EOF};
+  run_sequence_test("5. Partial dedent", code5, expected5,
+                    sizeof(expected5) / sizeof(expected5[0]));
+
+  // Test 6: Empty Line
+  scanner_reset();
+  char *code6 = "var x = 1\n\nvar y = 2\n";
+  TokenType expected6[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_NEWLINE,
+                           TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_EOF};
+  run_sequence_test("6. Blank line", code6, expected6,
+                    sizeof(expected6) / sizeof(expected6[0]));
+
+  // Test 7: Comment cannot generate indent
+  // var x = 1
+  //    // comment
+  // var y = 2
+  scanner_reset();
+  char *code7 = "var x = 1\n    // comment\nvar y = 2\n";
+  TokenType expected7[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,        TOKEN_NEWLINE,    TOKEN_KEYWORD,
+                           TOKEN_IDENTIFIER, TOKEN_ASSIGN,     TOKEN_INT,
+                           TOKEN_NEWLINE,    TOKEN_EOF};
+  run_sequence_test("7. Comment-only indented line", code7, expected7,
+                    sizeof(expected7) / sizeof(expected7[0]));
+
+  // Test 8: Tab error
+  // var x = 1
+  //  var y = 2 (space here is tab)
+  scanner_reset();
+  char *code8 = "var x = 1\n\tvar y = 2\n";
+  TokenType expected8[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                           TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_ERROR};
+  run_sequence_test("8. Tab at line start", code8, expected8,
+                    sizeof(expected8) / sizeof(expected8[0]));
+
+  // Test 9: Indents in brackets are ignored
+  scanner_reset();
+  // var x = (1 +
+  //   2) + 3
+  char *code9 = "var x = (1 +\n  2) + 3\n";
+  TokenType expected9[] = {
+      TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,  TOKEN_OPENING_BRACKET,
+      TOKEN_INT,     TOKEN_PLUS,       TOKEN_INT,     TOKEN_CLOSING_BRACKET,
+      TOKEN_PLUS,    TOKEN_INT,        TOKEN_NEWLINE, TOKEN_EOF};
+  run_sequence_test("9. Indent inside brackets", code9, expected9,
+                    sizeof(expected9) / sizeof(expected9[0]));
+}
+
+// END OF AI USAGE
 // NOLINTEND

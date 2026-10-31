@@ -52,6 +52,7 @@ KeywordEntry keywordTable[] = {
 // TODO
 /*
 reformat the comment detection as function - DRY
+Tell parser that when file is EOF, dedents wont come
 */
 
 static int bracketDepth = 0;
@@ -94,7 +95,9 @@ Token get_token(FILE *input) {
 
   // indent calculation
   int error = 0;
+  bool atLineStart = lineStart && bracketDepth == 0;
   int spaces = calculateIndent(input, &error);
+
   if (spaces == -1) {
     if (error == -1) {
 
@@ -114,7 +117,7 @@ Token get_token(FILE *input) {
       token.type = TOKEN_ERROR;
       goto return_token;
     }
-  } else {
+  } else if (atLineStart) {
     int currentTop = *scanner_stack_top();
     int topIndex = scanner_stack_size() - 1;
 
@@ -842,4 +845,20 @@ int calculateIndent(FILE *input, int *error) {
     }
   }
   return 0;
+}
+
+/**
+ * @brief Resets internal state of scanner, essentialy prepares for a new file
+ * Its used only in test and should not be used anywhere else
+ */
+void scanner_reset(void) {
+  bracketDepth = 0;
+  pendingDedents = 0;
+  lineStart = true;
+  if (stackInitialized) {
+    while (scanner_stack_size() > 0) {
+      scanner_stack_pop();
+    }
+    scanner_stack_push(0);
+  }
 }

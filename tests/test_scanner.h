@@ -8,3 +8,4 @@
  * @brief Tests for first iteration
  */
 void first_iteration(void);
+void indentation_flow_tests(void);
