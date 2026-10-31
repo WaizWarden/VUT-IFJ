@@ -174,6 +174,7 @@ Token get_token(FILE *input) {
 
       if (currentChar == '\n') {
         if (bracketDepth == 0) {
+          lineStart = true;
           token.type = TOKEN_NEWLINE;
           goto return_token;
         }
@@ -760,16 +761,27 @@ int calculateIndent(FILE *input, int *error) {
 
       if (indentChar == ' ') {
         spaces++;
-      } else if (indentChar == '\t') {
+      }
+
+      else if (indentChar == '\t') {
         fprintf(stderr, "Lexer error: %d, tab at the start of a line\n",
                 LEXER_ERROR);
 
         *error = -1;
         return -1;
-      } else if (indentChar == '\n') {
+      }
+
+      else if (indentChar == '\n') {
         *error = 1;
         return -1;
-      } else if (indentChar == '/') {
+      }
+
+      else if (indentChar == EOF) {
+        *error = 2;
+        return -1;
+      }
+
+      else if (indentChar == '/') {
         int next = fgetc(input);
 
         // One-line comment
@@ -777,6 +789,8 @@ int calculateIndent(FILE *input, int *error) {
           while (next != '\n' && next != EOF) {
             next = fgetc(input);
           }
+
+          spaces = 0;
           continue;
         }
 
@@ -808,6 +822,7 @@ int calculateIndent(FILE *input, int *error) {
               prev = next;
             }
           }
+
           spaces = 0;
           continue;
         }
@@ -815,18 +830,16 @@ int calculateIndent(FILE *input, int *error) {
         // not a comment
         ungetc(next, input);
         ungetc(indentChar, input);
-        break;
+        lineStart = false;
+        return spaces;
       }
 
-      else if (indentChar == EOF) {
-        *error = 2;
-        return -1;
-      } else {
+      else {
         ungetc(indentChar, input);
+        lineStart = false;
         return spaces;
       }
     }
-    lineStart = false;
   }
   return 0;
 }
