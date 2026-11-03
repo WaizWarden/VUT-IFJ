@@ -336,7 +336,7 @@ void indentation_flow_tests(void) {
                     sizeof(expected1) / sizeof(expected1[0]));
 
   // Test 2, Invalid Indentation
-  scanner_reset();
+  scanner_destroy();
   char *code2 = "var x = 1\n    var y = 2\n  var z = 3\n";
   TokenType expected2[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
                            TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_INDENT,
@@ -346,7 +346,7 @@ void indentation_flow_tests(void) {
                     sizeof(expected2) / sizeof(expected2[0]));
 
   // Test 3: No Indednt, no Dedent
-  scanner_reset();
+  scanner_destroy();
   char *code3 = "var x = 1\nvar y = 2\n";
   TokenType expected3[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
                            TOKEN_INT,        TOKEN_NEWLINE,    TOKEN_KEYWORD,
@@ -360,7 +360,7 @@ void indentation_flow_tests(void) {
   //     if y
   //         z
   // w
-  scanner_reset();
+  scanner_destroy();
   char *code4 = "if x\n    if y\n        z\nw\n";
   TokenType expected4[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_NEWLINE,
                            TOKEN_INDENT,     TOKEN_KEYWORD,    TOKEN_IDENTIFIER,
@@ -376,7 +376,7 @@ void indentation_flow_tests(void) {
   //     if b
   //         c
   //     d
-  scanner_reset();
+  scanner_destroy();
   char *code5 = "if a\n    if b\n        c\n    d\n";
   TokenType expected5[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_NEWLINE,
                            TOKEN_INDENT,  TOKEN_KEYWORD,    TOKEN_IDENTIFIER,
@@ -387,7 +387,7 @@ void indentation_flow_tests(void) {
                     sizeof(expected5) / sizeof(expected5[0]));
 
   // Test 6: Empty Line
-  scanner_reset();
+  scanner_destroy();
   char *code6 = "var x = 1\n\nvar y = 2\n";
   TokenType expected6[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
                            TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_NEWLINE,
@@ -400,7 +400,7 @@ void indentation_flow_tests(void) {
   // var x = 1
   //    // comment
   // var y = 2
-  scanner_reset();
+  scanner_destroy();
   char *code7 = "var x = 1\n    // comment\nvar y = 2\n";
   TokenType expected7[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
                            TOKEN_INT,        TOKEN_NEWLINE,    TOKEN_KEYWORD,
@@ -412,7 +412,7 @@ void indentation_flow_tests(void) {
   // Test 8: Tab error
   // var x = 1
   //  var y = 2 (space here is tab)
-  scanner_reset();
+  scanner_destroy();
   char *code8 = "var x = 1\n\tvar y = 2\n";
   TokenType expected8[] = {TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_ASSIGN,
                            TOKEN_INT,     TOKEN_NEWLINE,    TOKEN_ERROR};
@@ -420,7 +420,7 @@ void indentation_flow_tests(void) {
                     sizeof(expected8) / sizeof(expected8[0]));
 
   // Test 9: Indents in brackets are ignored
-  scanner_reset();
+  scanner_destroy();
   // var x = (1 +
   //   2) + 3
   char *code9 = "var x = (1 +\n  2) + 3\n";

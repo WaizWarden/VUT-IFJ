@@ -46,7 +46,9 @@ KeywordEntry keywordTable[] = {
     {"Double", KW_DOUBLE}, {"Int", KW_INT},       {"String", KW_STRING},
     {"val", KW_VAL},       {"var", KW_VAR},       {"if", KW_IF},
     {"else", KW_ELSE},     {"then", KW_THEN},     {"while", KW_WHILE},
-    {"do", KW_DO},         {"import", KW_IMPORT},
+    {"do", KW_DO},         {"import", KW_IMPORT}, {"KW_UNIT", KW_UNIT},
+    {"def", KW_DEF},       {"return", KW_RETURN},
+
 };
 //  End of AI usage
 
@@ -192,6 +194,11 @@ Token get_token(FILE *input) {
 
       if (currentChar == '+') {
         token.type = TOKEN_PLUS;
+        goto return_token;
+      }
+
+      if (currentChar == '@') {
+        token.type = TOKEN_AT;
         goto return_token;
       }
 
@@ -847,21 +854,8 @@ int calculateIndent(FILE *input, int *error) {
 }
 
 /**
- * @brief Resets internal state of scanner, essentialy prepares for a new file
- * Its used only in test and should not be used anywhere else
+ * @brief Resets internal state of scanner, and frees alocated memory
  */
-void scanner_reset(void) {
-  bracketDepth = 0;
-  pendingDedents = 0;
-  lineStart = true;
-  if (stackInitialized) {
-    while (scanner_stack_size() > 0) {
-      scanner_stack_pop();
-    }
-    scanner_stack_push(0);
-  }
-}
-
 void scanner_destroy(void) {
   if (stackInitialized) {
     scanner_stack_free();
