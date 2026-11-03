@@ -5,6 +5,7 @@
  */
 
 #include "../src/scanner.h"
+#include "../src/scanner_stack.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -429,6 +430,8 @@ void indentation_flow_tests(void) {
       TOKEN_PLUS,    TOKEN_INT,        TOKEN_NEWLINE, TOKEN_EOF};
   run_sequence_test("9. Indent inside brackets", code9, expected9,
                     sizeof(expected9) / sizeof(expected9[0]));
+
+  scanner_stack_free();
 }
 
 // END OF AI USAGE
