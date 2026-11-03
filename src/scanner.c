@@ -46,17 +46,11 @@ KeywordEntry keywordTable[] = {
     {"Double", KW_DOUBLE}, {"Int", KW_INT},       {"String", KW_STRING},
     {"val", KW_VAL},       {"var", KW_VAR},       {"if", KW_IF},
     {"else", KW_ELSE},     {"then", KW_THEN},     {"while", KW_WHILE},
-    {"do", KW_DO},         {"import", KW_IMPORT}, {"KW_UNIT", KW_UNIT},
+    {"do", KW_DO},         {"import", KW_IMPORT}, {"Unit", KW_UNIT},
     {"def", KW_DEF},       {"return", KW_RETURN},
 
 };
 //  End of AI usage
-
-// TODO
-/*
-reformat the comment detection as function - DRY
-Tell parser that when file is EOF, dedents wont come
-*/
 
 static int bracketDepth = 0;
 static bool stackInitialized = false;
