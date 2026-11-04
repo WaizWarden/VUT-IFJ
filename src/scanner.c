@@ -21,7 +21,6 @@
 int is_keyword(char *str);
 bool number_token_end(int currentChar);
 int calculateIndent(FILE *input, int *error);
-void scanner_destroy(void);
 
 // All possible states in FSM
 typedef enum {
@@ -92,7 +91,8 @@ Token get_token(FILE *input) {
 
   // indent calculation
   int error = 0;
-  bool atLineStart = lineStart && bracketDepth == 0;
+
+  bool atLineStart = lineStart && bracketDepth == 0; // NOLINT
   int spaces = calculateIndent(input, &error);
 
   if (spaces == -1) {
@@ -112,7 +112,6 @@ Token get_token(FILE *input) {
               "Scanner error: %d, Unknown error in indent calculation\n",
               SCANNER_ERROR);
       goto return_error;
-      ;
     }
   } else if (atLineStart) {
     int currentTop = *scanner_stack_top();
@@ -514,6 +513,21 @@ Token get_token(FILE *input) {
           break;
         }
 
+        else if (currentChar == 'd' || currentChar == 'D') {
+          int next = fgetc(input);
+
+          if (!number_token_end(next)) {
+            fprintf(stderr, "Scanner error: %d, invalid suffix\n",
+                    SCANNER_ERROR);
+            goto return_error;
+          }
+
+          str[len] = '\0';
+          token.type = TOKEN_DOUBLE;
+          token.value.numberDouble = strtod(str, NULL);
+          goto return_token;
+        }
+
         else if (number_token_end(currentChar)) {
 
           ungetc(currentChar, input);
@@ -730,18 +744,18 @@ int is_keyword(char *str) {
 }
 
 /**
- * @brief Checks if character ends token (Int/Double)
+ * @brief Decides if character can be right behind number/double
  *
  * @param[in] character from input
- * @returns true if token ends, else false
+ * @returns true if character can be behind token,, false if not
  */
 bool number_token_end(int currentChar) {
   int result =
       (currentChar == '+' || currentChar == '-' || currentChar == '*' ||
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
-       currentChar == '(' || currentChar == ':' || currentChar == ';' ||
-       isspace(currentChar) || currentChar == EOF);
+       currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
+       currentChar == EOF);
 
   return (bool)result;
 }

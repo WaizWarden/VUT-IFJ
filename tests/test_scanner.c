@@ -219,6 +219,7 @@ void first_iteration(void) {
   run_test("Underscore", "1_0.5", TOKEN_DOUBLE, NULL, -1, 10.5);
   run_test("d suffix", "3.14d", TOKEN_DOUBLE, NULL, -1, 3.14);
   run_test("dot plus", "1.5+2", TOKEN_DOUBLE, NULL, -1, 1.5);
+  run_test("15d double", "15d", TOKEN_DOUBLE, NULL, -1, 15.0);
   run_test("missing zero", ".45", TOKEN_DOUBLE, NULL, -1, 0.45);
   run_test("double dot", "..45", TOKEN_ERROR, NULL, -1, -1);
 
