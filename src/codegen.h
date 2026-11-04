@@ -28,4 +28,6 @@ void cg_print_string(char *str);
 
 void cg_print_var(const char *name, uint32_t uid);
 
+// prints start of the program and correctly initializes codegen
+void cg_init();
 #endif

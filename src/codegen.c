@@ -14,8 +14,21 @@
  *      local variables: LF@jmeno$[uid]
  *
  * @important Calling convencion: RETURN VALUE IS LEFT ON STACK TOP (even
- * nil@nil)
+ * nil@nil) and arguments are read from stack in reverse order.
  *
+ * @important Built-in function handling:
+ *  inline:
+ *      readLine(): string
+ *      toInt(val: Double): Int
+ *      strLength(s: String): Int
+ *      chr(code: Int): String
+ *  extra func:
+ *      print(val: Any): Unit
+ *      toStr(val: Any): String
+ *      readInt(): Int
+ *      readDouble(): Double
+ *      ord(s: String, i: Int): Int
+ *      substr(s, start, end)
  */
 
 // defined up to characters that have to be printed as /xyz like ' '
@@ -47,7 +60,7 @@ void cg_print_string(char *str) {
 
   printf("string@");
   while (nextChar && *nextChar != '\0') {
-    
+
     // escape characters are already parsed to one character
     unsigned char sym = (unsigned char)*nextChar;
 
@@ -63,4 +76,34 @@ void cg_print_string(char *str) {
 
 void cg_print_var(const char *name, uint32_t uid) {
   printf("LF@%s$%u", name, uid);
+}
+
+void cg_init() {
+  label_counter = 0;
+
+  // print unified start of code ---
+  fputs(".IFJcode26\n"
+        "DEFVAR GF@$tmp1\n"
+        "DEFVAR GF@$tmp2\n"
+        "DEFVAR GF@$tmp3\n"
+        "CALL $main\n"
+        "EXIT int@0\n",
+        stdout);
+
+  // print all built-in functions ---
+
+  // $builtin_print
+  fputs("LABEL $builtin_print\n"
+        "POPS GF@$tmp1\n"
+        "JUMPIFEQ $print_unit GF@$tmp1 nil@nil\n"
+        "WRITE GF@$tmp1\n"
+        "JUMP $print_end\n"
+
+        "LABEL $print_unit\n"
+        "WRITE string@()\n"
+
+        "LABEL $print_end\n"
+        "PUSHS nil@nil\n"
+        "RETURN\n",
+        stdout);
 }
