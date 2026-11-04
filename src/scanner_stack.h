@@ -1,6 +1,6 @@
 /**
  * @file    scanner_stack.h
- * @author  xhorakj01, xjuricl01
+ * @author  xjuricl01
  * @brief   scanenr_stack header file
  */
 

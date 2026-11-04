@@ -1,6 +1,6 @@
 /**
  * @file    scanner_stack.c
- * @author  xhorakj01, xjuricl01
+ * @author  xjuricl01
  * @brief   Stack using dynamic array used for indent and dedent
  */
 
