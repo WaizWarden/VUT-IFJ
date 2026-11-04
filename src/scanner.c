@@ -347,6 +347,7 @@ Token get_token(FILE *input) {
         }
 
         else {
+          ungetc(next, input);
           token.type = TOKEN_DOT;
           goto return_token;
         }

@@ -159,6 +159,7 @@ void first_iteration(void) {
   run_test("Newline outside brackets", "\n", TOKEN_NEWLINE, NULL, -1, -1);
   run_test("Unmatched closing bracket error", ")", TOKEN_ERROR, NULL, -1, -1);
   run_test("Dot", ".", TOKEN_DOT, NULL, -1, -1);
+  run_test("@", "@", TOKEN_AT, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic string", "\"Hello World\"", TOKEN_STRING, "Hello World", -1,
@@ -185,6 +186,9 @@ void first_iteration(void) {
   run_test("Keyword do", "do", TOKEN_KEYWORD, NULL, -1, -1);
   run_test("Keyword while", "while", TOKEN_KEYWORD, NULL, -1, -1);
   run_test("Keyword import", "import", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Unit", "Unit", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Def", "def", TOKEN_KEYWORD, NULL, -1, -1);
+  run_test("Uni", "return", TOKEN_KEYWORD, NULL, -1, -1);
 
   printf("\n");
   run_test("Identifer double", "double", TOKEN_IDENTIFIER, "double", -1, -1);
@@ -431,7 +435,251 @@ void indentation_flow_tests(void) {
   run_sequence_test("9. Indent inside brackets", code9, expected9,
                     sizeof(expected9) / sizeof(expected9[0]));
 
-  scanner_stack_free();
+  // Test 10: import ifj26.*
+  scanner_destroy();
+  char *code10 = "import ifj26.*\n";
+  TokenType expected10[] = {TOKEN_KEYWORD,  TOKEN_IDENTIFIER, TOKEN_DOT,
+                            TOKEN_MULTIPLY, TOKEN_NEWLINE,    TOKEN_EOF};
+  run_sequence_test("10. Prolog", code10, expected10,
+                    sizeof(expected10) / sizeof(expected10[0]));
+
+  // Small function
+  scanner_destroy();
+  char *code11 = "def f(x: Int): Int = x\n";
+  TokenType expected11[] = {
+      TOKEN_KEYWORD, TOKEN_IDENTIFIER, TOKEN_OPENING_BRACKET, TOKEN_IDENTIFIER,
+      TOKEN_COLON,   TOKEN_KEYWORD,    TOKEN_CLOSING_BRACKET, TOKEN_COLON,
+      TOKEN_KEYWORD, TOKEN_ASSIGN,     TOKEN_IDENTIFIER,      TOKEN_NEWLINE,
+      TOKEN_EOF};
+  run_sequence_test("12. Small function", code11, expected11,
+                    sizeof(expected11) / sizeof(expected11[0]));
+
+  //  Multi-line function
+  scanner_destroy();
+  char *code12 = "def f(x: Int): Int =\n    x\ndef g(): Int = 2\n";
+  TokenType expected12[] = {TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_NEWLINE,
+                            TOKEN_DEDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_INT,
+                            TOKEN_NEWLINE,
+                            TOKEN_EOF};
+  run_sequence_test("12. Multi-line function", code12, expected12,
+                    sizeof(expected12) / sizeof(expected12[0]));
+
+  // Test 14: @main
+  scanner_destroy();
+  char *code13 = "@main def run(): Unit = ()\n";
+  TokenType expected13[] = {TOKEN_AT,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_NEWLINE,
+                            TOKEN_EOF};
+  run_sequence_test("13. @main function", code13, expected13,
+                    sizeof(expected13) / sizeof(expected13[0]));
+
+  scanner_destroy();
+  char *code14 = "def f(n: Int): Int =\n"
+                 "    var r = 1\n"
+                 "    while n > 1 do\n"
+                 "        r = r * n\n"
+                 "    r\n"
+                 "def g(): Int = 0\n";
+  TokenType expected14[] = {TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_ASSIGN,
+                            TOKEN_INT,
+                            TOKEN_NEWLINE,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_GREAER,
+                            TOKEN_INT,
+                            TOKEN_KEYWORD,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_ASSIGN,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_MULTIPLY,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_NEWLINE,
+                            TOKEN_DEDENT,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_NEWLINE,
+                            TOKEN_DEDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_INT,
+                            TOKEN_NEWLINE,
+                            TOKEN_EOF};
+  run_sequence_test("16. While inside function", code14, expected14,
+                    sizeof(expected14) / sizeof(expected14[0]));
+
+  // Test 15: if/else in function
+  scanner_destroy();
+  char *code15 = "def f(n: Int): Int =\n"
+                 "    if n < 2 then\n"
+                 "        1\n"
+                 "    else\n"
+                 "        2\n"
+                 "def g(): Int = 0\n";
+  TokenType expected15[] = {TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_LOWER,
+                            TOKEN_INT,
+                            TOKEN_KEYWORD,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_INT,
+                            TOKEN_NEWLINE,
+                            TOKEN_DEDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_INT,
+                            TOKEN_NEWLINE,
+                            TOKEN_DEDENT,
+                            TOKEN_DEDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_INT,
+                            TOKEN_NEWLINE,
+                            TOKEN_EOF};
+  run_sequence_test("15. If/else inside function", code15, expected15,
+                    sizeof(expected15) / sizeof(expected15[0]));
+
+  // Test 16: Invalid dedent (2 doesnt exist)
+  scanner_destroy();
+  char *code16 = "def f(): Int =\n    var x = 1\n  x\n";
+  TokenType expected16[] = {TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_ASSIGN,
+                            TOKEN_INT, // var x = 1
+                            TOKEN_NEWLINE,
+                            TOKEN_ERROR};
+  run_sequence_test("16. Invalid dedent in function", code16, expected16,
+                    sizeof(expected16) / sizeof(expected16[0]));
+
+  // Test 17 built in function
+  scanner_destroy();
+  char *code17 = "def f(): Unit =\n"
+                 "    print(\"a\")\n"
+                 "    val x = readInt()\n"
+                 "def g(): Unit = ()\n";
+  TokenType expected17[] = {TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_NEWLINE,
+                            TOKEN_INDENT,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_STRING,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_NEWLINE,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_ASSIGN,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET, // val x = readInt()
+                            TOKEN_NEWLINE,
+                            TOKEN_DEDENT,
+                            TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_COLON,
+                            TOKEN_KEYWORD,
+                            TOKEN_ASSIGN,
+                            TOKEN_OPENING_BRACKET,
+                            TOKEN_CLOSING_BRACKET,
+                            TOKEN_NEWLINE,
+                            TOKEN_EOF};
+  run_sequence_test("17. Builtin functions", code17, expected17,
+                    sizeof(expected17) / sizeof(expected17[0]));
+
+  // Test 18: semicolon
+  scanner_destroy();
+  char *code18 = "val x = 1; val y = 2\n";
+  TokenType expected18[] = {TOKEN_KEYWORD,    TOKEN_IDENTIFIER, TOKEN_ASSIGN,
+                            TOKEN_INT,        TOKEN_SEMICOLON,  TOKEN_KEYWORD,
+                            TOKEN_IDENTIFIER, TOKEN_ASSIGN,     TOKEN_INT,
+                            TOKEN_NEWLINE,    TOKEN_EOF};
+  run_sequence_test("22. Semicolon separator", code18, expected18,
+                    sizeof(expected18) / sizeof(expected18[0]));
 }
 
 // END OF AI USAGE
