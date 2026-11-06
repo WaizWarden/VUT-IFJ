@@ -104,8 +104,8 @@ void cg_init() {
         stdout);
   fputs("LABEL $builtin_readDouble\n"
         "READ GF@$tmp1 float\n"
-        "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
-        "MOVE GF@$tmp1 int@0\n"
+        "JUMPIFNEQ $readDouble_ok GF@$tmp1 nil@nil\n"
+        "MOVE GF@$tmp1 float@0x0p+0\n"
 
         "LABEL $readInt_ok\n"
         "PUSHS GF@$tmp1\n"
