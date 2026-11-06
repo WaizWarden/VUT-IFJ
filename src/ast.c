@@ -40,7 +40,8 @@ static AstNode *ast_allocate(AstNodeType type, int line) {
  * @returns pointer to AstNode
  */
 
-AstNode *ast_new_binary(BinaryOperation operation, AstNode *left, AstNode *right, int line) {
+AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
+                        AstNode *right, int line) {
   AstNode *node = ast_allocate(AST_BINARY, line);
 
   node->as.binary.operation = operation;
@@ -141,6 +142,58 @@ void ast_free(AstNode *node) {
     free(node->as.assign.name);
     ast_free(node->as.assign.value);
     break;
+  case AST_PROGRAM:
+    for (size_t i = 0; i < node->as.program.count; i++) {
+      ast_free(node->as.program.functions[i]);
+    }
+
+    free(node->as.program.functions);
+    break;
+  case AST_FUNC_DEF:
+    free(node->as.funcDef.name);
+    for (uint16_t i = 0; i < node->as.funcDef.paramCount; i++) {
+      free(node->as.funcDef.params[i].name);
+    }
+
+    free(node->as.funcDef.params);
+    ast_free(node->as.funcDef.body);
+    break;
+  case AST_BLOCK:
+    for (size_t i = 0; i < node->as.block.count; i++) {
+      ast_free(node->as.block.stmts[i]);
+    }
+
+    free(node->as.block.stmts);
+    break;
+  case AST_VAR_DECL:
+    free(node->as.varDecl.name);
+    ast_free(node->as.varDecl.initExpr);
+    break;
+  case AST_IF:
+    ast_free(node->as.ifStatement.condition);
+    ast_free(node->as.ifStatement.thenBlock);
+    ast_free(node->as.ifStatement.elseBlock);
+    break;
+  case AST_WHILE:
+    ast_free(node->as.whileStatement.cond);
+    ast_free(node->as.whileStatement.bodyBlock);
+    break;
+  case AST_RETURN:
+    ast_free(node->as.ret.expr); /* NULL-safe, ast_free umí NULL */
+    break;
+  case AST_FUNC_CALL:
+    free(node->as.funcCall.funcName);
+    for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
+      ast_free(node->as.funcCall.args[i]);
+    }
+    free(node->as.funcCall.args);
+    break;
+  case AST_EXPR_STATEMENT:
+    ast_free(node->as.exprStatement.expr);
+    break;
+  case AST_LITERAL_STRING:
+    free(node->as.stringValue);
+    break;
   default:
     // If literals -> nothing to free
     break;
@@ -201,6 +254,26 @@ AstNode *ast_new_assign(char *name, AstNode *value, int line) {
 
   node->as.assign.name = name;
   node->as.assign.value = value;
+
+  return node;
+}
+/**
+ * @brief Creates a new node for if block
+ *
+ * @param cond
+ * @param thenBlock
+ * @param elseBlock
+ * @param line
+ * @return AstNode*
+ */
+
+AstNode *ast_new_if(AstNode *cond, AstNode *thenBlock, AstNode *elseBlock,
+                    int line) {
+
+  AstNode *node = ast_allocate(AST_IF, line);
+  node->as.ifStatement.condition = cond;
+  node->as.ifStatement.elseBlock = elseBlock;
+  node->as.ifStatement.thenBlock = thenBlock;
 
   return node;
 }

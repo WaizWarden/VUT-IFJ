@@ -8,9 +8,9 @@
 #define AST_H
 
 #include "symtable.h"
- #include <stdbool.h>
- #include <stddef.h>
- #include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 typedef enum {
   AST_PROGRAM,
@@ -33,7 +33,18 @@ typedef enum {
   AST_LITERAL_UNIT
 } AstNodeType;
 
-typedef enum { OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_EQ, OP_NEQ, OP_LT, OP_LE, OP_GT, OP_GE } BinaryOperation;
+typedef enum {
+  OP_ADD,
+  OP_SUB,
+  OP_MUL,
+  OP_DIV,
+  OP_EQ,
+  OP_NEQ,
+  OP_LT,
+  OP_LE,
+  OP_GT,
+  OP_GE
+} BinaryOperation;
 
 typedef enum { OP_UNARY_MINUS } UnaryOperation;
 
@@ -57,14 +68,12 @@ typedef struct AstNode {
       struct AstNode *value;
     } assign;
 
-    struct
-    {
+    struct {
       struct AstNode **functions;
       size_t count;
     } program;
 
-    struct
-    {
+    struct {
       struct AstNode **stmts;
       size_t count;
     } block;
@@ -86,15 +95,13 @@ typedef struct AstNode {
       struct AstNode *body;
     } funcDef;
 
-    struct
-    {
+    struct {
       char *funcName;
       struct AstNode **args;
       size_t argCount;
     } funcCall;
 
-    struct
-    {
+    struct {
       struct AstNode *condition;
       struct AstNode *thenBlock;
       struct AstNode *elseBlock;
@@ -134,15 +141,20 @@ AstNode *ast_new_identifier(char *name, int line); // steals `name`
 AstNode *ast_new_assign(char *name, AstNode *value, int line);
 
 AstNode *ast_new_program(AstNode **functions, size_t count, int line);
-AstNode *ast_new_func_def(char *name, bool isMain, DataType retType, Parameter *params, uint16_t paramCount, AstNode *body, int line);
+AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
+                          Parameter *params, uint16_t paramCount, AstNode *body,
+                          int line);
 AstNode *ast_new_block(AstNode **stmts, size_t count, int line);
-AstNode *ast_new_var_decl(char *name, bool isModifiable, DataType declaredType, bool hasDeclaredType, AstNode *initExpr, int line);
-AstNode *ast_new_if(AstNode *cond, AstNode *thenBlock, AstNode *elseBlock, int line);
+AstNode *ast_new_var_decl(char *name, bool isModifiable, DataType declaredType,
+                          bool hasDeclaredType, AstNode *initExpr, int line);
+AstNode *ast_new_if(AstNode *cond, AstNode *thenBlock, AstNode *elseBlock,
+                    int line);
 AstNode *ast_new_while(AstNode *cond, AstNode *bodyBlock, int line);
 AstNode *ast_new_return(AstNode *expr, int line);
-AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount, int line);
+AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
+                           int line);
 AstNode *ast_new_expr_statement(AstNode *expr, int line);
-AstNode *ast_new_string(char *value, int line);   // steals `value`
+AstNode *ast_new_string(char *value, int line); // steals `value`
 AstNode *ast_new_bool(bool value, int line);
 AstNode *ast_new_unit(int line);
 
