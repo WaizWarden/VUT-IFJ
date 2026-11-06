@@ -14,7 +14,7 @@
  *      local variables: LF@jmeno$[uid]
  *
  * @important Calling convencion: RETURN VALUE IS LEFT ON STACK TOP (even
- * nil@nil) and arguments are read from stack in reverse order.
+ * nil@nil) and arguments are read from stack in reverse order. (last arg on top)
  *
  * @important Built-in function handling:
  *  inline:
@@ -22,9 +22,9 @@
  *      toInt(val: Double): Int
  *      strLength(s: String): Int
  *      chr(code: Int): String
+ *      toStr(value: Any): String
+ *      print(value: Any): Unit
  *  extra func:
- *      print(val: Any): Unit
- *      toStr(val: Any): String
  *      readInt(): Int
  *      readDouble(): Double
  *      ord(s: String, i: Int): Int
@@ -92,18 +92,25 @@ void cg_init() {
 
   // print all built-in functions ---
 
-  // $builtin_print
-  fputs("LABEL $builtin_print\n"
-        "POPS GF@$tmp1\n"
-        "JUMPIFEQ $print_unit GF@$tmp1 nil@nil\n"
-        "WRITE GF@$tmp1\n"
-        "JUMP $print_end\n"
-
-        "LABEL $print_unit\n"
-        "WRITE string@()\n"
-
-        "LABEL $print_end\n"
-        "PUSHS nil@nil\n"
+  // $builtin_readInt and $builtin_readDouble
+  fputs("LABEL $builtin_readInt\n"
+        "READ GF@$tmp1 int\n"
+        "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
+        "MOVE GF@$tmp1 int@0\n"
+        "LABEL $readInt_ok\n"
+        "PUSHS GF@$tmp1\n"
         "RETURN\n",
         stdout);
+  fputs("LABEL $builtin_readDouble\n"
+        "READ GF@$tmp1 float\n"
+        "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
+        "MOVE GF@$tmp1 int@0\n"
+        "LABEL $readInt_ok\n"
+        "PUSHS GF@$tmp1\n"
+        "RETURN\n",
+        stdout);
+
+  // $builtin_ord
+  fputs("LABEL $builtin_ord\n",
+    stdout);
 }
