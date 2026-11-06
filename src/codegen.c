@@ -97,6 +97,7 @@ void cg_init() {
         "READ GF@$tmp1 int\n"
         "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
         "MOVE GF@$tmp1 int@0\n"
+
         "LABEL $readInt_ok\n"
         "PUSHS GF@$tmp1\n"
         "RETURN\n",
@@ -105,12 +106,79 @@ void cg_init() {
         "READ GF@$tmp1 float\n"
         "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
         "MOVE GF@$tmp1 int@0\n"
+
         "LABEL $readInt_ok\n"
         "PUSHS GF@$tmp1\n"
         "RETURN\n",
         stdout);
 
-  // $builtin_ord
-  fputs("LABEL $builtin_ord\n",
+  // $builtin_ord (value string, index int) - int on stack top (revised by gemini)
+  fputs("LABEL $builtin_ord\n"
+        "POPS GF@$tmp2\n"
+        "POPS GF@$tmp1\n"
+
+        "LT GF@$tmp3 GF@$tmp2 int@0\n" 
+        "JUMPIFEQ $ord_err GF@$tmp3 bool@true\n"  // index < 0
+
+        "STRLEN GF@$tmp3 GF@$tmp1\n"
+        "LT GF@$tmp3 GF@$tmp2 GF@$tmp3\n"
+        "JUMPIFEQ $ord_err GF@$tmp3 bool@false\n" // index >= len
+
+        "STRI2INT GF@$tmp1 GF@$tmp1 GF@$tmp2\n"
+        "PUSHS GF@$tmp1\n"
+        "RETURN\n"
+
+        "LABEL $ord_err\n"
+        "PUSHS int@-1\n"
+        "RETURN\n",
     stdout);
+
+  // $builtin_substr (value string, start int, end int) (architecture by gemini)
+  fputs("LABEL $builtin_substr\n"
+
+        // create new local frame and define all helper vars
+        "CREATEFRAME\n"
+        "DEFVAR LF@str\n"
+        "DEFVAR LF@start\n"
+        "DEFVAR LF@end\n"
+        "DEFVAR LF@len\n"
+        "DEFVAR LF@res\n"
+        "DEFVAR LF@ch\n"
+        "DEFVAR LF@cond\n"
+        "PUSHFRAME\n"
+        "POPS LF@end\n"
+        "POPS LF@start\n"
+        "POPS LF@str\n"
+
+        "STRLEN LF@len LF@str\n"
+
+        // checks parameter validity
+        "LT LF@cond LF@start int@0\n"
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // start < 0
+        "LT LF@cond LF@end int@0\n"
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // end < 0
+        "GT LF@cond LF@start LF@end\n"
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // start > end
+        "LT LF@cond LF@start LF@len\n"
+        "JUMPIFEQ $substr_err40 LF@cond bool@false\n" // start >= len
+        "GT LF@cond LF@end LF@len\n"
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // end < len
+
+        // loop over string, concat to @res ultil reaching 'end'
+        "MOVE LF@res string@\n"
+        "LABEL $substr_loop\n"
+        "JUMPIFEQ $substr_done LF@start LF@end\n"
+        "GETCHAR LF@ch LF@str LF@start\n"
+        "CONCAT LF@res LF@res LF@ch\n"
+        "ADD LF@start LF@start int@1\n"
+        "JUMP $substr_loop\n"
+
+        // clean frame and return value
+        "LABEL $substr_done\n"
+        "PUSHS LF@res\n"
+        "POPFRAME\n"
+        "RETURN\n"
+        "LABEL $substr_err40\n"
+        "EXIT int@40\n",
+  stdout);
 }
