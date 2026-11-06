@@ -179,7 +179,7 @@ void ast_free(AstNode *node) {
     ast_free(node->as.whileStatement.bodyBlock);
     break;
   case AST_RETURN:
-    ast_free(node->as.ret.expr); /* NULL-safe, ast_free umí NULL */
+    ast_free(node->as.ret.expr);
     break;
   case AST_FUNC_CALL:
     free(node->as.funcCall.funcName);
@@ -239,6 +239,61 @@ void ast_print(const AstNode *node, int indent) {
   case AST_ASSIGN:
     printf("Assign %s\n", node->as.assign.name);
     ast_print(node->as.assign.value, indent + 1);
+    break;
+  case AST_PROGRAM:
+    printf("Program (%zu functions)\n", node->as.program.count);
+    for (size_t i = 0; i < node->as.program.count; i++)
+      ast_print(node->as.program.functions[i], indent + 1);
+    break;
+  case AST_FUNC_DEF:
+    printf("FuncDef %s retType=%d isMain=%d params=%u\n", node->as.funcDef.name,
+           node->as.funcDef.retType, node->as.funcDef.isMain,
+           node->as.funcDef.paramCount);
+    ast_print(node->as.funcDef.body, indent + 1);
+    break;
+  case AST_BLOCK:
+    printf("Block (%zu stmts)\n", node->as.block.count);
+    for (size_t i = 0; i < node->as.block.count; i++)
+      ast_print(node->as.block.stmts[i], indent + 1);
+    break;
+  case AST_VAR_DECL:
+    printf("VarDecl %s %s\n", node->as.varDecl.name,
+           node->as.varDecl.isModifiable ? "var" : "val");
+    ast_print(node->as.varDecl.initExpr, indent + 1);
+    break;
+  case AST_IF:
+    printf("If\n");
+    ast_print(node->as.ifStatement.condition, indent + 1);
+    ast_print(node->as.ifStatement.thenBlock, indent + 1);
+    ast_print(node->as.ifStatement.elseBlock, indent + 1);
+    break;
+  case AST_WHILE:
+    printf("While\n");
+    ast_print(node->as.whileStatement.cond, indent + 1);
+    ast_print(node->as.whileStatement.bodyBlock, indent + 1);
+    break;
+  case AST_RETURN:
+    printf("Return\n");
+    ast_print(node->as.ret.expr, indent + 1);
+    break;
+  case AST_FUNC_CALL:
+    printf("Call %s (%zu args)\n", node->as.funcCall.funcName,
+           node->as.funcCall.argCount);
+    for (size_t i = 0; i < node->as.funcCall.argCount; i++)
+      ast_print(node->as.funcCall.args[i], indent + 1);
+    break;
+  case AST_EXPR_STATEMENT:
+    printf("ExprStmt\n");
+    ast_print(node->as.exprStatement.expr, indent + 1);
+    break;
+  case AST_LITERAL_STRING:
+    printf("Literal String \"%s\"\n", node->as.stringValue);
+    break;
+  case AST_LITERAL_BOOL:
+    printf("Literal Bool %s\n", node->as.boolValue ? "true" : "false");
+    break;
+  case AST_LITERAL_UNIT:
+    printf("Literal Unit ()\n");
     break;
   }
 }
