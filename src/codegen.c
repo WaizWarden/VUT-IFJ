@@ -78,7 +78,7 @@ void cg_print_var(const char *name, uint32_t uid) {
   printf("LF@%s$%u", name, uid);
 }
 
-void cg_init() {
+void cg_gen_head() {
   label_counter = 0;
 
   // print unified start of code ---
@@ -181,4 +181,7 @@ void cg_init() {
         "LABEL $substr_err40\n"
         "EXIT int@40\n",
   stdout);
+
+  /// @author xsirmat00 from here -----------------------------------------------
+
 }

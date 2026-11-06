@@ -9,6 +9,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "ast.h"
+#include "symtable.h"
 
 /// @brief Increments global id counter
 /// @return unique label id
@@ -28,6 +30,26 @@ void cg_print_string(char *str);
 
 void cg_print_var(const char *name, uint32_t uid);
 
-// prints start of the program and correctly initializes codegen
-void cg_init();
+/// @brief Generates header and builtin functions 
+void cg_gen_head();
+
+/// @todo add function descriptions -----
+
+void cg_gen_program(const AstNode *root);
+
+void cg_gen_statement(const AstNode *stmt, DataType funcRetType);
+
+void cg_gen_block(const AstNode *block, bool isLastInFunc, DataType funcRetType);
+
+/// @author xsirmat00 from here
+/// @todo add function descriptions -----
+
+void cg_gen_expr(const AstNode *expr);
+
+void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn, DataType funcRetType);
+
+void cg_gen_while(const AstNode *whileNode, DataType funcRetType);
+
+void cg_gen_call(const AstNode *callNode);
+
 #endif
