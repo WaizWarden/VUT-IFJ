@@ -13,7 +13,7 @@
 
 /// @brief Increments global id counter
 /// @return unique label id
-uint32_t cg_next_label_id();
+uint32_t cg_next_label_id(void);
 
 /// @brief print 64bit int intercode
 /// @param x intiger to print
@@ -25,7 +25,7 @@ void cg_print_bool(bool val);
 
 void cg_print_unit(void);
 
-void cg_print_string(char *str);
+void cg_print_string(const char *str);
 
 /// @brief Prints the variable name in intercode format
 /// @param name var name
@@ -33,7 +33,7 @@ void cg_print_string(char *str);
 void cg_print_var(const char *name, uint32_t uid);
 
 /// @brief Generates header and builtin functions 
-void cg_gen_head();
+void cg_gen_head(void);
 
 /// @todo add function descriptions -----
 

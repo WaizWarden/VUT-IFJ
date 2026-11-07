@@ -36,6 +36,7 @@
 #define SPECIAL_CHAR_IN_STRING_MAX 32
 
 #include "codegen.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -43,9 +44,9 @@
 static uint32_t label_counter = 0;
 
 // use for fast jumps in if/else/<=...
-uint32_t cg_next_label_id() { return label_counter++; }
+uint32_t cg_next_label_id(void) { return label_counter++; }
 
-void cg_print_int(int64_t val) { printf("int@%lld", (long long)val); }
+void cg_print_int(int64_t val) { printf("int@%" PRId64, val); }
 
 void cg_print_double(double val) { printf("float@%a", val); }
 
@@ -55,9 +56,9 @@ void cg_print_bool(bool val) {
 
 void cg_print_unit(void) { printf("nil@nil"); }
 
-void cg_print_string(char *str) {
+void cg_print_string(const char *str) {
 
-  char *nextChar = str;
+  const char *nextChar = str;
 
   printf("string@");
   while (nextChar && *nextChar != '\0') {
@@ -79,7 +80,7 @@ void cg_print_var(const char *name, uint32_t uid) {
   printf("LF@%s$%u", name, uid);
 }
 
-void cg_gen_head() {
+void cg_gen_head(void) {
   label_counter = 0;
 
   // print unified start of code ---
@@ -193,10 +194,11 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     fputs("DEFVAR ", stdout);
     cg_print_var(node->as.varDecl.name, node->uid);
     putchar('\n');
+    cg_gen_vars_prepass(node->as.varDecl.initExpr);
     break;
 
   case AST_BLOCK:
-    for (int i = 0; i < node->as.block.count; i++) {
+    for (size_t i = 0; i < node->as.block.count; i++) {
       cg_gen_vars_prepass(node->as.block.stmts[i]);
     }
     break;
@@ -208,6 +210,14 @@ static void cg_gen_vars_prepass(const AstNode *node) {
 
   case AST_WHILE:
     cg_gen_vars_prepass(node->as.whileStatement.bodyBlock);
+    break;
+
+  case AST_ASSIGN:
+    cg_gen_vars_prepass(node->as.assign.value);
+    break;
+
+  case AST_RETURN:
+    cg_gen_vars_prepass(node->as.ret.expr);
     break;
 
   default: // literals, function calls and othes do not require a pass
@@ -233,18 +243,18 @@ static void cg_gen_func_def(const AstNode *node) {
 
   // declare internal parameters
   for (uint16_t i = 0; i < node->as.funcDef.paramCount; i++) {
-    puts("DEFVAR ");
+    fputs("DEFVAR ", stdout);
     cg_print_var(node->as.funcDef.params[i].name,
                  node->as.funcDef.params[i].uid);
-    puts("\n");
+    putchar('\n');
   }
 
   // load parameter values from stack from right to left
   for (int i = (int)node->as.funcDef.paramCount - 1; i >= 0; i--) {
-    puts("POPS ");
+    fputs("POPS ", stdout);
     cg_print_var(node->as.funcDef.params[i].name,
                  node->as.funcDef.params[i].uid);
-    puts("\n");
+    putchar('\n');
   }
 
   // declare internal variables
@@ -254,7 +264,7 @@ static void cg_gen_func_def(const AstNode *node) {
   cg_gen_block(node->as.funcDef.body, true, node->as.funcDef.retType);
 
   puts("POPFRAME\n"
-       "RETURN\n");
+       "RETURN");
 }
 
 void cg_gen_program(const AstNode *root) {
