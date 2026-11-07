@@ -10,6 +10,7 @@
 
 int main(void) {
   first_iteration();
+  indentation_flow_tests();
   test_stack();
   test_ast();
   return 0;

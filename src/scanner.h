@@ -37,6 +37,11 @@ typedef enum {
   TOKEN_NEWLINE,
   TOKEN_ERROR,
 
+  TOKEN_DOT,
+  TOKEN_INDENT,
+  TOKEN_DEDENT,
+  TOKEN_AT, // @
+
 } TokenType;
 
 /**
@@ -48,7 +53,15 @@ typedef enum {
   KW_STRING,
   KW_VAL,
   KW_VAR,
-
+  KW_IMPORT,
+  KW_IF,
+  KW_ELSE,
+  KW_THEN,
+  KW_DO,
+  KW_WHILE,
+  KW_DEF,
+  KW_UNIT,
+  KW_RETURN,
 } Keyword;
 
 /**
@@ -79,3 +92,4 @@ typedef struct {
  * @returns Next parsed token
  */
 Token get_token(FILE *input);
+void scanner_destroy(void);
