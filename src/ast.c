@@ -26,6 +26,8 @@ static AstNode *ast_allocate(AstNodeType type, int line) {
 
   node->type = type;
   node->line = line;
+  node->uid = 0;
+  node->evalType = T_UNIT;
 
   return node;
 }
