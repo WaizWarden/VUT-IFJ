@@ -10,9 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char *dup_str(const char *s) {
-  char *copy = malloc(strlen(s) + 1);
-  strcpy(copy, s);
+static char *dup_str(const char *string) {
+  size_t len = strlen(string) + 1;
+  char *copy = malloc(strlen(string) + 1);
+  memcpy(copy, string, len);
   return copy;
 }
 
@@ -22,7 +23,7 @@ void test_ast(void) {
   params[0].name = dup_str("n");
   params[0].type = T_INT;
 
-  AstNode **whileStmts = malloc(2 * sizeof(AstNode *));
+  AstNode **whileStmts = (AstNode **)malloc(2 * sizeof(AstNode *));
   whileStmts[0] = ast_new_assign(
       dup_str("result"),
       ast_new_binary(OP_MUL, ast_new_identifier(dup_str("result"), 4),
@@ -43,7 +44,7 @@ void test_ast(void) {
                                 ast_new_int(0, 6), 6),
                  ast_new_block(NULL, 0, 6), ast_new_block(NULL, 0, 6), 6);
 
-  AstNode **funcBody = malloc(4 * sizeof(AstNode *));
+  AstNode **funcBody = (AstNode **)malloc(4 * sizeof(AstNode *));
   funcBody[0] = ast_new_var_decl(dup_str("result"), true, T_INT, false,
                                  ast_new_int(1, 2), 2);
   funcBody[1] = whileNode;
@@ -51,10 +52,10 @@ void test_ast(void) {
   funcBody[3] = ast_new_return(ast_new_identifier(dup_str("result"), 7), 7);
 
   /* run(): Unit = val s = "x"; val b = true; print(s); return */
-  AstNode **callArgs = malloc(sizeof(AstNode *));
+  AstNode **callArgs = (AstNode **)malloc(sizeof(AstNode *));
   callArgs[0] = ast_new_identifier(dup_str("s"), 11);
 
-  AstNode **mainBody = malloc(4 * sizeof(AstNode *));
+  AstNode **mainBody = (AstNode **)malloc(4 * sizeof(AstNode *));
   mainBody[0] = ast_new_var_decl(dup_str("s"), false, T_STRING, false,
                                  ast_new_string(dup_str("x"), 10), 10);
   mainBody[1] = ast_new_var_decl(dup_str("b"), false, T_BOOLEAN, false,
@@ -62,7 +63,7 @@ void test_ast(void) {
   mainBody[2] = ast_new_func_call(dup_str("print"), callArgs, 1, 12);
   mainBody[3] = ast_new_return(NULL, 13);
 
-  AstNode **funcs = malloc(2 * sizeof(AstNode *));
+  AstNode **funcs = (AstNode **)malloc(2 * sizeof(AstNode *));
   funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, params, 1,
                               ast_new_block(funcBody, 4, 1), 1);
   funcs[1] = ast_new_func_def(dup_str("run"), true, T_UNIT, NULL, 0,
@@ -71,12 +72,12 @@ void test_ast(void) {
   AstNode *program = ast_new_program(funcs, 2, 0);
 
   /* exercise remaining expression nodes so every case is covered */
-  AstNode **extra = malloc(2 * sizeof(AstNode *));
+  AstNode **extra = (AstNode **)malloc(2 * sizeof(AstNode *));
   extra[0] = ast_new_expr_statement(
       ast_new_unary(OP_UNARY_MINUS, ast_new_double(2.5, 14), 14), 14);
   extra[1] = ast_new_expr_statement(ast_new_unit(15), 15);
   AstNode *extraBlock = ast_new_block(extra, 2, 14);
-  AstNode **funcs2 = malloc(sizeof(AstNode *));
+  AstNode **funcs2 = (AstNode **)malloc(sizeof(AstNode *));
   funcs2[0] = ast_new_func_def(dup_str("extra"), false, T_UNIT, NULL, 0,
                                extraBlock, 14);
   AstNode *program2 = ast_new_program(funcs2, 1, 0);
