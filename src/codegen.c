@@ -367,9 +367,10 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
   }
 
   if (block->type != AST_BLOCK) {
-    const AstNode *expr = (block->type == AST_EXPR_STATEMENT)
-                              ? block->as.exprStatement.expr
-                              : block;
+    const AstNode *expr =
+        (block->type == AST_EXPR_STATEMENT)
+            ? block->as.exprStatement.expr // get internal expression
+            : block;
     if (isLastInFunc) {
       cg_gen_expr(expr);
       cg_adjust_return_value(expr->evalType, funcRetType);
@@ -379,7 +380,52 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
     return;
   }
 
-  /// @todo
+  if (block->as.block.count == 0) { // do nothing if not last
+    if (isLastInFunc) {
+    puts("PUSHS nil@nil");
+  }
+    return;
+  }
+
+  // go through all commands except last
+  for (size_t i = 0; i < block->as.block.count - 1; i++) {
+    cg_gen_statement(block->as.block.stmts[i], funcRetType);
+  }
+
+  const AstNode *last = block->as.block.stmts[block->as.block.count - 1];
+
+  if (!isLastInFunc) {
+    cg_gen_statement(last, funcRetType);
+    return;
+  }
+
+  // end of a function body
+  switch (last->type) {
+  case AST_EXPR_STATEMENT:
+    cg_gen_expr(last->as.exprStatement.expr);
+    cg_adjust_return_value(last->as.exprStatement.expr->evalType, funcRetType);
+    break;
+
+  case AST_IF:
+    cg_gen_if(last, true, funcRetType);
+    break;
+
+  case AST_VAR_DECL:
+  case AST_ASSIGN:
+  case AST_WHILE: // retunr nil@nil
+    cg_gen_statement(last, funcRetType);
+    puts("PUSHS nil@nil");
+    break;
+
+  case AST_RETURN:
+    cg_gen_statement(last, funcRetType);
+    break;
+
+  default:
+    cg_gen_expr(last);
+    cg_adjust_return_value(last->evalType, funcRetType);
+    break;
+  }
 }
 
 void cg_gen_program(const AstNode *root) {
