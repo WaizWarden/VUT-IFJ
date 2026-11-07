@@ -93,6 +93,14 @@ static PrecSymbol convert_token_to_symbol(const Token *token,
   case TOKEN_MULTIPLY:
   case TOKEN_DIVIDE:
     return SYM_MUL_DIV;
+  case TOKEN_LOWER:
+  case TOKEN_LOWER_EQ:
+  case TOKEN_GREAER:
+  case TOKEN_GREATER_EQ:
+    return SYM_REL;
+  case TOKEN_EQ:
+  case TOKEN_NOT_EQ:
+    return SYM_EQ_NEQ;
   case TOKEN_OPENING_BRACKET:
     return SYM_LPAREN;
   case TOKEN_CLOSING_BRACKET:
