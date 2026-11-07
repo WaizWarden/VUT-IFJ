@@ -7,7 +7,6 @@
 #ifndef CODEGEN_H
 #define CODEGEN_H
 
-#include <stdbool.h>
 #include <stdint.h>
 #include "ast.h"
 #include "symtable.h"

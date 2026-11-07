@@ -34,6 +34,7 @@ typedef enum { ST_VAR, ST_FUNC } SymbolType;
 typedef struct {
   char *name;
   DataType type;
+  uint32_t uid;
 } Parameter;
 
 /**

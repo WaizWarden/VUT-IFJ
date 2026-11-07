@@ -192,7 +192,33 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     return;
   }
 
+  switch (node->type)
+  {
+  case AST_VAR_DECL:
+    fputs("DEFVAR ", stdout);
+    cg_print_var(node->as.varDecl.name, node->uid);
+    putchar('\n');
+    break;
+
+  case AST_BLOCK:
+    for(int i = 0; i < node->as.block.count; i++)
+    {
+      cg_gen_vars_prepass(node->as.block.stmts[i]);
+    }
+    break;
+
+  case AST_IF:
+    cg_gen_vars_prepass(node->as.ifStatement.thenBlock);
+    cg_gen_vars_prepass(node->as.ifStatement.elseBlock);
+    break;
+
+  case AST_WHILE:
+    cg_gen_vars_prepass(node->as.whileStatement.bodyBlock);
+    break;
   
+  default:  // literals, function calls and othes do not require a pass
+    break;
+  }
 }
 
 /// @author xsirmat00 from here
