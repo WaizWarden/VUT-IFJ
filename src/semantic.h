@@ -24,7 +24,7 @@ typedef enum {
  * @brief Vyhodnotí datový typ výrazu reprezentovaného uzlem AST.
  */
 DataType analyze_expression(Symtable *symtable, const AstNode *node,
-                           SemanticError *err);
+                            SemanticError *err);
 
 /**
  * @brief Prochází a provádí sémantické kontroly na podstromu AST.

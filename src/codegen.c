@@ -206,10 +206,12 @@ static void cg_gen_vars_prepass(const AstNode *node) {
   case AST_IF:
     cg_gen_vars_prepass(node->as.ifStatement.thenBlock);
     cg_gen_vars_prepass(node->as.ifStatement.elseBlock);
+    cg_gen_vars_prepass(node->as.ifStatement.condition);
     break;
 
   case AST_WHILE:
     cg_gen_vars_prepass(node->as.whileStatement.bodyBlock);
+    cg_gen_vars_prepass(node->as.whileStatement.cond);
     break;
 
   case AST_ASSIGN:
@@ -382,8 +384,8 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
 
   if (block->as.block.count == 0) { // do nothing if not last
     if (isLastInFunc) {
-    puts("PUSHS nil@nil");
-  }
+      puts("PUSHS nil@nil");
+    }
     return;
   }
 
@@ -444,3 +446,19 @@ void cg_gen_program(const AstNode *root) {
 
 /// @author xsirmat00 from here
 /// -----------------------------------------------
+
+void cg_gen_expr(const AstNode *expr) { (void)expr; }
+
+void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
+               DataType funcRetType) {
+  (void)ifNode;
+  (void)isExprOrReturn;
+  (void)funcRetType;
+}
+
+void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
+  (void)whileNode;
+  (void)funcRetType;
+}
+
+void cg_gen_call(const AstNode *callNode) { (void)callNode; }

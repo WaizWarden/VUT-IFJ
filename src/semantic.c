@@ -1,7 +1,8 @@
 /**
  * @file    semantic.c
  * @author  xsirmat00
- * @brief   Implementace sémantického analyzátoru s ochranou proti NULL pointerům.
+ * @brief   Implementace sémantického analyzátoru s ochranou proti NULL
+ * pointerům.
  */
 
 #include "semantic.h"
@@ -10,7 +11,7 @@
 #include <string.h>
 
 DataType analyze_expression(Symtable *symtable, const AstNode *node,
-                           SemanticError *err) {
+                            SemanticError *err) {
   if (!node || !symtable) {
     *err = ERR_SEM_OK;
     return T_UNIT;
@@ -55,8 +56,10 @@ DataType analyze_expression(Symtable *symtable, const AstNode *node,
 
     SemanticError leftErr = ERR_SEM_OK;
     SemanticError rightErr = ERR_SEM_OK;
-    DataType leftType = analyze_expression(symtable, node->as.binary.left, &leftErr);
-    DataType rightType = analyze_expression(symtable, node->as.binary.right, &rightErr);
+    DataType leftType =
+        analyze_expression(symtable, node->as.binary.left, &leftErr);
+    DataType rightType =
+        analyze_expression(symtable, node->as.binary.right, &rightErr);
 
     if (leftErr != ERR_SEM_OK) {
       *err = leftErr;
@@ -69,7 +72,8 @@ DataType analyze_expression(Symtable *symtable, const AstNode *node,
 
     BinaryOperation operation = node->as.binary.operation;
 
-    if (operation == OP_ADD || operation == OP_SUB || operation == OP_MUL || operation == OP_DIV) {
+    if (operation == OP_ADD || operation == OP_SUB || operation == OP_MUL ||
+        operation == OP_DIV) {
       if (leftType == T_INT && rightType == T_INT) {
         *err = ERR_SEM_OK;
         return T_INT;
@@ -94,7 +98,8 @@ DataType analyze_expression(Symtable *symtable, const AstNode *node,
     }
 
     SemanticError opErr = ERR_SEM_OK;
-    DataType opType = analyze_expression(symtable, node->as.unary.operand, &opErr);
+    DataType opType =
+        analyze_expression(symtable, node->as.unary.operand, &opErr);
     if (opErr != ERR_SEM_OK) {
       *err = opErr;
       return T_UNIT;
@@ -145,7 +150,8 @@ SemanticError analyze_semantics(Symtable *symtable, const AstNode *node) {
     }
 
     SemanticError exprErr = ERR_SEM_OK;
-    DataType exprType = analyze_expression(symtable, node->as.assign.value, &exprErr);
+    DataType exprType =
+        analyze_expression(symtable, node->as.assign.value, &exprErr);
     if (exprErr != ERR_SEM_OK) {
       return exprErr;
     }

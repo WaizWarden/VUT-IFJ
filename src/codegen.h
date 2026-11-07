@@ -7,9 +7,9 @@
 #ifndef CODEGEN_H
 #define CODEGEN_H
 
-#include <stdint.h>
 #include "ast.h"
 #include "symtable.h"
+#include <stdint.h>
 
 /// @brief Increments global id counter
 /// @return unique label id
@@ -32,7 +32,7 @@ void cg_print_string(const char *str);
 /// @param uid unique id
 void cg_print_var(const char *name, uint32_t uid);
 
-/// @brief Generates header and builtin functions 
+/// @brief Generates header and builtin functions
 void cg_gen_head(void);
 
 /// @todo add function descriptions -----
@@ -50,15 +50,16 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType);
 /// @param block ast tree of block
 /// @param isLastInFunc true if the block should leave a return value
 /// @param funcRetType return type
-void cg_gen_block(const AstNode *block, bool isLastInFunc, DataType funcRetType);
-
+void cg_gen_block(const AstNode *block, bool isLastInFunc,
+                  DataType funcRetType);
 
 /// @author xsirmat00 from here
 /// @todo add function descriptions -----
 
 void cg_gen_expr(const AstNode *expr);
 
-void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn, DataType funcRetType);
+void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
+               DataType funcRetType);
 
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType);
 
