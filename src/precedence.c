@@ -145,6 +145,11 @@ static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
   return item;
 }
 
+static void push_nonterm(AstNode *node) {
+     StackItem result = {SYM_NONTERM, TOKEN_EOF, node};
+     stack_push(result);
+   }
+
 static int precedence_simplify(void) {
   StackItem handle[3];
   size_t cnt = 0;
@@ -191,7 +196,8 @@ static int precedence_simplify(void) {
 
   if (cnt == 3 && handle[0].symbol == SYM_NONTERM &&
       handle[2].symbol == SYM_NONTERM &&
-      (handle[1].symbol == SYM_PLUS_MINUS || handle[1].symbol == SYM_MUL_DIV)) {
+      (handle[1].symbol == SYM_PLUS_MINUS || handle[1].symbol == SYM_MUL_DIV ||
+       handle[1].symbol == SYM_REL || handle[1].symbol == SYM_EQ_NEQ)) {
     BinaryOperation operation;
 
     switch (handle[1].token) {
@@ -207,6 +213,24 @@ static int precedence_simplify(void) {
     case TOKEN_DIVIDE:
       operation = OP_DIV;
       break;
+    case TOKEN_LOWER:
+      operation = OP_LT;
+      break;
+    case TOKEN_LOWER_EQ:
+      operation = OP_LE;
+      break;
+    case TOKEN_GREAER:
+      operation = OP_GT;
+      break;
+    case TOKEN_GREATER_EQ:
+      operation = OP_GE;
+      break;
+    case TOKEN_EQ:
+      operation = OP_EQ;
+      break;
+    case TOKEN_NOT_EQ:
+      operation = OP_NEQ;
+      break;
     default:
       exit(99);
     }
@@ -219,6 +243,20 @@ static int precedence_simplify(void) {
 
     return 0;
   }
+
+  // Converting u- E to E
+    if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
+        handle[1].symbol == SYM_UMINUS) {
+        push_nonterm(ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
+        return 0;
+    }
+
+    // Converting () to Unit literal
+    if (cnt == 2 && handle[0].symbol == SYM_RPAREN &&
+        handle[1].symbol == SYM_LPAREN) {
+        push_nonterm(ast_new_unit(0));
+        return 0;
+    }
 
 syntax_error:
   for (size_t i = 0; i < cnt; i++) {
