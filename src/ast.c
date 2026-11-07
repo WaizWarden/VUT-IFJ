@@ -40,7 +40,8 @@ static AstNode *ast_allocate(AstNodeType type, int line) {
  * @returns pointer to AstNode
  */
 
-AstNode *ast_new_binary(BinaryOperation operation, AstNode *left, AstNode *right, int line) {
+AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
+                        AstNode *right, int line) {
   AstNode *node = ast_allocate(AST_BINARY, line);
 
   node->as.binary.operation = operation;
@@ -141,6 +142,58 @@ void ast_free(AstNode *node) {
     free(node->as.assign.name);
     ast_free(node->as.assign.value);
     break;
+  case AST_PROGRAM:
+    for (size_t i = 0; i < node->as.program.count; i++) {
+      ast_free(node->as.program.functions[i]);
+    }
+
+    free((void *)node->as.program.functions);
+    break;
+  case AST_FUNC_DEF:
+    free(node->as.funcDef.name);
+    for (uint16_t i = 0; i < node->as.funcDef.paramCount; i++) {
+      free(node->as.funcDef.params[i].name);
+    }
+
+    free(node->as.funcDef.params);
+    ast_free(node->as.funcDef.body);
+    break;
+  case AST_BLOCK:
+    for (size_t i = 0; i < node->as.block.count; i++) {
+      ast_free(node->as.block.stmts[i]);
+    }
+
+    free((void *)node->as.block.stmts);
+    break;
+  case AST_VAR_DECL:
+    free(node->as.varDecl.name);
+    ast_free(node->as.varDecl.initExpr);
+    break;
+  case AST_IF:
+    ast_free(node->as.ifStatement.condition);
+    ast_free(node->as.ifStatement.thenBlock);
+    ast_free(node->as.ifStatement.elseBlock);
+    break;
+  case AST_WHILE:
+    ast_free(node->as.whileStatement.cond);
+    ast_free(node->as.whileStatement.bodyBlock);
+    break;
+  case AST_RETURN:
+    ast_free(node->as.ret.expr);
+    break;
+  case AST_FUNC_CALL:
+    free(node->as.funcCall.funcName);
+    for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
+      ast_free(node->as.funcCall.args[i]);
+    }
+    free((void *)node->as.funcCall.args);
+    break;
+  case AST_EXPR_STATEMENT:
+    ast_free(node->as.exprStatement.expr);
+    break;
+  case AST_LITERAL_STRING:
+    free(node->as.stringValue);
+    break;
   default:
     // If literals -> nothing to free
     break;
@@ -187,6 +240,64 @@ void ast_print(const AstNode *node, int indent) {
     printf("Assign %s\n", node->as.assign.name);
     ast_print(node->as.assign.value, indent + 1);
     break;
+  case AST_PROGRAM:
+    printf("Program (%zu functions)\n", node->as.program.count);
+    for (size_t i = 0; i < node->as.program.count; i++) {
+      ast_print(node->as.program.functions[i], indent + 1);
+    }
+    break;
+  case AST_FUNC_DEF:
+    printf("FuncDef %s retType=%d isMain=%d params=%u\n", node->as.funcDef.name,
+           node->as.funcDef.retType, (int)node->as.funcDef.isMain,
+           node->as.funcDef.paramCount);
+    ast_print(node->as.funcDef.body, indent + 1);
+    break;
+  case AST_BLOCK:
+    printf("Block (%zu stmts)\n", node->as.block.count);
+    for (size_t i = 0; i < node->as.block.count; i++) {
+      ast_print(node->as.block.stmts[i], indent + 1);
+    }
+    break;
+  case AST_VAR_DECL:
+    printf("VarDecl %s %s\n", node->as.varDecl.name,
+           (int)node->as.varDecl.isModifiable ? "var" : "val");
+    ast_print(node->as.varDecl.initExpr, indent + 1);
+    break;
+  case AST_IF:
+    printf("If\n");
+    ast_print(node->as.ifStatement.condition, indent + 1);
+    ast_print(node->as.ifStatement.thenBlock, indent + 1);
+    ast_print(node->as.ifStatement.elseBlock, indent + 1);
+    break;
+  case AST_WHILE:
+    printf("While\n");
+    ast_print(node->as.whileStatement.cond, indent + 1);
+    ast_print(node->as.whileStatement.bodyBlock, indent + 1);
+    break;
+  case AST_RETURN:
+    printf("Return\n");
+    ast_print(node->as.ret.expr, indent + 1);
+    break;
+  case AST_FUNC_CALL:
+    printf("Call %s (%zu args)\n", node->as.funcCall.funcName,
+           node->as.funcCall.argCount);
+    for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
+      ast_print(node->as.funcCall.args[i], indent + 1);
+    }
+    break;
+  case AST_EXPR_STATEMENT:
+    printf("ExprStmt\n");
+    ast_print(node->as.exprStatement.expr, indent + 1);
+    break;
+  case AST_LITERAL_STRING:
+    printf("Literal String \"%s\"\n", node->as.stringValue);
+    break;
+  case AST_LITERAL_BOOL:
+    printf("Literal Bool %s\n", (int)node->as.boolValue ? "true" : "false");
+    break;
+  case AST_LITERAL_UNIT:
+    printf("Literal Unit ()\n");
+    break;
   }
 }
 /**
@@ -201,6 +312,212 @@ AstNode *ast_new_assign(char *name, AstNode *value, int line) {
 
   node->as.assign.name = name;
   node->as.assign.value = value;
+
+  return node;
+}
+/**
+ * @brief Creates a new node for if block
+ *
+ * @param cond
+ * @param thenBlock
+ * @param elseBlock
+ * @param line
+ * @return AstNode*
+ */
+
+AstNode *ast_new_if(AstNode *cond, AstNode *thenBlock, AstNode *elseBlock,
+                    int line) {
+
+  AstNode *node = ast_allocate(AST_IF, line);
+  node->as.ifStatement.condition = cond;
+  node->as.ifStatement.elseBlock = elseBlock;
+  node->as.ifStatement.thenBlock = thenBlock;
+
+  return node;
+}
+/**
+ * @brief Creates a new node for program
+ *
+ * @param functions
+ * @param count
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_program(AstNode **functions, size_t count, int line) {
+  AstNode *node = ast_allocate(AST_PROGRAM, line);
+  node->as.program.count = count;
+  node->as.program.functions = functions;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for function definition
+ *
+ * @param name
+ * @param isMain
+ * @param retType
+ * @param params
+ * @param paramCount
+ * @param body
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
+                          Parameter *params, uint16_t paramCount, AstNode *body,
+                          int line) {
+
+  AstNode *node = ast_allocate(AST_FUNC_DEF, line);
+  node->as.funcDef.name = name;
+  node->as.funcDef.isMain = isMain;
+  node->as.funcDef.paramCount = paramCount;
+  node->as.funcDef.params = params;
+  node->as.funcDef.retType = retType;
+  node->as.funcDef.body = body;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for block
+ *
+ * @param stmts
+ * @param count
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_block(AstNode **stmts, size_t count, int line) {
+  AstNode *node = ast_allocate(AST_BLOCK, line);
+
+  node->as.block.count = count;
+  node->as.block.stmts = stmts;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for variable declaration
+ *
+ * @param name
+ * @param isModifiable
+ * @param declaredType
+ * @param hasDeclaredType
+ * @param initExpr
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_var_decl(char *name, bool isModifiable, DataType declaredType,
+                          bool hasDeclaredType, AstNode *initExpr, int line) {
+
+  AstNode *node = ast_allocate(AST_VAR_DECL, line);
+  node->as.varDecl.declaredType = declaredType;
+  node->as.varDecl.name = name;
+  node->as.varDecl.isModifiable = isModifiable;
+  node->as.varDecl.hasDeclaredType = hasDeclaredType;
+  node->as.varDecl.initExpr = initExpr;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for while loop
+ *
+ * @param cond
+ * @param bodyBlock
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_while(AstNode *cond, AstNode *bodyBlock, int line) {
+  AstNode *node = ast_allocate(AST_WHILE, line);
+  node->as.whileStatement.bodyBlock = bodyBlock;
+  node->as.whileStatement.cond = cond;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for return statement
+ *
+ * @param expr
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_return(AstNode *expr, int line) {
+  AstNode *node = ast_allocate(AST_RETURN, line);
+  node->as.ret.expr = expr;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for function call
+ *
+ * @param funcName
+ * @param args
+ * @param argCount
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
+                           int line) {
+  AstNode *node = ast_allocate(AST_FUNC_CALL, line);
+  node->as.funcCall.funcName = funcName;
+  node->as.funcCall.args = args;
+  node->as.funcCall.argCount = argCount;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for expresion statement
+ *
+ * @param expr
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_expr_statement(AstNode *expr, int line) {
+  AstNode *node = ast_allocate(AST_EXPR_STATEMENT, line);
+  node->as.exprStatement.expr = expr;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for string
+ *
+ * @param value
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_string(char *value, int line) {
+  AstNode *node = ast_allocate(AST_LITERAL_STRING, line);
+  node->as.stringValue = value;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for boolean
+ *
+ * @param value
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_bool(bool value, int line) {
+  AstNode *node = ast_allocate(AST_LITERAL_BOOL, line);
+  node->as.boolValue = value;
+
+  return node;
+}
+
+/**
+ * @brief Creates a new node for unit
+ *
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_unit(int line) {
+  AstNode *node = ast_allocate(AST_LITERAL_UNIT, line);
 
   return node;
 }
