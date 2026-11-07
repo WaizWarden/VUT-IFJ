@@ -83,117 +83,112 @@ void cg_gen_head() {
   label_counter = 0;
 
   // print unified start of code ---
-  fputs(".IFJcode26\n"
-        "DEFVAR GF@$tmp1\n"
-        "DEFVAR GF@$tmp2\n"
-        "DEFVAR GF@$tmp3\n"
-        "CALL $main\n"
-        "EXIT int@0\n",
-        stdout);
+  puts(".IFJcode26\n"
+       "DEFVAR GF@$tmp1\n"
+       "DEFVAR GF@$tmp2\n"
+       "DEFVAR GF@$tmp3\n"
+       "CALL $main\n"
+       "EXIT int@0\n");
 
   // print all built-in functions ---
 
   // $builtin_readInt and $builtin_readDouble
-  fputs("LABEL $builtin_readInt\n"
-        "READ GF@$tmp1 int\n"
-        "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
-        "MOVE GF@$tmp1 int@0\n"
+  puts("LABEL $builtin_readInt\n"
+       "READ GF@$tmp1 int\n"
+       "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
+       "MOVE GF@$tmp1 int@0\n"
 
-        "LABEL $readInt_ok\n"
-        "PUSHS GF@$tmp1\n"
-        "RETURN\n",
-        stdout);
-  fputs("LABEL $builtin_readDouble\n"
-        "READ GF@$tmp1 float\n"
-        "JUMPIFNEQ $readDouble_ok GF@$tmp1 nil@nil\n"
-        "MOVE GF@$tmp1 float@0x0p+0\n"
+       "LABEL $readInt_ok\n"
+       "PUSHS GF@$tmp1\n"
+       "RETURN\n");
+  puts("LABEL $builtin_readDouble\n"
+       "READ GF@$tmp1 float\n"
+       "JUMPIFNEQ $readDouble_ok GF@$tmp1 nil@nil\n"
+       "MOVE GF@$tmp1 float@0x0p+0\n"
 
-        "LABEL $readDouble_ok\n"
-        "PUSHS GF@$tmp1\n"
-        "RETURN\n",
-        stdout);
+       "LABEL $readDouble_ok\n"
+       "PUSHS GF@$tmp1\n"
+       "RETURN\n");
 
   // $builtin_ord (value string, index int) - int on stack top (revised by
   // gemini)
-  fputs("LABEL $builtin_ord\n"
-        "POPS GF@$tmp2\n"
-        "POPS GF@$tmp1\n"
+  puts("LABEL $builtin_ord\n"
+       "POPS GF@$tmp2\n"
+       "POPS GF@$tmp1\n"
 
-        "LT GF@$tmp3 GF@$tmp2 int@0\n"
-        "JUMPIFEQ $ord_err GF@$tmp3 bool@true\n" // index < 0
+       "LT GF@$tmp3 GF@$tmp2 int@0\n"
+       "JUMPIFEQ $ord_err GF@$tmp3 bool@true\n" // index < 0
 
-        "STRLEN GF@$tmp3 GF@$tmp1\n"
-        "LT GF@$tmp3 GF@$tmp2 GF@$tmp3\n"
-        "JUMPIFEQ $ord_err GF@$tmp3 bool@false\n" // index >= len
+       "STRLEN GF@$tmp3 GF@$tmp1\n"
+       "LT GF@$tmp3 GF@$tmp2 GF@$tmp3\n"
+       "JUMPIFEQ $ord_err GF@$tmp3 bool@false\n" // index >= len
 
-        "STRI2INT GF@$tmp1 GF@$tmp1 GF@$tmp2\n"
-        "PUSHS GF@$tmp1\n"
-        "RETURN\n"
+       "STRI2INT GF@$tmp1 GF@$tmp1 GF@$tmp2\n"
+       "PUSHS GF@$tmp1\n"
+       "RETURN\n"
 
-        "LABEL $ord_err\n"
-        "PUSHS int@-1\n"
-        "RETURN\n",
-        stdout);
+       "LABEL $ord_err\n"
+       "PUSHS int@-1\n"
+       "RETURN\n");
 
   // $builtin_substr (value string, start int, end int) (architecture by gemini)
-  fputs("LABEL $builtin_substr\n"
+  puts("LABEL $builtin_substr\n"
 
-        // create new local frame and define all helper vars
-        "CREATEFRAME\n"
-        "PUSHFRAME\n"
-        "DEFVAR LF@str\n"
-        "DEFVAR LF@start\n"
-        "DEFVAR LF@end\n"
-        "DEFVAR LF@len\n"
-        "DEFVAR LF@res\n"
-        "DEFVAR LF@ch\n"
-        "DEFVAR LF@cond\n"
-        "POPS LF@end\n"
-        "POPS LF@start\n"
-        "POPS LF@str\n"
+       // create new local frame and define all helper vars
+       "CREATEFRAME\n"
+       "PUSHFRAME\n"
+       "DEFVAR LF@str\n"
+       "DEFVAR LF@start\n"
+       "DEFVAR LF@end\n"
+       "DEFVAR LF@len\n"
+       "DEFVAR LF@res\n"
+       "DEFVAR LF@ch\n"
+       "DEFVAR LF@cond\n"
+       "POPS LF@end\n"
+       "POPS LF@start\n"
+       "POPS LF@str\n"
 
-        "STRLEN LF@len LF@str\n"
+       "STRLEN LF@len LF@str\n"
 
-        // checks parameter validity
-        "LT LF@cond LF@start int@0\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start < 0
-        "LT LF@cond LF@end int@0\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < 0
-        "GT LF@cond LF@start LF@end\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start > end
-        "LT LF@cond LF@start LF@len\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@false\n" // start >= len
-        "GT LF@cond LF@end LF@len\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < len
+       // checks parameter validity
+       "LT LF@cond LF@start int@0\n"
+       "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start < 0
+       "LT LF@cond LF@end int@0\n"
+       "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < 0
+       "GT LF@cond LF@start LF@end\n"
+       "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start > end
+       "LT LF@cond LF@start LF@len\n"
+       "JUMPIFEQ $substr_err40 LF@cond bool@false\n" // start >= len
+       "GT LF@cond LF@end LF@len\n"
+       "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < len
 
-        // loop over string, concat to @res ultil reaching 'end'
-        "MOVE LF@res string@\n"
-        "LABEL $substr_loop\n"
-        "JUMPIFEQ $substr_done LF@start LF@end\n"
-        "GETCHAR LF@ch LF@str LF@start\n"
-        "CONCAT LF@res LF@res LF@ch\n"
-        "ADD LF@start LF@start int@1\n"
-        "JUMP $substr_loop\n"
+       // loop over string, concat to @res ultil reaching 'end'
+       "MOVE LF@res string@\n"
+       "LABEL $substr_loop\n"
+       "JUMPIFEQ $substr_done LF@start LF@end\n"
+       "GETCHAR LF@ch LF@str LF@start\n"
+       "CONCAT LF@res LF@res LF@ch\n"
+       "ADD LF@start LF@start int@1\n"
+       "JUMP $substr_loop\n"
 
-        // clean frame and return value
-        "LABEL $substr_done\n"
-        "PUSHS LF@res\n"
-        "POPFRAME\n"
-        "RETURN\n"
-        "LABEL $substr_err40\n"
-        "EXIT int@40\n",
-        stdout);
+       // clean frame and return value
+       "LABEL $substr_done\n"
+       "PUSHS LF@res\n"
+       "POPFRAME\n"
+       "RETURN\n"
+       "LABEL $substr_err40\n"
+       "EXIT int@40\n");
 }
 
-/// @brief Passes through whole tree and generates all var declarations, recursive
+/// @brief Passes through whole tree and generates all var declarations,
+/// recursive
 /// @param node ast of subprogram
 static void cg_gen_vars_prepass(const AstNode *node) {
   if (!node) {
     return;
   }
 
-  switch (node->type)
-  {
+  switch (node->type) {
   case AST_VAR_DECL:
     fputs("DEFVAR ", stdout);
     cg_print_var(node->as.varDecl.name, node->uid);
@@ -201,8 +196,7 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     break;
 
   case AST_BLOCK:
-    for(int i = 0; i < node->as.block.count; i++)
-    {
+    for (int i = 0; i < node->as.block.count; i++) {
       cg_gen_vars_prepass(node->as.block.stmts[i]);
     }
     break;
@@ -215,9 +209,65 @@ static void cg_gen_vars_prepass(const AstNode *node) {
   case AST_WHILE:
     cg_gen_vars_prepass(node->as.whileStatement.bodyBlock);
     break;
-  
-  default:  // literals, function calls and othes do not require a pass
+
+  default: // literals, function calls and othes do not require a pass
     break;
+  }
+}
+
+/// @brief Prints a function definition
+/// @param node ast tree of function
+static void cg_gen_func_def(const AstNode *node) {
+  if (!node) {
+    return;
+  }
+
+  if (node->as.funcDef.isMain) {
+    puts("LABEL $main\n");
+  } else {
+    printf("LABEL $func_%s\n", node->as.funcDef.name);
+  }
+
+  puts("CREATEFRAME\n"
+       "PUSHFRAME\n");
+
+  // declare internal parameters
+  for (uint16_t i = 0; i < node->as.funcDef.paramCount; i++) {
+    puts("DEFVAR ");
+    cg_print_var(node->as.funcDef.params[i].name,
+                 node->as.funcDef.params[i].uid);
+    puts("\n");
+  }
+
+  // load parameter values from stack from right to left
+  for (int i = (int)node->as.funcDef.paramCount - 1; i >= 0; i--) {
+    puts("POPS ");
+    cg_print_var(node->as.funcDef.params[i].name,
+                 node->as.funcDef.params[i].uid);
+    puts("\n");
+  }
+
+  // declare internal variables
+  cg_gen_vars_prepass(node->as.funcDef.body);
+
+  // generate function body
+  cg_gen_block(node->as.funcDef.body, true, node->as.funcDef.retType);
+
+  puts("POPFRAME\n"
+       "RETURN\n");
+}
+
+void cg_gen_program(const AstNode *root) {
+  if (!root || root->type != AST_PROGRAM) {
+    return;
+  }
+
+  // Generate head of program and internal functions
+  cg_gen_head();
+
+  // Generate all functions defined in program including @main
+  for (size_t i = 0; i < root->as.program.count; i++) {
+    cg_gen_func_def(root->as.program.functions[i]);
   }
 }
 

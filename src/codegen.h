@@ -15,7 +15,7 @@
 /// @return unique label id
 uint32_t cg_next_label_id();
 
-/// @brief print 64bit int to stdout
+/// @brief print 64bit int intercode
 /// @param x intiger to print
 void cg_print_int(int64_t val);
 
@@ -27,6 +27,9 @@ void cg_print_unit(void);
 
 void cg_print_string(char *str);
 
+/// @brief Prints the variable name in intercode format
+/// @param name var name
+/// @param uid unique id
 void cg_print_var(const char *name, uint32_t uid);
 
 /// @brief Generates header and builtin functions 
