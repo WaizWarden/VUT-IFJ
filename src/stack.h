@@ -12,8 +12,11 @@
 #include <stddef.h>
 
 typedef enum {
-  SYM_PLUS_MINUS,
-  SYM_MUL_DIV,
+  SYM_PLUS_MINUS, // + -
+  SYM_MUL_DIV,    // * /
+  SYM_UMINUS,     // unární -
+  SYM_REL,        // < <= > >=
+  SYM_EQ_NEQ,     // == !=
   SYM_LPAREN,
   SYM_RPAREN,
   SYM_TERM,

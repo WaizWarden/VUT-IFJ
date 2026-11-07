@@ -5,6 +5,7 @@
  */
 
 #include "test_ast.h"
+#include "test_precedence.h"
 #include "test_scanner.h"
 #include "test_stack.h"
 
@@ -13,5 +14,6 @@ int main(void) {
   indentation_flow_tests();
   test_stack();
   test_ast();
+  test_precedence();
   return 0;
 }

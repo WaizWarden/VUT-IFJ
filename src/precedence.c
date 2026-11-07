@@ -9,25 +9,56 @@
 #include "hashtable.h"
 #include "stack.h"
 #include <stdlib.h>
-#define PRECEDENCE_TERMINAL_COUNT 6
+#define PRECEDENCE_TERMINAL_COUNT 9
 
+/*
+ * Precedence table from IFJ 8 lecture extended with unary minus,
+ * relational and equality operators are non-associative and mutually
+ * exclusive
+ */
 /**
- * @Precedence table from IFJ 8 lecture
+ * @brief Precedence table, row = topmost terminal on the stack,
+ *        column = input terminal. Order matches PrecSymbol:
+ *        +-  * /  u-  rel  ==!=  (  )  i  $
  */
 static const PrecedenceRelation
     precedenceTable[PRECEDENCE_TERMINAL_COUNT][PRECEDENCE_TERMINAL_COUNT] = {
+        // +-
         {PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
          PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        // * /
         {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
          PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EQUAL,
-         PRECEDENCE_LESS, PRECEDENCE_EMPTY},
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
-         PRECEDENCE_GREATER, PRECEDENCE_EMPTY, PRECEDENCE_GREATER},
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
-         PRECEDENCE_GREATER, PRECEDENCE_EMPTY, PRECEDENCE_GREATER},
+        // u-
+        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        // rel
         {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY,
-         PRECEDENCE_LESS, PRECEDENCE_EMPTY}};
+         PRECEDENCE_EMPTY, PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER},
+        // ==!=
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY,
+         PRECEDENCE_EMPTY, PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER},
+        // (
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EQUAL, PRECEDENCE_LESS,
+         PRECEDENCE_EMPTY},
+        // )
+        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
+         PRECEDENCE_GREATER, PRECEDENCE_EMPTY, PRECEDENCE_GREATER},
+        // i
+        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
+         PRECEDENCE_GREATER, PRECEDENCE_EMPTY, PRECEDENCE_GREATER},
+        // $
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY, PRECEDENCE_LESS,
+         PRECEDENCE_EMPTY}};
 
 /**
  * @brief
@@ -51,26 +82,44 @@ PrecedenceRelation precedence_get_relation(PrecSymbol stackSymbol,
   return precedenceTable[stackSymbol][inputSymbol];
 }
 
-static PrecSymbol convert_token_to_symbol(TokenType tokenType) {
-  switch (tokenType) {
+static PrecSymbol convert_token_to_symbol(const Token *token,
+                                          PrecSymbol prevSymbol) {
+  switch (token->type) {
   case TOKEN_PLUS:
-  case TOKEN_MINUS:
     return SYM_PLUS_MINUS;
+  case TOKEN_MINUS:
+    return (prevSymbol == SYM_TERM || prevSymbol == SYM_RPAREN) ? SYM_PLUS_MINUS
+                                                                : SYM_UMINUS;
   case TOKEN_MULTIPLY:
   case TOKEN_DIVIDE:
     return SYM_MUL_DIV;
+  case TOKEN_LOWER:
+  case TOKEN_LOWER_EQ:
+  case TOKEN_GREAER:
+  case TOKEN_GREATER_EQ:
+    return SYM_REL;
+  case TOKEN_EQ:
+  case TOKEN_NOT_EQ:
+    return SYM_EQ_NEQ;
   case TOKEN_OPENING_BRACKET:
     return SYM_LPAREN;
   case TOKEN_CLOSING_BRACKET:
     return SYM_RPAREN;
   case TOKEN_INT:
   case TOKEN_DOUBLE:
+  case TOKEN_STRING:
   case TOKEN_IDENTIFIER:
     return SYM_TERM;
   case TOKEN_EOF:
   case TOKEN_NEWLINE:
   case TOKEN_SEMICOLON:
+  case TOKEN_DEDENT:
     return SYM_DOLLAR;
+  case TOKEN_KEYWORD:
+    if (token->value.keyword == KW_THEN || token->value.keyword == KW_DO) {
+      return SYM_DOLLAR;
+    }
+    exit(2);
   case TOKEN_ERROR:
     exit(1);
   default:
@@ -78,27 +127,35 @@ static PrecSymbol convert_token_to_symbol(TokenType tokenType) {
   }
 }
 
-static StackItem stack_item_create(Token token) {
+static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
   StackItem item;
-  item.symbol = convert_token_to_symbol(token.type);
-  item.token = token.type;
+  item.symbol = symbol;
+  item.token = token->type;
   item.node = NULL;
 
-  switch (token.type) {
+  switch (token->type) {
   case TOKEN_INT:
-    item.node = ast_new_int(token.value.numberInt, 0);
+    item.node = ast_new_int(token->value.numberInt, 0);
     break;
   case TOKEN_DOUBLE:
-    item.node = ast_new_double(token.value.numberDouble, 0);
+    item.node = ast_new_double(token->value.numberDouble, 0);
     break;
   case TOKEN_IDENTIFIER:
-    item.node = ast_new_identifier(token.value.identifier, 0);
+    item.node = ast_new_identifier(token->value.identifier, 0);
+    break;
+  case TOKEN_STRING:
+    item.node = ast_new_string(token->value.string, 0);
     break;
   default:
     break;
   }
 
   return item;
+}
+
+static void push_nonterm(AstNode *node) {
+  StackItem result = {SYM_NONTERM, TOKEN_EOF, node};
+  stack_push(result);
 }
 
 static int precedence_simplify(void) {
@@ -147,7 +204,8 @@ static int precedence_simplify(void) {
 
   if (cnt == 3 && handle[0].symbol == SYM_NONTERM &&
       handle[2].symbol == SYM_NONTERM &&
-      (handle[1].symbol == SYM_PLUS_MINUS || handle[1].symbol == SYM_MUL_DIV)) {
+      (handle[1].symbol == SYM_PLUS_MINUS || handle[1].symbol == SYM_MUL_DIV ||
+       handle[1].symbol == SYM_REL || handle[1].symbol == SYM_EQ_NEQ)) {
     BinaryOperation operation;
 
     switch (handle[1].token) {
@@ -163,6 +221,24 @@ static int precedence_simplify(void) {
     case TOKEN_DIVIDE:
       operation = OP_DIV;
       break;
+    case TOKEN_LOWER:
+      operation = OP_LT;
+      break;
+    case TOKEN_LOWER_EQ:
+      operation = OP_LE;
+      break;
+    case TOKEN_GREAER:
+      operation = OP_GT;
+      break;
+    case TOKEN_GREATER_EQ:
+      operation = OP_GE;
+      break;
+    case TOKEN_EQ:
+      operation = OP_EQ;
+      break;
+    case TOKEN_NOT_EQ:
+      operation = OP_NEQ;
+      break;
     default:
       exit(99);
     }
@@ -173,6 +249,20 @@ static int precedence_simplify(void) {
     result.node = ast_new_binary(operation, handle[2].node, handle[0].node, 0);
     stack_push(result);
 
+    return 0;
+  }
+
+  // Converting u- E to E
+  if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
+      handle[1].symbol == SYM_UMINUS) {
+    push_nonterm(ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
+    return 0;
+  }
+
+  // Converting () to Unit literal
+  if (cnt == 2 && handle[0].symbol == SYM_RPAREN &&
+      handle[1].symbol == SYM_LPAREN) {
+    push_nonterm(ast_new_unit(0));
     return 0;
   }
 
@@ -193,7 +283,8 @@ static void precedence_free_stack(void) {
   stack_free();
 }
 
-AstNode *precedence_parse(FILE *input, Token *currentToken) {
+AstNode *precedence_parse(FILE *input, Token *currentToken,
+                          AstNode *firstOperand) {
   stack_init();
 
   StackItem bot;
@@ -202,7 +293,14 @@ AstNode *precedence_parse(FILE *input, Token *currentToken) {
   bot.node = NULL;
   stack_push(bot);
 
-  PrecSymbol inputSymbol = convert_token_to_symbol(currentToken->type);
+  PrecSymbol prevSymbol = SYM_DOLLAR;
+
+  if (firstOperand != NULL) {
+    push_nonterm(firstOperand);
+    prevSymbol = SYM_TERM;
+  }
+
+  PrecSymbol inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
 
   while (1) {
     if (inputSymbol == SYM_DOLLAR && stack_size() == 2 &&
@@ -217,16 +315,14 @@ AstNode *precedence_parse(FILE *input, Token *currentToken) {
         precedence_get_relation(stackSymbol, inputSymbol);
 
     switch (relation) {
-    case PRECEDENCE_EQUAL:
-      stack_push(stack_item_create(*currentToken));
-      *currentToken = get_token(input);
-      inputSymbol = convert_token_to_symbol(currentToken->type);
-      break;
     case PRECEDENCE_LESS:
       stack_insert_handle_start();
-      stack_push(stack_item_create(*currentToken));
+      /* fall through */
+    case PRECEDENCE_EQUAL:
+      stack_push(stack_item_create(currentToken, inputSymbol));
+      prevSymbol = inputSymbol;
       *currentToken = get_token(input);
-      inputSymbol = convert_token_to_symbol(currentToken->type);
+      inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
       break;
     case PRECEDENCE_GREATER:
       if (precedence_simplify() != 0) {
