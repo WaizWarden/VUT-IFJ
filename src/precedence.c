@@ -59,7 +59,6 @@ static const PrecedenceRelation
         {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
          PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY, PRECEDENCE_LESS,
          PRECEDENCE_EMPTY}};
-/* End of AI usage */
 
 /**
  * @brief
@@ -83,11 +82,14 @@ PrecedenceRelation precedence_get_relation(PrecSymbol stackSymbol,
   return precedenceTable[stackSymbol][inputSymbol];
 }
 
-static PrecSymbol convert_token_to_symbol(TokenType tokenType) {
-  switch (tokenType) {
+static PrecSymbol convert_token_to_symbol(const Token *token,
+                                          PrecSymbol prevSymbol) {
+  switch (token->type) {
   case TOKEN_PLUS:
-  case TOKEN_MINUS:
     return SYM_PLUS_MINUS;
+  case TOKEN_MINUS:
+    return (prevSymbol == SYM_TERM || prevSymbol == SYM_RPAREN) ? SYM_PLUS_MINUS
+                                                                : SYM_UMINUS;
   case TOKEN_MULTIPLY:
   case TOKEN_DIVIDE:
     return SYM_MUL_DIV;
@@ -97,12 +99,19 @@ static PrecSymbol convert_token_to_symbol(TokenType tokenType) {
     return SYM_RPAREN;
   case TOKEN_INT:
   case TOKEN_DOUBLE:
+  case TOKEN_STRING:
   case TOKEN_IDENTIFIER:
     return SYM_TERM;
   case TOKEN_EOF:
   case TOKEN_NEWLINE:
   case TOKEN_SEMICOLON:
+  case TOKEN_DEDENT:
     return SYM_DOLLAR;
+  case TOKEN_KEYWORD:
+    if (token->value.keyword == KW_THEN || token->value.keyword == KW_DO) {
+      return SYM_DOLLAR;
+    }
+    exit(2);
   case TOKEN_ERROR:
     exit(1);
   default:
@@ -110,21 +119,24 @@ static PrecSymbol convert_token_to_symbol(TokenType tokenType) {
   }
 }
 
-static StackItem stack_item_create(Token token) {
+static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
   StackItem item;
-  item.symbol = convert_token_to_symbol(token.type);
-  item.token = token.type;
+  item.symbol = symbol;
+  item.token = token->type;
   item.node = NULL;
 
-  switch (token.type) {
+  switch (token->type) {
   case TOKEN_INT:
-    item.node = ast_new_int(token.value.numberInt, 0);
+    item.node = ast_new_int(token->value.numberInt, 0);
     break;
   case TOKEN_DOUBLE:
-    item.node = ast_new_double(token.value.numberDouble, 0);
+    item.node = ast_new_double(token->value.numberDouble, 0);
     break;
   case TOKEN_IDENTIFIER:
-    item.node = ast_new_identifier(token.value.identifier, 0);
+    item.node = ast_new_identifier(token->value.identifier, 0);
+    break;
+  case TOKEN_STRING:
+    item.node = ast_new_string(token->value.string, 0);
     break;
   default:
     break;
@@ -234,7 +246,8 @@ AstNode *precedence_parse(FILE *input, Token *currentToken) {
   bot.node = NULL;
   stack_push(bot);
 
-  PrecSymbol inputSymbol = convert_token_to_symbol(currentToken->type);
+  PrecSymbol prevSymbol = SYM_DOLLAR;
+  PrecSymbol inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
 
   while (1) {
     if (inputSymbol == SYM_DOLLAR && stack_size() == 2 &&
@@ -249,16 +262,14 @@ AstNode *precedence_parse(FILE *input, Token *currentToken) {
         precedence_get_relation(stackSymbol, inputSymbol);
 
     switch (relation) {
-    case PRECEDENCE_EQUAL:
-      stack_push(stack_item_create(*currentToken));
-      *currentToken = get_token(input);
-      inputSymbol = convert_token_to_symbol(currentToken->type);
-      break;
     case PRECEDENCE_LESS:
       stack_insert_handle_start();
-      stack_push(stack_item_create(*currentToken));
+      /* fall through */
+    case PRECEDENCE_EQUAL:
+      stack_push(stack_item_create(currentToken, inputSymbol));
+      prevSymbol = inputSymbol;
       *currentToken = get_token(input);
-      inputSymbol = convert_token_to_symbol(currentToken->type);
+      inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
       break;
     case PRECEDENCE_GREATER:
       if (precedence_simplify() != 0) {
