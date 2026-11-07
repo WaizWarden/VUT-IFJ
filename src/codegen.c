@@ -14,7 +14,8 @@
  *      local variables: LF@jmeno$[uid]
  *
  * @important Calling convencion: RETURN VALUE IS LEFT ON STACK TOP (even
- * nil@nil) and arguments are read from stack in reverse order. (last arg on top)
+ * nil@nil) and arguments are read from stack in reverse order. (last arg on
+ * top)
  *
  * @important Built-in function handling:
  *  inline:
@@ -107,18 +108,19 @@ void cg_gen_head() {
         "JUMPIFNEQ $readDouble_ok GF@$tmp1 nil@nil\n"
         "MOVE GF@$tmp1 float@0x0p+0\n"
 
-        "LABEL $readInt_ok\n"
+        "LABEL $readDouble_ok\n"
         "PUSHS GF@$tmp1\n"
         "RETURN\n",
         stdout);
 
-  // $builtin_ord (value string, index int) - int on stack top (revised by gemini)
+  // $builtin_ord (value string, index int) - int on stack top (revised by
+  // gemini)
   fputs("LABEL $builtin_ord\n"
         "POPS GF@$tmp2\n"
         "POPS GF@$tmp1\n"
 
-        "LT GF@$tmp3 GF@$tmp2 int@0\n" 
-        "JUMPIFEQ $ord_err GF@$tmp3 bool@true\n"  // index < 0
+        "LT GF@$tmp3 GF@$tmp2 int@0\n"
+        "JUMPIFEQ $ord_err GF@$tmp3 bool@true\n" // index < 0
 
         "STRLEN GF@$tmp3 GF@$tmp1\n"
         "LT GF@$tmp3 GF@$tmp2 GF@$tmp3\n"
@@ -131,13 +133,14 @@ void cg_gen_head() {
         "LABEL $ord_err\n"
         "PUSHS int@-1\n"
         "RETURN\n",
-    stdout);
+        stdout);
 
   // $builtin_substr (value string, start int, end int) (architecture by gemini)
   fputs("LABEL $builtin_substr\n"
 
         // create new local frame and define all helper vars
         "CREATEFRAME\n"
+        "PUSHFRAME\n"
         "DEFVAR LF@str\n"
         "DEFVAR LF@start\n"
         "DEFVAR LF@end\n"
@@ -145,7 +148,6 @@ void cg_gen_head() {
         "DEFVAR LF@res\n"
         "DEFVAR LF@ch\n"
         "DEFVAR LF@cond\n"
-        "PUSHFRAME\n"
         "POPS LF@end\n"
         "POPS LF@start\n"
         "POPS LF@str\n"
@@ -154,15 +156,15 @@ void cg_gen_head() {
 
         // checks parameter validity
         "LT LF@cond LF@start int@0\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // start < 0
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start < 0
         "LT LF@cond LF@end int@0\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // end < 0
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < 0
         "GT LF@cond LF@start LF@end\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // start > end
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start > end
         "LT LF@cond LF@start LF@len\n"
         "JUMPIFEQ $substr_err40 LF@cond bool@false\n" // start >= len
         "GT LF@cond LF@end LF@len\n"
-        "JUMPIFEQ $substr_err40 LF@cond bool@true\n"  // end < len
+        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < len
 
         // loop over string, concat to @res ultil reaching 'end'
         "MOVE LF@res string@\n"
@@ -180,8 +182,18 @@ void cg_gen_head() {
         "RETURN\n"
         "LABEL $substr_err40\n"
         "EXIT int@40\n",
-  stdout);
-
-  /// @author xsirmat00 from here -----------------------------------------------
-
+        stdout);
 }
+
+/// @brief Passes through whole tree and generates all var declarations, recursive
+/// @param node ast of subprogram
+static void cg_gen_vars_prepass(const AstNode *node) {
+  if (!node) {
+    return;
+  }
+
+  
+}
+
+/// @author xsirmat00 from here
+/// -----------------------------------------------

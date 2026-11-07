@@ -41,6 +41,7 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType);
 
 void cg_gen_block(const AstNode *block, bool isLastInFunc, DataType funcRetType);
 
+
 /// @author xsirmat00 from here
 /// @todo add function descriptions -----
 
