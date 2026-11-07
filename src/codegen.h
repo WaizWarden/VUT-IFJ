@@ -37,10 +37,19 @@ void cg_gen_head(void);
 
 /// @todo add function descriptions -----
 
+/// @brief Generates the whole program to stdout
+/// @param root program ast
 void cg_gen_program(const AstNode *root);
 
+/// @brief Generates a single line of original code to intercode
+/// @param stmt statement
+/// @param funcRetType return type
 void cg_gen_statement(const AstNode *stmt, DataType funcRetType);
 
+/// @brief Generates a block of code, like functions
+/// @param block ast tree of block
+/// @param isLastInFunc true if the block should leave a return value
+/// @param funcRetType return type
 void cg_gen_block(const AstNode *block, bool isLastInFunc, DataType funcRetType);
 
 

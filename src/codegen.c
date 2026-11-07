@@ -267,6 +267,121 @@ static void cg_gen_func_def(const AstNode *node) {
        "RETURN");
 }
 
+/// @brief Helper function to get correct return type (implicit conversions and
+/// unit)
+/// @param exprType expresion type
+/// @param funcRetType return type
+static void cg_adjust_return_value(DataType exprType, DataType funcRetType) {
+
+  if (funcRetType == T_UNIT) {
+    // no matter the value, return nil@nil
+    puts("POPS GF@$tmp1\n"
+         "PUSHS nil@nil");
+  }
+
+  if (funcRetType == T_DOUBLE && exprType == T_INT) {
+    puts("INT2FLOATS");
+  }
+}
+
+void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
+  if (!stmt) {
+    return;
+  }
+
+  switch (stmt->type) {
+
+  case AST_VAR_DECL: // var / val ...
+    cg_gen_expr(stmt->as.varDecl.initExpr);
+
+    if (stmt->as.varDecl.hasDeclaredType &&
+        stmt->as.varDecl.declaredType == T_DOUBLE &&
+        stmt->as.varDecl.initExpr->evalType == T_INT) {
+      puts("INT2FLOATS");
+    }
+
+    // save stack top to var (declared by prepass of var declarations)
+    fputs("POPS ", stdout);
+    cg_print_var(stmt->as.varDecl.name, stmt->uid);
+    putchar('\n');
+    break;
+
+  case AST_ASSIGN: // thing = expression
+    cg_gen_expr(stmt->as.assign.value);
+
+    // check type
+    if (stmt->evalType == T_DOUBLE &&
+        stmt->as.assign.value->evalType == T_INT) {
+      puts("INT2FLOATS");
+    }
+
+    // save return val to var
+    fputs("POPS ", stdout);
+    cg_print_var(stmt->as.assign.name, stmt->uid);
+    putchar('\n');
+    break;
+
+  case AST_RETURN: // retunr expression
+
+    if (stmt->as.ret.expr == NULL) {
+      puts("PUSHS nil@nil");
+    } else {
+      cg_gen_expr(stmt->as.ret.expr);
+      cg_adjust_return_value(stmt->as.ret.expr->evalType, funcRetType);
+    }
+
+    puts("POPFRAME\n"
+         "RETURN");
+    break;
+
+  case AST_IF: // if(horsingAround)
+    cg_gen_if(stmt, false, funcRetType);
+    break;
+
+  case AST_WHILE: // while(horsingAround)
+    cg_gen_while(stmt, funcRetType);
+    break;
+
+  case AST_EXPR_STATEMENT: // isHorsingAround(horse)
+    cg_gen_expr(stmt->as.exprStatement.expr);
+    puts("POPS GF@$tmp1"); // not at end of block: return not needed
+    break;
+
+  case AST_FUNC_CALL: // parser puts fuction into block instead of as statement
+                      // type
+    cg_gen_call(stmt);
+    puts("POPS GF@$tmp1"); // not needed
+    break;
+
+  default: // parser puts expression as a command
+    cg_gen_expr(stmt);
+    puts("POPS GF@$tmp1"); // not needed
+    break;
+  }
+}
+
+void cg_gen_block(const AstNode *block, bool isLastInFunc,
+                  DataType funcRetType) {
+  if (!block) {
+    return;
+  }
+
+  if (block->type != AST_BLOCK) {
+    const AstNode *expr = (block->type == AST_EXPR_STATEMENT)
+                              ? block->as.exprStatement.expr
+                              : block;
+    if (isLastInFunc) {
+      cg_gen_expr(expr);
+      cg_adjust_return_value(expr->evalType, funcRetType);
+    } else {
+      cg_gen_statement(block, funcRetType);
+    }
+    return;
+  }
+
+  /// @todo
+}
+
 void cg_gen_program(const AstNode *root) {
   if (!root || root->type != AST_PROGRAM) {
     return;
