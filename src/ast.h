@@ -51,6 +51,8 @@ typedef enum { OP_UNARY_MINUS } UnaryOperation;
 typedef struct AstNode {
   AstNodeType type;
   int line;
+  uint32_t uid;
+  DataType evalType;
   union {
     struct {
       BinaryOperation operation;
