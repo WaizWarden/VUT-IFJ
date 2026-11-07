@@ -146,9 +146,9 @@ static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
 }
 
 static void push_nonterm(AstNode *node) {
-     StackItem result = {SYM_NONTERM, TOKEN_EOF, node};
-     stack_push(result);
-   }
+  StackItem result = {SYM_NONTERM, TOKEN_EOF, node};
+  stack_push(result);
+}
 
 static int precedence_simplify(void) {
   StackItem handle[3];
@@ -245,18 +245,18 @@ static int precedence_simplify(void) {
   }
 
   // Converting u- E to E
-    if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
-        handle[1].symbol == SYM_UMINUS) {
-        push_nonterm(ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
-        return 0;
-    }
+  if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
+      handle[1].symbol == SYM_UMINUS) {
+    push_nonterm(ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
+    return 0;
+  }
 
-    // Converting () to Unit literal
-    if (cnt == 2 && handle[0].symbol == SYM_RPAREN &&
-        handle[1].symbol == SYM_LPAREN) {
-        push_nonterm(ast_new_unit(0));
-        return 0;
-    }
+  // Converting () to Unit literal
+  if (cnt == 2 && handle[0].symbol == SYM_RPAREN &&
+      handle[1].symbol == SYM_LPAREN) {
+    push_nonterm(ast_new_unit(0));
+    return 0;
+  }
 
 syntax_error:
   for (size_t i = 0; i < cnt; i++) {
@@ -275,7 +275,8 @@ static void precedence_free_stack(void) {
   stack_free();
 }
 
-AstNode *precedence_parse(FILE *input, Token *currentToken) {
+AstNode *precedence_parse(FILE *input, Token *currentToken,
+                          AstNode *firstOperand) {
   stack_init();
 
   StackItem bot;
@@ -285,6 +286,12 @@ AstNode *precedence_parse(FILE *input, Token *currentToken) {
   stack_push(bot);
 
   PrecSymbol prevSymbol = SYM_DOLLAR;
+
+  if (firstOperand != NULL) {
+    push_nonterm(firstOperand);
+    prevSymbol = SYM_TERM;
+  }
+
   PrecSymbol inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
 
   while (1) {

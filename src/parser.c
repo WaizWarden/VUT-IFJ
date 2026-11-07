@@ -36,7 +36,7 @@ AstNode *parser_parse_assignment(FILE *input, Token *currentToken) {
   }
 
   parser_advance(input, currentToken);
-  AstNode *value = precedence_parse(input, currentToken);
+  AstNode *value = precedence_parse(input, currentToken, NULL);
 
   if (value == NULL) {
     free(character);
