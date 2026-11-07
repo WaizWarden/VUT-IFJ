@@ -106,23 +106,22 @@ bool ht_insert(HashTable *hashTable, const char *key, void *value) {
     return false;
   }
 
+  char *newKey = malloc(strlen(key) + 1);
+  if (newKey == NULL) {
+    return false;
+  }
+  memcpy(newKey, key, strlen(key) + 1); // NOLINT
+
   if (dst->status == HT_CELL_DELETED) {
     // Deleted count cant be less than 0
     if (hashTable->deletedCells == 0) {
+      free(newKey);
       return false;
     }
-
-    char *newKey = malloc(strlen(key) + 1);
-    if (newKey == NULL) {
-      return false;
-    }
-
-    memcpy(newKey, key, strlen(key) + 1); // NOLINT
-
     hashTable->deletedCells--;
     free(dst->key);
-    dst->key = newKey;
   }
+  dst->key = newKey;
 
   // Saving data
   dst->value = value;
@@ -179,7 +178,7 @@ bool ht_resize(HashTable *hashTable, uint32_t resizeFactor) {
 
   // Data copying (only active cells)
   for (uint32_t i = 0; i < hashTable->size; i++) {
-    HtCell *currentOld = &(hashTable->cells[i]);
+    HtCell *currentOld = &hashTable->cells[i];
     if (currentOld->status != HT_CELL_OCCUPIED || !currentOld->key) {
       continue; // skip empty and faulty cells
     }
