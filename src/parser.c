@@ -234,70 +234,95 @@ static Parameter *parse_params(uint16_t *outCount) {
   return params;
 }
 
-static AstNode *parse_block(void);
+/**
+ * @brief Returns the AstNode of block
+ *
+ * @return AstNode*
+ */
 static AstNode *parse_block(void) {
-     exit(2);
-      /* TODO */ 
-    }
+  exit(2);
+  /* TODO */
+}
 /**
  * @brief Checking if the function definition contains all the needed parameters
  * from ast.h
  *
  */
-static AstNode* parse_fun_definition(void) {
-    int line = pToken.line;
-    expect_keyword(KW_DEF);
+static AstNode *parse_fun_definition(void) {
+  int line = pToken.line;
+  expect_keyword(KW_DEF);
 
-    char * name = NULL;
-    bool isMain = false;
-    isMain = parse_get_fun_name(&name);
+  char *name = NULL;
+  bool isMain = false;
+  isMain = parse_get_fun_name(&name);
 
-    expect_type(TOKEN_OPENING_BRACKET);
-    uint16_t paramCount = 0;
-    Parameter *parameters = parse_params(&paramCount);
-    expect_type(TOKEN_CLOSING_BRACKET);
+  expect_type(TOKEN_OPENING_BRACKET);
+  uint16_t paramCount = 0;
+  Parameter *parameters = parse_params(&paramCount);
+  expect_type(TOKEN_CLOSING_BRACKET);
 
-    DataType returnType = T_UNIT;
-    if (accept_type(TOKEN_COLON)) {
-        returnType = parse_type();
+  DataType returnType = T_UNIT;
+  if (accept_type(TOKEN_COLON)) {
+    returnType = parse_type();
+  }
+
+  expect_type(TOKEN_ASSIGN);
+  AstNode *body = NULL;
+  // the function can be either assigned on the same line like: "def f(x: Int):
+  // Int = x * 2" or it can have '=' on one line and rest of the fun bellow with
+  // indent (or the fun is invalid)
+  if (accept_type(TOKEN_NEWLINE)) {
+    // If there is new line, next token must be indent ()
+    expect_type(TOKEN_INDENT);
+    body = parse_block();
+    expect_type(TOKEN_DEDENT);
+  } else {
+    body = precedence_parse(pInput, &pToken, NULL);
+    if (body == NULL) {
+      exit(2);
     }
+  }
 
-    expect_type(TOKEN_ASSIGN);
-    AstNode *body = NULL;
-    // the function can be either assigned on the same line like: "def f(x: Int): Int = x * 2"
-    // or it can have '=' on one line and rest of the fun bellow with indent (or the fun is invalid)
-    if(accept_type(TOKEN_NEWLINE)){
-        // If there is new line, next token must be indent ()
-        expect_type(TOKEN_INDENT);
-        body = parse_block();
-        expect_type(TOKEN_DEDENT);
-    }else{
-        body = precedence_parse(pInput, &pToken, NULL);
-        if (body == NULL) {
-            exit(2);
-        }
-    }
-
-    return ast_new_func_def(name, isMain, returnType, parameters, paramCount, body, line);
+  return ast_new_func_def(name, isMain, returnType, parameters, paramCount,
+                          body, line);
 }
 
 AstNode *parser_parse(FILE *fileInput) {
+  int line = pToken.line;
   pInput = fileInput;
   advance();
 
   // Skiping the new lines in the beggining of file
-  while (pToken.type != TOKEN_EOF) {
-
-    if (pToken.type == TOKEN_EOF) {
-      break;
-    }
-    parse_fun_definition();
-  }
+  skip_newlines();
 
   // Checcking the presence of "import ifj26.*
   check_prolog();
 
-  return NULL;
+  size_t capacity = 8;
+  size_t count = 0;
+
+  AstNode **functions = malloc(sizeof(AstNode * capacity));
+  if(functions == 0){
+    exit (99);
+  }
+
+  while (true) {
+       skip_newlines();
+       if (pToken.type == TOKEN_EOF) {
+         break;
+       }
+       if (count == capacity) {
+         capacity *= 2;
+         AstNode **tmp = realloc(functions, capacity * sizeof *functions);
+         if (tmp == NULL) {
+           exit(99);
+         }
+         functions = tmp;
+       }
+       functions[count++] = parse_fun_definition();
+     }
+ 
+     return ast_new_program(functions, count, line);
 }
 
 /**
