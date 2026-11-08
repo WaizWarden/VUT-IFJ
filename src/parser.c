@@ -144,41 +144,22 @@ static DataType check_type(void) {
   }
 }
 /**
- * @brief Gets the name of a parse function
+ * @brief Reads an identifier token and returns a heap copy of its name
  *
- * @param funName
- * @return bool returns if the function is or is not main function
+ * @return strdup'ed identifier name
  */
-static bool parse_get_fun_name(char **funName) {
-  bool isMain = false;
-
-  if (accept_type(TOKEN_AT)) {
-    isMain = true;
-  }
-
+static char *parse_identifier(void) {
   if (pToken.type != TOKEN_IDENTIFIER) {
     exit(2);
   }
 
-  // checking if the function is main and the identifier is "main"
-  if (isMain) {
-    // copying the function name into the funName variable
-    int cmpValue = strcmp(pToken.value.identifier, "main");
-
-    if (cmpValue != 0) {
-      // identifier is not equal to "main"
-      exit(2);
-    }
-  }
-
-  // Copying the function name before advance (would delete it)
-  *funName = strdup(pToken.value.identifier);
-  if (funName == NULL) {
+  char *name = strdup(pToken.value.identifier);
+  if (name == NULL) {
     exit(99);
   }
 
   advance();
-  return isMain;
+  return name;
 }
 /**
  * @brief Parses every parameter after '(' of the function
@@ -286,7 +267,6 @@ static AstNode *parse_if(void) {
   AstNode *block = parse_block();
 
   expect_type(TOKEN_DEDENT);
-  expect_type(TOKEN_NEWLINE);
   expect_keyword(KW_ELSE);
 
   expect_type(TOKEN_NEWLINE);
@@ -342,7 +322,6 @@ static AstNode *parse_id_stmt(void) {
   }
   return ast_new_expr_statement(expr, line);
 }
-static AstNode *parse_expr_or_call(void);
 
 /**
  * @brief Parses the declaraion of variable val(unmodifiable) or var(modifiable)
@@ -595,11 +574,22 @@ static AstNode *parse_block(void) {
  */
 static AstNode *parse_fun_definition(void) {
   int line = pToken.line;
+
+  /* Optional @main annotation before def (may sit on its own line) */
+  bool isMain = false;
+  if (accept_type(TOKEN_AT)) {
+    if (pToken.type != TOKEN_IDENTIFIER ||
+        strcmp(pToken.value.identifier, "main") != 0) {
+      exit(2);
+    }
+    isMain = true;
+    advance();
+    skip_newlines();
+  }
+
   expect_keyword(KW_DEF);
 
-  char *name = NULL;
-  bool isMain = false;
-  isMain = parse_get_fun_name(&name);
+  char *name = parse_identifier();
 
   expect_type(TOKEN_OPENING_BRACKET);
   uint16_t paramCount = 0;
@@ -642,6 +632,7 @@ AstNode *parser_parse(FILE *fileInput) {
 
   // Checcking the presence of "import ifj26.*
   check_prolog();
+  expect_type(TOKEN_NEWLINE);
 
   size_t capacity = 8;
   size_t count = 0;
