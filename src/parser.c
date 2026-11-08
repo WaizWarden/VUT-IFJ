@@ -76,7 +76,7 @@ static void expect_type(TokenType tkType) {
  *
  */
 static void skip_newlines(void) {
-  if (pToken.type == TOKEN_NEWLINE) {
+  while (pToken.type == TOKEN_NEWLINE) {
     advance();
   }
 }
@@ -247,116 +247,116 @@ static AstNode *parse_id_stmt(void);
  * @description grammar: varDecl → (val|var) id [: type] = exprOrCall
  * @return AstNode*
  */
-static AstNode **parse_call_arguments(size_t *outCount){
-    size_t capacity = 8;
-    size_t count = 0;
+static AstNode **parse_call_arguments(size_t *outCount) {
+  size_t capacity = 8;
+  size_t count = 0;
 
-    AstNode **arguments = malloc(capacity * sizeof(*arguments));
-    if(arguments == 0){
-        exit(99);
+  AstNode **arguments = malloc(capacity * sizeof(*arguments));
+  if (arguments == 0) {
+    exit(99);
+  }
+
+  // If the first token is closing braket -> argument count = 0
+  if (pToken.type == TOKEN_CLOSING_BRACKET) {
+    *outCount = 0;
+    free(arguments);
+    return NULL;
+  }
+
+  while (true) {
+    AstNode *argument;
+    switch (pToken.type) {
+    case TOKEN_IDENTIFIER:
+      argument =
+          ast_new_identifier(strdup(pToken.value.identifier), pToken.line);
+      break;
+    case TOKEN_DOUBLE:
+      argument = ast_new_double(pToken.value.numberDouble, pToken.line);
+      break;
+    case TOKEN_INT:
+      argument = ast_new_int(pToken.value.numberInt, pToken.line);
+      break;
+    case TOKEN_STRING:
+      argument = ast_new_string(strdup(pToken.value.string), pToken.line);
+      break;
+    default:
+      exit(2);
     }
 
-    // If the first token is closing braket -> argument count = 0
-    if(pToken.type == TOKEN_CLOSING_BRACKET){
-        *outCount = 0;
-        free(arguments);
-        return NULL;
+    if (argument == NULL) {
+      exit(99);
     }
 
-    while(true){
-        AstNode *argument;
-        switch (pToken.type) {
-            case TOKEN_IDENTIFIER:
-                argument = ast_new_identifier(strdup(pToken.value.identifier), pToken.line);
-                break;
-            case TOKEN_DOUBLE:
-                argument = ast_new_double(pToken.value.numberDouble, pToken.line);
-                break;
-            case TOKEN_INT:
-                argument = ast_new_int(pToken.value.numberInt, pToken.line);
-                break;
-            case TOKEN_STRING:
-                argument = ast_new_string(strdup(pToken.value.string), pToken.line);
-                break;
-            default:
-                exit(2);
+    // Assigning the argument to the arguments array
+    arguments[count] = argument;
+    count++;
+    // Moving on next token
+    advance();
+
+    // Reallocating if the arguments array is full
+    if (accept_type(TOKEN_COMMA)) {
+      if (count == capacity) {
+        capacity = capacity * 2;
+        AstNode **temp = realloc(arguments, capacity * sizeof(*arguments));
+        if (temp == 0) {
+          exit(99);
         }
 
-        if(argument == NULL){
-            exit(99);
-        }
-
-        // Assigning the argument to the arguments array
-        arguments[count] = argument;
-        count++;
-        // Moving on next token
-        advance();
-
-        // Reallocating if the arguments array is full
-        if(accept_type(TOKEN_COMMA)){
-            if(count == capacity){
-                capacity = capacity * 2;
-                AstNode **temp = realloc(arguments, capacity * sizeof(*arguments));
-                if(temp == 0){
-                    exit(99);
-                }
-
-                arguments = temp;
-            }
-            continue;
-        }
-        break;
+        arguments = temp;
+      }
+      continue;
     }
-    *outCount = count;
+    break;
+  }
+  *outCount = count;
 
-    return arguments;
+  return arguments;
 }
 
 /**
- * @brief Helper function, decides whenether the right size of '=' is a expression or call of fun
+ * @brief Helper function, decides whenether the right size of '=' is a
+ * expression or call of fun
  *
  * @return AstNode*
  */
-static AstNode *parse_expr_or_call(void){
-    if(pToken.type != TOKEN_IDENTIFIER){
-        // If the token is not a identifier, then just call the precedence parser
-        AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+static AstNode *parse_expr_or_call(void) {
+  if (pToken.type != TOKEN_IDENTIFIER) {
+    // If the token is not a identifier, then just call the precedence parser
+    AstNode *expression = precedence_parse(pInput, &pToken, NULL);
 
-        if(expression == NULL){
-            exit(2);
-        }
-        return expression;
-    }else{
-        char *name = strdup(pToken.value.identifier);
-        // Look ahead - expression can be = x-1 or = x(1)
-        int line = pToken.line;
-
-        if(name == NULL){
-            exit (99);
-        }
-        advance();
-
-        if(pToken.type != TOKEN_OPENING_BRACKET){
-            // Expression is in format of = x-1...
-            AstNode * first = ast_new_identifier(name, line);
-            AstNode *expr = precedence_parse(pInput, &pToken, first);
-            if (expr == NULL) {
-                exit(2);
-                }
-            return expr;
-        }
-
-        // In the other case, expression is in format of = x(2)
-        if(pToken.type == TOKEN_OPENING_BRACKET){
-            // call: id ( args )
-            advance();
-
-            size_t argumentCount = 0;
-            AstNode **arguments = parse_call_arguments(&argumentCount);
-            expect_type(TOKEN_CLOSING_BRACKET);
-            return ast_new_func_call(name, arguments, argumentCount, line);
-        }
+    if (expression == NULL) {
+      exit(2);
     }
+    return expression;
+  } else {
+    char *name = strdup(pToken.value.identifier);
+    // Look ahead - expression can be = x-1 or = x(1)
+    int line = pToken.line;
+
+    if (name == NULL) {
+      exit(99);
+    }
+    advance();
+
+    if (pToken.type != TOKEN_OPENING_BRACKET) {
+      // Expression is in format of = x-1...
+      AstNode *first = ast_new_identifier(name, line);
+      AstNode *expr = precedence_parse(pInput, &pToken, first);
+      if (expr == NULL) {
+        exit(2);
+      }
+      return expr;
+    }
+
+    // In the other case, expression is in format of = x(2)
+    // call: id ( args )
+    advance();
+
+    size_t argumentCount = 0;
+    AstNode **arguments = parse_call_arguments(&argumentCount);
+    expect_type(TOKEN_CLOSING_BRACKET);
+    return ast_new_func_call(name, arguments, argumentCount, line);
+  }
 }
 
 /**
@@ -384,10 +384,11 @@ static AstNode *parse_statement(void) {
   case TOKEN_IDENTIFIER:
     return parse_id_stmt();
   default: {
+    int line = pToken.line;
     AstNode *e = precedence_parse(pInput, &pToken, NULL);
     if (e == NULL)
       exit(2);
-    return ast_new_expr_statement(e, pToken.line);
+    return ast_new_expr_statement(e, line);
   }
   }
 }
@@ -415,7 +416,12 @@ static AstNode *parse_block(void) {
       break;
     }
     if (count == capacity) {
-      /* realloc ×2, exit(99) */
+      capacity *= 2;
+      AstNode **tmp = realloc(stmts, capacity * sizeof *stmts);
+      if (tmp == NULL) {
+        exit(99);
+      }
+      stmts = tmp;
     }
     stmts[count++] = parse_statement();
   }
@@ -444,7 +450,7 @@ static AstNode *parse_fun_definition(void) {
 
   DataType returnType = T_UNIT;
   if (accept_type(TOKEN_COLON)) {
-    returnType = parse_type();
+    returnType = check_type();
   }
 
   expect_type(TOKEN_ASSIGN);
@@ -458,7 +464,7 @@ static AstNode *parse_fun_definition(void) {
     body = parse_block();
     expect_type(TOKEN_DEDENT);
   } else {
-    body = precedence_parse(pInput, &pToken, NULL);
+    body = parse_expr_or_call();
     if (body == NULL) {
       exit(2);
     }
