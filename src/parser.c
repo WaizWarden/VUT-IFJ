@@ -96,6 +96,84 @@ static void check_prolog(void){
     expect_type(TOKEN_MULTIPLY);
 }
 /**
+ * @brief Helper function for telling if some token type is or is not present.
+ * 
+ * @param tkType 
+ * @return true 
+ * @return false 
+ */
+static bool accept_type(TokenType tkType){
+    if(pToken.type == tkType){
+        advance();
+        return true;
+    }else{
+        return false;
+    }
+}
+/**
+ * @brief Assigning the correct datatype (string, double...)
+ * 
+ * @return DataType 
+ */
+static DataType checkType(void){
+    // Check if the type is not keyword -> error
+    if(pToken.type != TOKEN_KEYWORD){
+        exit(2);
+    }
+
+    switch(pToken.value.keyword){
+        case KW_INT:
+            advance();
+            return T_INT;
+        case KW_DOUBLE:
+            advance();
+            return T_DOUBLE;
+        case KW_STRING:
+            advance();
+            return T_STRING;
+        case KW_UNIT:
+            advance();
+            return T_STRING;
+    }
+}
+/**
+ * @brief Gets the name of a parse function
+ * 
+ * @param funName 
+ * @return bool returns if the function is or is not main function
+ */
+static bool parse_get_fun_name(char **funName){
+    bool isMain = false;
+
+    if(accept_type(TOKEN_AT)){
+        isMain = true;
+    }
+
+    if (pToken.type != TOKEN_IDENTIFIER) {
+       exit(2);
+     }
+
+     //checking if the function is main and the identifier is "main"
+     if(isMain){
+        //copying the function name into the funName variable
+        int cmpValue = strcmp(pToken.value.identifier, "main");
+
+        if(cmpValue != 0){
+            //identifier is not equal to "main"
+            exit(2);
+        }
+     }
+
+     //Copying the function name before advance (would delete it)
+     *funName = strdup(pToken.value.identifier);
+     if(funName == NULL){
+        exit(99);
+     }
+
+     advance();
+     return isMain;
+}
+/**
  * @brief Checking if the function definition contains all the needed parameters from ast.h
  * 
  */
@@ -110,7 +188,7 @@ AstNode *parser_parse(FILE *fileInput){
 
     //Skiping the new lines in the beggining of file
     while(pToken.type != TOKEN_EOF){
-        skip_newlines();
+        ();
 
         if(pToken.type == TOKEN_EOF){
             break;
