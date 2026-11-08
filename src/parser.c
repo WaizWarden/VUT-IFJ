@@ -235,10 +235,53 @@ static Parameter *parse_params(uint16_t *outCount) {
   return params;
 }
 
-static AstNode *parse_if(void);
 static AstNode *parse_while(void);
-static AstNode *parse_return(void);
-static AstNode *parse_id_stmt(void);
+static AstNode *parse_if(void);
+static AstNode *parse_expr_or_call(void);
+static AstNode **parse_call_arguments(size_t *outCount);
+
+/**
+ * @briefParses the id depending on the state. States: assign, statement, function call
+ *
+ * @return AstNode*
+ */
+static AstNode *parse_id_stmt(void){
+    /*  3 possible formating states
+     *  1) x = 8 assign
+     *  2) x - 8 statement
+     *  3) x(1-z)fun call
+     */
+    // Look ahead is necceceary to deside the state
+    char *name = strdup(pToken.value.identifier);
+    if (name == NULL) {
+        exit(99);
+    }
+    int line = pToken.line;
+    advance();
+
+    TokenType tType = pToken.type;
+    if(tType == TOKEN_ASSIGN){
+        advance();
+        return ast_new_assign(name, parse_expr_or_call(), line);
+    }
+
+    if(tType == TOKEN_OPENING_BRACKET){
+        advance();
+        size_t argCount = 0;
+        AstNode **args = parse_call_arguments(&argCount);
+        expect_type(TOKEN_CLOSING_BRACKET);
+        return ast_new_expr_statement(
+            ast_new_func_call(name, args, argCount, line), line);
+    }
+
+    // Expression statement starting with identifier: x - 8
+    AstNode *first = ast_new_identifier(name, line);
+    AstNode *expr = precedence_parse(pInput, &pToken, first);
+    if (expr == NULL) {
+        exit(2);
+    }
+    return ast_new_expr_statement(expr, line);
+}
 static AstNode *parse_expr_or_call(void);
 
 /**
@@ -278,6 +321,21 @@ static AstNode *parse_var_decl(void){
     AstNode *initAst = parse_expr_or_call();
 
     return ast_new_var_decl(name, modifiable, declaredType, hasDeclaredType, initAst, line);
+}
+/**
+ * @brief Parses the "return" keyword
+ *
+ * @return AstNode*
+ */
+static AstNode *parse_return(void){
+    expect_keyword(KW_RETURN);
+
+    int line = pToken.line;
+    if(pToken.type == TOKEN_NEWLINE || pToken.type == TOKEN_DEDENT){
+        return ast_new_return(NULL, line);
+    }else{
+        return ast_new_return(parse_expr_or_call(), line);
+    }
 }
 
 /**
