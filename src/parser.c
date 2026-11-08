@@ -111,9 +111,8 @@ static bool accept_type(TokenType tkType) {
   if (pToken.type == tkType) {
     advance();
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 /**
  * @brief Assigning the correct datatype (string, double...)
@@ -373,9 +372,8 @@ static AstNode *parse_return(void) {
   int line = pToken.line;
   if (pToken.type == TOKEN_NEWLINE || pToken.type == TOKEN_DEDENT) {
     return ast_new_return(NULL, line);
-  } else {
-    return ast_new_return(parse_expr_or_call(), line);
   }
+  return ast_new_return(parse_expr_or_call(), line);
 }
 
 /**
@@ -388,7 +386,7 @@ static AstNode **parse_call_arguments(size_t *outCount) {
   size_t capacity = 8;
   size_t count = 0;
 
-  AstNode **arguments = malloc(capacity * sizeof(*arguments));
+  AstNode **arguments = (AstNode **)malloc(capacity * sizeof(*arguments));
   if (arguments == 0) {
     exit(99);
   }
@@ -396,7 +394,7 @@ static AstNode **parse_call_arguments(size_t *outCount) {
   // If the first token is closing braket -> argument count = 0
   if (pToken.type == TOKEN_CLOSING_BRACKET) {
     *outCount = 0;
-    free(arguments);
+    free((void *)arguments);
     return NULL;
   }
 
@@ -434,7 +432,8 @@ static AstNode **parse_call_arguments(size_t *outCount) {
     if (accept_type(TOKEN_COMMA)) {
       if (count == capacity) {
         capacity = capacity * 2;
-        AstNode **temp = realloc(arguments, capacity * sizeof(*arguments));
+        AstNode **temp = (AstNode **)realloc((void *)arguments,
+                                             capacity * sizeof(*arguments));
         if (temp == 0) {
           exit(99);
         }
@@ -465,35 +464,35 @@ static AstNode *parse_expr_or_call(void) {
       exit(2);
     }
     return expression;
-  } else {
-    char *name = strdup(pToken.value.identifier);
-    // Look ahead - expression can be = x-1 or = x(1)
-    int line = pToken.line;
-
-    if (name == NULL) {
-      exit(99);
-    }
-    advance();
-
-    if (pToken.type != TOKEN_OPENING_BRACKET) {
-      // Expression is in format of = x-1...
-      AstNode *first = ast_new_identifier(name, line);
-      AstNode *expr = precedence_parse(pInput, &pToken, first);
-      if (expr == NULL) {
-        exit(2);
-      }
-      return expr;
-    }
-
-    // In the other case, expression is in format of = x(2)
-    // call: id ( args )
-    advance();
-
-    size_t argumentCount = 0;
-    AstNode **arguments = parse_call_arguments(&argumentCount);
-    expect_type(TOKEN_CLOSING_BRACKET);
-    return ast_new_func_call(name, arguments, argumentCount, line);
   }
+
+  // Look ahead - expression can be = x-1 or = x(1)
+  char *name = strdup(pToken.value.identifier);
+  int line = pToken.line;
+
+  if (name == NULL) {
+    exit(99);
+  }
+  advance();
+
+  if (pToken.type != TOKEN_OPENING_BRACKET) {
+    // Expression is in format of = x-1...
+    AstNode *first = ast_new_identifier(name, line);
+    AstNode *expr = precedence_parse(pInput, &pToken, first);
+    if (expr == NULL) {
+      exit(2);
+    }
+    return expr;
+  }
+
+  // In the other case, expression is in format of = x(2)
+  // call: id ( args )
+  advance();
+
+  size_t argumentCount = 0;
+  AstNode **arguments = parse_call_arguments(&argumentCount);
+  expect_type(TOKEN_CLOSING_BRACKET);
+  return ast_new_func_call(name, arguments, argumentCount, line);
 }
 
 /**
@@ -503,9 +502,9 @@ static AstNode *parse_expr_or_call(void) {
  */
 static AstNode *parse_statement(void) {
   switch (pToken.type) {
-  case TOKEN_KEYWORD:
-    Keyword kw = pToken.value.keyword;
-    switch (kw) {
+  case TOKEN_KEYWORD: {
+    Keyword keyword = pToken.value.keyword;
+    switch (keyword) {
     case KW_VAL:
     case KW_VAR:
       return parse_var_decl();
@@ -518,14 +517,16 @@ static AstNode *parse_statement(void) {
     default:
       exit(2);
     }
+  }
   case TOKEN_IDENTIFIER:
     return parse_id_stmt();
   default: {
     int line = pToken.line;
-    AstNode *e = precedence_parse(pInput, &pToken, NULL);
-    if (e == NULL)
+    AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+    if (expression == NULL) {
       exit(2);
-    return ast_new_expr_statement(e, line);
+    }
+    return ast_new_expr_statement(expression, line);
   }
   }
 }
@@ -539,7 +540,7 @@ static AstNode *parse_block(void) {
   int line = pToken.line;
   size_t capacity = 8;
   size_t count = 0;
-  AstNode **stmts = malloc(capacity * sizeof *stmts);
+  AstNode **stmts = (AstNode **)malloc(capacity * sizeof *stmts);
 
   if (stmts == NULL) {
     exit(99);
@@ -554,7 +555,8 @@ static AstNode *parse_block(void) {
     }
     if (count == capacity) {
       capacity *= 2;
-      AstNode **tmp = realloc(stmts, capacity * sizeof *stmts);
+      AstNode **tmp =
+          (AstNode **)realloc((void *)stmts, capacity * sizeof *stmts);
       if (tmp == NULL) {
         exit(99);
       }
@@ -637,7 +639,7 @@ AstNode *parser_parse(FILE *fileInput) {
   size_t capacity = 8;
   size_t count = 0;
 
-  AstNode **functions = malloc(capacity * sizeof *functions);
+  AstNode **functions = (AstNode **)malloc(capacity * sizeof *functions);
   if (functions == 0) {
     exit(99);
   }
@@ -649,7 +651,8 @@ AstNode *parser_parse(FILE *fileInput) {
     }
     if (count == capacity) {
       capacity *= 2;
-      AstNode **tmp = realloc(functions, capacity * sizeof *functions);
+      AstNode **tmp =
+          (AstNode **)realloc((void *)functions, capacity * sizeof *functions);
       if (tmp == NULL) {
         exit(99);
       }
