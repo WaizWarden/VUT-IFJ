@@ -5,6 +5,7 @@
  */
 
 #include "parser.h"
+#include "ast.h"
 #include "precedence.h"
 #include "stack.h"
 #include <stdio.h>
@@ -245,18 +246,69 @@ static AstNode *parse_id_stmt(void);
  * @description grammar: varDecl → (val|var) id [: type] = exprOrCall
  * @return AstNode*
  */
-static AstNode *parse_expr_or_call(void){
-    if(pToken.type == TOKEN_IDENTIFIER){
-        char *str = strdup(pToken.value.identifier);
+static AstNode **parse_expr_or_call(size_t *outCount){
+    size_t capacity = 8;
+    size_t count = 0;
 
-        if(pToken.type == TOKEN_OPENING_BRACKET){
-
-        }else{
-            precedence_parse(input, &pToken, ast_new_identifier(jméno))
-        }
-    }else{
-        precedence_parse(input, &pToken, NULL)
+    AstNode **arguments = malloc(capacity * sizeof(*arguments));
+    if(arguments == 0){
+        exit(99);
     }
+
+    // If the first token is closing braket -> argument count = 0
+    if(pToken.type == TOKEN_CLOSING_BRACKET){
+        outCount = 0;
+        free(arguments);
+        return NULL;
+    }
+
+    while(true){
+        AstNode *argument;
+        switch (pToken.type) {
+            case TOKEN_IDENTIFIER:
+                argument = ast_new_identifier(strdup(pToken.value.identifier), pToken.line);
+                break;
+            case TOKEN_DOUBLE:
+                argument = ast_new_double(pToken.value.numberDouble, pToken.line);
+                break;
+            case TOKEN_INT:
+                argument = ast_new_int(pToken.value.numberInt, pToken.line);
+                break;
+            case TOKEN_STRING:
+                argument = ast_new_string(strdup(pToken.value.string), pToken.line);
+                break;
+            default:
+                exit(2);
+        }
+
+        if(argument == NULL){
+            exit(99);
+        }
+
+        // Assigning the argument to the arguments array
+        arguments[count] = argument;
+        count++;
+        // Moving on next token
+        advance();
+
+        // Reallocating if the arguments array is full
+        if(accept_type(TOKEN_COMMA)){
+            if(count = capacity){
+                capacity = capacity * 2;
+                AstNode **temp = realloc(arguments, capacity * sizeof(*arguments));
+                if(temp == 0){
+                    exit(99);
+                }
+
+                arguments = temp;
+            }
+            continue;
+        }
+        break;
+    }
+    *outCount = count;
+
+    return arguments;
 }
 
 /**
