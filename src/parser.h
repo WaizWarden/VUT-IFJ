@@ -10,5 +10,5 @@
 #include "precedence.h"
 
 AstNode *parser_parse_assignment(FILE *input, Token *currentToken);
-
+AstNode *parser_parse(FILE *input);
 #endif
