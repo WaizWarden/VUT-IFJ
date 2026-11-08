@@ -239,7 +239,25 @@ static AstNode *parse_if(void);
 static AstNode *parse_while(void);
 static AstNode *parse_return(void);
 static AstNode *parse_id_stmt(void);
-static AstNode *parse_expr_or_call(void);
+/**
+ * @brief
+ *
+ * @description grammar: varDecl → (val|var) id [: type] = exprOrCall
+ * @return AstNode*
+ */
+static AstNode *parse_expr_or_call(void){
+    if(pToken.type == TOKEN_IDENTIFIER){
+        char *str = strdup(pToken.value.identifier);
+
+        if(pToken.type == TOKEN_OPENING_BRACKET){
+
+        }else{
+            precedence_parse(input, &pToken, ast_new_identifier(jméno))
+        }
+    }else{
+        precedence_parse(input, &pToken, NULL)
+    }
+}
 
 /**
  * @brief Function looks at pToken and chooses the correct type of command
@@ -386,43 +404,4 @@ AstNode *parser_parse(FILE *fileInput) {
   }
 
   return ast_new_program(functions, count, line);
-}
-
-/**
- * @brief advance parser fun
- */
-static void parser_advance(FILE *input, Token *currentToken) {
-  *currentToken = get_token(input);
-
-  if (currentToken->type == TOKEN_ERROR) {
-    exit(1);
-  }
-}
-
-AstNode *parser_parse_assignment(FILE *input, Token *currentToken) {
-  if (currentToken->type == TOKEN_ERROR) {
-    exit(1);
-  }
-
-  if (currentToken->type != TOKEN_IDENTIFIER) {
-    exit(2);
-  }
-
-  char *character = currentToken->value.identifier;
-  parser_advance(input, currentToken);
-
-  if (currentToken->type != TOKEN_ASSIGN) {
-    free(character);
-    exit(2);
-  }
-
-  parser_advance(input, currentToken);
-  AstNode *value = precedence_parse(input, currentToken, NULL);
-
-  if (value == NULL) {
-    free(character);
-    exit(2);
-  }
-
-  return ast_new_assign(character, value, 0);
 }
