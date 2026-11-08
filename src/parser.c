@@ -234,14 +234,77 @@ static Parameter *parse_params(uint16_t *outCount) {
   return params;
 }
 
+static AstNode *parse_var_decl(void);
+static AstNode *parse_if(void);
+static AstNode *parse_while(void);
+static AstNode *parse_return(void);
+static AstNode *parse_id_stmt(void);
+static AstNode *parse_expr_or_call(void);
+
+/**
+ * @brief Function looks at pToken and chooses the correct type of command
+ *
+ * @return AstNode*
+ */
+static AstNode *parse_statement(void) {
+  switch (pToken.type) {
+  case TOKEN_KEYWORD:
+    Keyword kw = pToken.value.keyword;
+    switch (kw) {
+    case KW_VAL:
+    case KW_VAR:
+      return parse_var_decl();
+    case KW_IF:
+      return parse_if();
+    case KW_WHILE:
+      return parse_while();
+    case KW_RETURN:
+      return parse_return();
+    default:
+      exit(2);
+    }
+  case TOKEN_IDENTIFIER:
+    return parse_id_stmt();
+  default: {
+    AstNode *e = precedence_parse(pInput, &pToken, NULL);
+    if (e == NULL)
+      exit(2);
+    return ast_new_expr_statement(e, pToken.line);
+  }
+  }
+}
+
 /**
  * @brief Returns the AstNode of block
  *
  * @return AstNode*
  */
 static AstNode *parse_block(void) {
-  exit(2);
-  /* TODO */
+  int line = pToken.line;
+  size_t capacity = 8;
+  size_t count = 0;
+  AstNode **stmts = malloc(capacity * sizeof *stmts);
+
+  if (stmts == NULL) {
+    exit(99);
+  }
+
+  // Loop of the block + skipping the new lines
+  while (true) {
+    skip_newlines();
+    // If dedent is detected -> the block ended
+    if (pToken.type == TOKEN_DEDENT) {
+      break;
+    }
+    if (count == capacity) {
+      /* realloc ×2, exit(99) */
+    }
+    stmts[count++] = parse_statement();
+  }
+  if (count == 0) {
+    exit(2);
+  }
+  return ast_new_block(stmts, count, line);
 }
 /**
  * @brief Checking if the function definition contains all the needed parameters
@@ -288,9 +351,9 @@ static AstNode *parse_fun_definition(void) {
 }
 
 AstNode *parser_parse(FILE *fileInput) {
-  int line = pToken.line;
   pInput = fileInput;
   advance();
+  int line = pToken.line;
 
   // Skiping the new lines in the beggining of file
   skip_newlines();
@@ -301,28 +364,28 @@ AstNode *parser_parse(FILE *fileInput) {
   size_t capacity = 8;
   size_t count = 0;
 
-  AstNode **functions = malloc(sizeof(AstNode * capacity));
-  if(functions == 0){
-    exit (99);
+  AstNode **functions = malloc(capacity * sizeof *functions);
+  if (functions == 0) {
+    exit(99);
   }
 
   while (true) {
-       skip_newlines();
-       if (pToken.type == TOKEN_EOF) {
-         break;
-       }
-       if (count == capacity) {
-         capacity *= 2;
-         AstNode **tmp = realloc(functions, capacity * sizeof *functions);
-         if (tmp == NULL) {
-           exit(99);
-         }
-         functions = tmp;
-       }
-       functions[count++] = parse_fun_definition();
-     }
- 
-     return ast_new_program(functions, count, line);
+    skip_newlines();
+    if (pToken.type == TOKEN_EOF) {
+      break;
+    }
+    if (count == capacity) {
+      capacity *= 2;
+      AstNode **tmp = realloc(functions, capacity * sizeof *functions);
+      if (tmp == NULL) {
+        exit(99);
+      }
+      functions = tmp;
+    }
+    functions[count++] = parse_fun_definition();
+  }
+
+  return ast_new_program(functions, count, line);
 }
 
 /**
