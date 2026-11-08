@@ -263,7 +263,38 @@ static AstNode *parse_while(void){
     expect_type(TOKEN_DEDENT);
     return ast_new_while(condition, body, line);
 }
-static AstNode *parse_if(void);
+
+/**
+ * @brief Parser of the if block
+ *
+ * @return AstNode*
+ */
+static AstNode *parse_if(void){
+    int line = pToken.line;
+    expect_keyword(KW_IF);
+
+    AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+    if(condition == NULL){
+        exit(2);
+    }
+
+    expect_keyword(KW_THEN);
+    expect_type(TOKEN_NEWLINE);
+    expect_type(TOKEN_INDENT);
+
+    AstNode *block = parse_block();
+
+    expect_type(TOKEN_DEDENT);
+    expect_type(TOKEN_NEWLINE);
+    expect_keyword(KW_ELSE);
+
+    expect_type(TOKEN_NEWLINE);
+    expect_type(TOKEN_INDENT);
+    AstNode *elseBlock = parse_block();
+    expect_type(TOKEN_DEDENT);
+
+    return ast_new_if(condition, block, elseBlock, line);
+}
 static AstNode *parse_expr_or_call(void);
 static AstNode **parse_call_arguments(size_t *outCount);
 
