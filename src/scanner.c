@@ -18,13 +18,14 @@
 #define SCANNER_ERROR 1
 #define INTERPRET_ERROR 99
 
-int is_keyword(char *str);
-bool number_token_end(int currentChar);
-int calculateIndent(FILE *input, int *error);
-int next_char(FILE *input);
-void put_back(int currentChar, FILE *input);
+static int is_keyword(char *str);
+static bool number_token_end(int currentChar);
+static int calculateIndent(FILE *input, int *error);
+static int next_char(FILE *input);
+static void put_back(int currentChar, FILE *input);
+static void handle_eof(Token *token);
 
-// All possible states in FSM
+// States in scanner
 typedef enum {
   S_START,
   S_STRING,
@@ -58,6 +59,7 @@ static bool stackInitialized = false;
 static int pendingDedents = 0;
 static int currentLine = 1;
 static bool lineStart = true;
+static bool EndOfFileDetected = false;
 
 /**
  * @brief Parses stdin and creates token
@@ -94,6 +96,11 @@ Token get_token(FILE *input) {
     goto return_token;
   }
 
+  if (EndOfFileDetected) {
+    handle_eof(&token);
+    goto return_token;
+  }
+
   // indent calculation
   int error = 0;
   bool atLineStart = lineStart && bracketDepth == 0; // NOLINT
@@ -105,9 +112,7 @@ Token get_token(FILE *input) {
       goto return_error;
     } else if (error == 2) {
 
-      token.type = TOKEN_EOF;
-      scanner_destroy();
-
+      handle_eof(&token);
       goto return_token;
     } else if (error == 1) {
 
@@ -176,8 +181,8 @@ Token get_token(FILE *input) {
 
     case S_START:
       if (currentChar == EOF) {
-        scanner_destroy();
-        token.type = TOKEN_EOF;
+
+        handle_eof(&token);
         goto return_token;
       }
 
@@ -746,7 +751,7 @@ return_error:
  * @param[in] str pointer to string
  * @returns index to keyword_table array if true, -1 if false
  */
-int is_keyword(char *str) {
+static int is_keyword(char *str) {
 
   int size = sizeof(keywordTable) / sizeof(keywordTable[0]);
 
@@ -765,7 +770,7 @@ int is_keyword(char *str) {
  * @param[in] character from input
  * @returns true if character can be behind token,, false if not
  */
-bool number_token_end(int currentChar) {
+static bool number_token_end(int currentChar) {
   int result =
       (currentChar == '+' || currentChar == '-' || currentChar == '*' ||
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
@@ -784,7 +789,7 @@ bool number_token_end(int currentChar) {
  * = EOF
  * @returns space count, if value is -1, error happened
  */
-int calculateIndent(FILE *input, int *error) {
+static int calculateIndent(FILE *input, int *error) {
   *error = 0;
   if (lineStart && bracketDepth == 0) {
     int spaces = 0;
@@ -891,9 +896,37 @@ void scanner_destroy(void) {
   pendingDedents = 0;
   lineStart = true;
   currentLine = 1;
+  EndOfFileDetected = false;
 }
 
-int next_char(FILE *input) {
+/**
+ * @brief Handles end of input: returns remaining dedents then EOF
+ *
+ * @param[out] Token to write the resulting type to
+ */
+static void handle_eof(Token *token) {
+  int open_levels = scanner_stack_size() - 1;
+
+  if (open_levels > 0) {
+    while (scanner_stack_size() > 1) {
+      scanner_stack_pop();
+    }
+    pendingDedents = open_levels - 1;
+    EndOfFileDetected = true;
+    token->type = TOKEN_DEDENT;
+  } else {
+    token->type = TOKEN_EOF;
+    scanner_destroy();
+  }
+}
+
+/**
+ * @brief Wrapper to get new char from input
+ *
+ * @param[in, out] input stream
+ * @returns char
+ */
+static int next_char(FILE *input) {
   int next = fgetc(input);
   if (next == '\n') {
     currentLine++;
@@ -901,7 +934,12 @@ int next_char(FILE *input) {
   return next;
 }
 
-void put_back(int currentChar, FILE *input) {
+/**
+ * @brief Wrapper to return char to input
+ * @param[out] input stream
+ * @param[in, out] char
+ */
+static void put_back(int currentChar, FILE *input) {
   if (currentChar == '\n') {
     currentLine--;
   }
