@@ -94,4 +94,8 @@ typedef struct {
  * @returns Next parsed token
  */
 Token get_token(FILE *input);
+
+/**
+ * @brief Resets internal state of scanner, and frees alocated memory
+ */
 void scanner_destroy(void);
