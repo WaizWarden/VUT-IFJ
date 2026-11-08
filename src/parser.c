@@ -546,9 +546,12 @@ static AstNode *parse_block(void) {
     exit(99);
   }
 
-  // Loop of the block + skipping the new lines
+  // Loop of the block + skipping the separators (newlines and semicolons)
   while (true) {
     skip_newlines();
+    while (accept_type(TOKEN_SEMICOLON)) {
+      skip_newlines();
+    }
     // If dedent is detected -> the block ended
     if (pToken.type == TOKEN_DEDENT) {
       break;
