@@ -235,11 +235,50 @@ static Parameter *parse_params(uint16_t *outCount) {
   return params;
 }
 
-static AstNode *parse_var_decl(void);
 static AstNode *parse_if(void);
 static AstNode *parse_while(void);
 static AstNode *parse_return(void);
 static AstNode *parse_id_stmt(void);
+static AstNode *parse_expr_or_call(void);
+
+/**
+ * @brief Parses the declaraion of variable val(unmodifiable) or var(modifiable)
+ *
+ * @details varDecl → (val | var) id [ : type ] = exprOrCall
+ * @return AstNode*
+ */
+static AstNode *parse_var_decl(void){
+    int line = pToken.line;
+
+    // Is it var - modifiable?
+    bool modifiable = false;
+    if(pToken.value.keyword == KW_VAR){
+        modifiable = true;
+    }
+
+    advance();
+    if(pToken.type != TOKEN_IDENTIFIER){
+        exit(2);
+    }
+
+    // saving value identifier - advance would remove
+    char *name = strdup(pToken.value.identifier);
+    advance();
+
+    DataType declaredType = T_UNIT;
+    bool hasDeclaredType = false;
+
+    if (accept_type(TOKEN_COLON)) {
+        declaredType = check_type();
+        hasDeclaredType = true;
+    }
+
+    // Then must come =
+    expect_type(TOKEN_ASSIGN);
+    AstNode *initAst = parse_expr_or_call();
+
+    return ast_new_var_decl(name, modifiable, declaredType, hasDeclaredType, initAst, line);
+}
 
 /**
  * @brief
