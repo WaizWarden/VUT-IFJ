@@ -240,13 +240,14 @@ static AstNode *parse_if(void);
 static AstNode *parse_while(void);
 static AstNode *parse_return(void);
 static AstNode *parse_id_stmt(void);
+
 /**
  * @brief
  *
  * @description grammar: varDecl → (val|var) id [: type] = exprOrCall
  * @return AstNode*
  */
-static AstNode **parse_expr_or_call(size_t *outCount){
+static AstNode **parse_call_arguments(size_t *outCount){
     size_t capacity = 8;
     size_t count = 0;
 
@@ -257,7 +258,7 @@ static AstNode **parse_expr_or_call(size_t *outCount){
 
     // If the first token is closing braket -> argument count = 0
     if(pToken.type == TOKEN_CLOSING_BRACKET){
-        outCount = 0;
+        *outCount = 0;
         free(arguments);
         return NULL;
     }
@@ -293,7 +294,7 @@ static AstNode **parse_expr_or_call(size_t *outCount){
 
         // Reallocating if the arguments array is full
         if(accept_type(TOKEN_COMMA)){
-            if(count = capacity){
+            if(count == capacity){
                 capacity = capacity * 2;
                 AstNode **temp = realloc(arguments, capacity * sizeof(*arguments));
                 if(temp == 0){
@@ -309,6 +310,53 @@ static AstNode **parse_expr_or_call(size_t *outCount){
     *outCount = count;
 
     return arguments;
+}
+
+/**
+ * @brief Helper function, decides whenether the right size of '=' is a expression or call of fun
+ *
+ * @return AstNode*
+ */
+static AstNode *parse_expr_or_call(void){
+    if(pToken.type != TOKEN_IDENTIFIER){
+        // If the token is not a identifier, then just call the precedence parser
+        AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+
+        if(expression == NULL){
+            exit(2);
+        }
+        return expression;
+    }else{
+        char *name = strdup(pToken.value.identifier);
+        // Look ahead - expression can be = x-1 or = x(1)
+        int line = pToken.line;
+
+        if(name == NULL){
+            exit (99);
+        }
+        advance();
+
+        if(pToken.type != TOKEN_OPENING_BRACKET){
+            // Expression is in format of = x-1...
+            AstNode * first = ast_new_identifier(name, line);
+            AstNode *expr = precedence_parse(pInput, &pToken, first);
+            if (expr == NULL) {
+                exit(2);
+                }
+            return expr;
+        }
+
+        // In the other case, expression is in format of = x(2)
+        if(pToken.type == TOKEN_OPENING_BRACKET){
+            // call: id ( args )
+            advance();
+
+            size_t argumentCount = 0;
+            AstNode **arguments = parse_call_arguments(&argumentCount);
+            expect_type(TOKEN_CLOSING_BRACKET);
+            return ast_new_func_call(name, arguments, argumentCount, line);
+        }
+    }
 }
 
 /**
