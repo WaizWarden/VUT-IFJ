@@ -14,6 +14,10 @@
 static FILE *pInput;
 static Token pToken;
 
+/**
+ * @brief Frees the dynamically allocated memory associated with the current token's value if it is an identifier or a string.
+ * 
+ */
 static void token_drop_value(void){
     if(pToken.type == TOKEN_IDENTIFIER){
         free(pToken.value.identifier);
@@ -23,6 +27,10 @@ static void token_drop_value(void){
     }
 }
 
+/**
+ * @brief Helper function for advancing the ptoken, checkijgng if the pToken.type is not TOKEN_ERROR
+ * 
+ */
 static void advance(void){
     token_drop_value();
 
@@ -31,7 +39,11 @@ static void advance(void){
         exit(1);
     }
 }
-
+/**
+ * @brief Helper function expect_keyword. Used to check for keywords.
+ * 
+ * @param keyword 
+ */
 static void expect_keyword(Keyword keyword){
     if(pToken.type == TOKEN_KEYWORD){
         if(pToken.value.keyword == keyword){
@@ -43,7 +55,11 @@ static void expect_keyword(Keyword keyword){
         exit(2);
     }
 }
-
+/**
+ * @brief Helper function expect_type. Used to check for types.
+ * 
+ * @param tkType 
+ */
 static void expect_type(TokenType tkType){
     if(pToken.type == tkType){
         advance();
@@ -52,6 +68,19 @@ static void expect_type(TokenType tkType){
     }
 }
 
+/**
+ * @brief Skips the token of new lines if present
+ * 
+ */
+static void skip_newlines(void){
+    if(pToken.type == TOKEN_NEWLINE){
+        advance();
+    }
+}
+/**
+ * @brief Checking if the first prolog in the file is present "import ifj26.*". If not, exit(2)
+ * 
+ */
 static void check_prolog(void){
     // every file needs to have "import ifj26.*"
     expect_keyword(KW_IMPORT);
@@ -66,10 +95,28 @@ static void check_prolog(void){
     expect_type(TOKEN_DOT);
     expect_type(TOKEN_MULTIPLY);
 }
+/**
+ * @brief Checking if the function definition contains all the needed parameters from ast.h
+ * 
+ */
+static void parse_fun_definition(){
+    
+
+}
 
 AstNode *parser_parse(FILE *fileInput){
     pInput = fileInput;
     advance();
+
+    //Skiping the new lines in the beggining of file
+    while(pToken.type != TOKEN_EOF){
+        skip_newlines();
+
+        if(pToken.type == TOKEN_EOF){
+            break;
+        }
+        parse_fun_definition();
+    }
 
     //Checcking the presence of "import ifj26.*
     check_prolog();
