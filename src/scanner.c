@@ -534,6 +534,8 @@ Token get_token(FILE *input) {
             goto return_error;
           }
 
+          put_back(next, input);
+
           str[len] = '\0';
           token.type = TOKEN_DOUBLE;
           token.value.numberDouble = strtod(str, NULL);

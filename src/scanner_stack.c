@@ -81,7 +81,7 @@ size_t scanner_stack_size(void) { return size; }
 int find_number_in_stack(int searchedNumber) {
   int current_size = (int)scanner_stack_size();
   int found = -1;
-  for (int i = current_size; i >= 0; i--) {
+  for (int i = current_size - 1; i >= 0; i--) {
     if (items[i] == searchedNumber) {
       found = i;
     }
