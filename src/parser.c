@@ -96,6 +96,7 @@ static void check_prolog(void) {
     // the part after "import" is not "ifj26"
     exit(2);
   }
+  advance();
   expect_type(TOKEN_DOT);
   expect_type(TOKEN_MULTIPLY);
 }
@@ -243,25 +244,25 @@ static AstNode *parse_block(void);
  * @details Grammar: while → while expr do NEWLINE INDENT block DEDENT
  * @return AstNode*
  */
-static AstNode *parse_while(void){
-    int line = pToken.line;
+static AstNode *parse_while(void) {
+  int line = pToken.line;
 
-    // Checking if the keyword is "while"
-    expect_keyword(KW_WHILE);
+  // Checking if the keyword is "while"
+  expect_keyword(KW_WHILE);
 
-    AstNode *condition = precedence_parse(pInput, &pToken, NULL);
-    if (condition == NULL){
-        exit(2);
-    }
+  AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+  if (condition == NULL) {
+    exit(2);
+  }
 
-    // Now expecting" KW_TO NEWLINE, INDENT
-    expect_keyword(KW_DO);
-    expect_type(TOKEN_NEWLINE);
-    expect_type(TOKEN_INDENT);
-    AstNode *body = parse_block();
+  // Now expecting" KW_TO NEWLINE, INDENT
+  expect_keyword(KW_DO);
+  expect_type(TOKEN_NEWLINE);
+  expect_type(TOKEN_INDENT);
+  AstNode *body = parse_block();
 
-    expect_type(TOKEN_DEDENT);
-    return ast_new_while(condition, body, line);
+  expect_type(TOKEN_DEDENT);
+  return ast_new_while(condition, body, line);
 }
 
 /**
@@ -269,76 +270,77 @@ static AstNode *parse_while(void){
  *
  * @return AstNode*
  */
-static AstNode *parse_if(void){
-    int line = pToken.line;
-    expect_keyword(KW_IF);
+static AstNode *parse_if(void) {
+  int line = pToken.line;
+  expect_keyword(KW_IF);
 
-    AstNode *condition = precedence_parse(pInput, &pToken, NULL);
-    if(condition == NULL){
-        exit(2);
-    }
+  AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+  if (condition == NULL) {
+    exit(2);
+  }
 
-    expect_keyword(KW_THEN);
-    expect_type(TOKEN_NEWLINE);
-    expect_type(TOKEN_INDENT);
+  expect_keyword(KW_THEN);
+  expect_type(TOKEN_NEWLINE);
+  expect_type(TOKEN_INDENT);
 
-    AstNode *block = parse_block();
+  AstNode *block = parse_block();
 
-    expect_type(TOKEN_DEDENT);
-    expect_type(TOKEN_NEWLINE);
-    expect_keyword(KW_ELSE);
+  expect_type(TOKEN_DEDENT);
+  expect_type(TOKEN_NEWLINE);
+  expect_keyword(KW_ELSE);
 
-    expect_type(TOKEN_NEWLINE);
-    expect_type(TOKEN_INDENT);
-    AstNode *elseBlock = parse_block();
-    expect_type(TOKEN_DEDENT);
+  expect_type(TOKEN_NEWLINE);
+  expect_type(TOKEN_INDENT);
+  AstNode *elseBlock = parse_block();
+  expect_type(TOKEN_DEDENT);
 
-    return ast_new_if(condition, block, elseBlock, line);
+  return ast_new_if(condition, block, elseBlock, line);
 }
 static AstNode *parse_expr_or_call(void);
 static AstNode **parse_call_arguments(size_t *outCount);
 
 /**
- * @briefParses the id depending on the state. States: assign, statement, function call
+ * @briefParses the id depending on the state. States: assign, statement,
+ * function call
  *
  * @return AstNode*
  */
-static AstNode *parse_id_stmt(void){
-    /*  3 possible formating states
-     *  1) x = 8 assign
-     *  2) x - 8 statement
-     *  3) x(1-z)fun call
-     */
-    // Look ahead is necceceary to deside the state
-    char *name = strdup(pToken.value.identifier);
-    if (name == NULL) {
-        exit(99);
-    }
-    int line = pToken.line;
+static AstNode *parse_id_stmt(void) {
+  /*  3 possible formating states
+   *  1) x = 8 assign
+   *  2) x - 8 statement
+   *  3) x(1-z)fun call
+   */
+  // Look ahead is necceceary to deside the state
+  char *name = strdup(pToken.value.identifier);
+  if (name == NULL) {
+    exit(99);
+  }
+  int line = pToken.line;
+  advance();
+
+  TokenType tType = pToken.type;
+  if (tType == TOKEN_ASSIGN) {
     advance();
+    return ast_new_assign(name, parse_expr_or_call(), line);
+  }
 
-    TokenType tType = pToken.type;
-    if(tType == TOKEN_ASSIGN){
-        advance();
-        return ast_new_assign(name, parse_expr_or_call(), line);
-    }
+  if (tType == TOKEN_OPENING_BRACKET) {
+    advance();
+    size_t argCount = 0;
+    AstNode **args = parse_call_arguments(&argCount);
+    expect_type(TOKEN_CLOSING_BRACKET);
+    return ast_new_expr_statement(ast_new_func_call(name, args, argCount, line),
+                                  line);
+  }
 
-    if(tType == TOKEN_OPENING_BRACKET){
-        advance();
-        size_t argCount = 0;
-        AstNode **args = parse_call_arguments(&argCount);
-        expect_type(TOKEN_CLOSING_BRACKET);
-        return ast_new_expr_statement(
-            ast_new_func_call(name, args, argCount, line), line);
-    }
-
-    // Expression statement starting with identifier: x - 8
-    AstNode *first = ast_new_identifier(name, line);
-    AstNode *expr = precedence_parse(pInput, &pToken, first);
-    if (expr == NULL) {
-        exit(2);
-    }
-    return ast_new_expr_statement(expr, line);
+  // Expression statement starting with identifier: x - 8
+  AstNode *first = ast_new_identifier(name, line);
+  AstNode *expr = precedence_parse(pInput, &pToken, first);
+  if (expr == NULL) {
+    exit(2);
+  }
+  return ast_new_expr_statement(expr, line);
 }
 static AstNode *parse_expr_or_call(void);
 
@@ -348,52 +350,53 @@ static AstNode *parse_expr_or_call(void);
  * @details varDecl → (val | var) id [ : type ] = exprOrCall
  * @return AstNode*
  */
-static AstNode *parse_var_decl(void){
-    int line = pToken.line;
+static AstNode *parse_var_decl(void) {
+  int line = pToken.line;
 
-    // Is it var - modifiable?
-    bool modifiable = false;
-    if(pToken.value.keyword == KW_VAR){
-        modifiable = true;
-    }
+  // Is it var - modifiable?
+  bool modifiable = false;
+  if (pToken.value.keyword == KW_VAR) {
+    modifiable = true;
+  }
 
-    advance();
-    if(pToken.type != TOKEN_IDENTIFIER){
-        exit(2);
-    }
+  advance();
+  if (pToken.type != TOKEN_IDENTIFIER) {
+    exit(2);
+  }
 
-    // saving value identifier - advance would remove
-    char *name = strdup(pToken.value.identifier);
-    advance();
+  // saving value identifier - advance would remove
+  char *name = strdup(pToken.value.identifier);
+  advance();
 
-    DataType declaredType = T_UNIT;
-    bool hasDeclaredType = false;
+  DataType declaredType = T_UNIT;
+  bool hasDeclaredType = false;
 
-    if (accept_type(TOKEN_COLON)) {
-        declaredType = check_type();
-        hasDeclaredType = true;
-    }
+  if (accept_type(TOKEN_COLON)) {
+    declaredType = check_type();
+    hasDeclaredType = true;
+  }
 
-    // Then must come =
-    expect_type(TOKEN_ASSIGN);
-    AstNode *initAst = parse_expr_or_call();
+  // Then must come =
+  expect_type(TOKEN_ASSIGN);
+  AstNode *initAst = parse_expr_or_call();
 
-    return ast_new_var_decl(name, modifiable, declaredType, hasDeclaredType, initAst, line);
+  return ast_new_var_decl(name, modifiable, declaredType, hasDeclaredType,
+                          initAst, line);
 }
 /**
  * @brief Parses the "return" keyword
  *
  * @return AstNode*
  */
-static AstNode *parse_return(void){
-    expect_keyword(KW_RETURN);
+static AstNode *parse_return(void) {
+  expect_keyword(KW_RETURN);
 
-    int line = pToken.line;
-    if(pToken.type == TOKEN_NEWLINE || pToken.type == TOKEN_DEDENT){
-        return ast_new_return(NULL, line);
-    }else{
-        return ast_new_return(parse_expr_or_call(), line);
-    }
+  int line = pToken.line;
+  if (pToken.type == TOKEN_NEWLINE || pToken.type == TOKEN_DEDENT) {
+    return ast_new_return(NULL, line);
+  } else {
+    return ast_new_return(parse_expr_or_call(), line);
+  }
 }
 
 /**
