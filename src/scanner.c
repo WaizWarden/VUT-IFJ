@@ -21,6 +21,8 @@
 int is_keyword(char *str);
 bool number_token_end(int currentChar);
 int calculateIndent(FILE *input, int *error);
+int next_char(FILE *input);
+void put_back(int currentChar, FILE *input);
 
 // All possible states in FSM
 typedef enum {
@@ -54,7 +56,8 @@ KeywordEntry keywordTable[] = {
 static int bracketDepth = 0;
 static bool stackInitialized = false;
 static int pendingDedents = 0;
-bool lineStart = true;
+static int currentLine = 1;
+static bool lineStart = true;
 
 /**
  * @brief Parses stdin and creates token
@@ -66,7 +69,9 @@ Token get_token(FILE *input) {
   Token token;
   State state = S_START;
 
+  int tokenLine = currentLine;
   int currentChar;
+
   char *str = malloc(INITIAL_STR_LEN);
   size_t capcaity = INITIAL_STR_LEN;
   size_t len = 0;
@@ -91,9 +96,9 @@ Token get_token(FILE *input) {
 
   // indent calculation
   int error = 0;
-
   bool atLineStart = lineStart && bracketDepth == 0; // NOLINT
   int spaces = calculateIndent(input, &error);
+  tokenLine = currentLine;
 
   if (spaces == -1) {
     if (error == -1) {
@@ -102,9 +107,11 @@ Token get_token(FILE *input) {
 
       token.type = TOKEN_EOF;
       scanner_destroy();
+
       goto return_token;
     } else if (error == 1) {
 
+      tokenLine = currentLine - 1; // calculateIndent() is one ahead
       token.type = TOKEN_NEWLINE;
       goto return_token;
     } else {
@@ -151,8 +158,7 @@ Token get_token(FILE *input) {
     if (len + REALLOC_CONST >= capcaity) {
       char *tmp = realloc(str, capcaity * 2);
       if (tmp == NULL) {
-        fprintf(stderr, "Scanner error: %d, tmp malloc failed\n",
-                INTERPRET_ERROR);
+        fprintf(stderr, "Scanner error: %d, realloc failed\n", INTERPRET_ERROR);
 
         goto return_error;
       }
@@ -160,7 +166,11 @@ Token get_token(FILE *input) {
       capcaity *= 2;
     }
 
-    currentChar = fgetc(input);
+    if (state == S_START) {
+      tokenLine = currentLine;
+    }
+
+    currentChar = next_char(input);
 
     switch (state) {
 
@@ -206,13 +216,14 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '/') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
-        // One-line comment
+        // One-line comment, not new line
         if (next == '/') {
           while (next != '\n' && next != EOF) {
-            next = fgetc(input);
+            next = next_char(input);
           }
+          put_back(next, input);
           break;
         }
 
@@ -222,7 +233,7 @@ Token get_token(FILE *input) {
           int prev = 0;
 
           while (depth > 0) {
-            next = fgetc(input);
+            next = next_char(input);
             if (next == EOF) {
               fprintf(stderr, "Scanner error: %d, Never ending block comment\n",
                       SCANNER_ERROR);
@@ -247,55 +258,55 @@ Token get_token(FILE *input) {
         }
 
         // not a comment
-        ungetc(next, input);
+        put_back(next, input);
         token.type = TOKEN_DIVIDE;
         goto return_token;
       }
 
       if (currentChar == '=') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
         if (next == '=') {
           token.type = TOKEN_EQ;
           goto return_token;
         }
-        ungetc(next, input);
+        put_back(next, input);
         token.type = TOKEN_ASSIGN;
         goto return_token;
       }
 
       if (currentChar == '>') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
         if (next == '=') {
           token.type = TOKEN_GREATER_EQ;
           goto return_token;
         }
-        ungetc(next, input);
+        put_back(next, input);
         token.type = TOKEN_GREAER;
         goto return_token;
       }
 
       if (currentChar == '<') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
         if (next == '=') {
           token.type = TOKEN_LOWER_EQ;
           goto return_token;
         }
-        ungetc(next, input);
+        put_back(next, input);
         token.type = TOKEN_LOWER;
         goto return_token;
       }
 
       if (currentChar == '!') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
         if (next == '=') {
           token.type = TOKEN_NOT_EQ;
           goto return_token;
         }
-        ungetc(next, input);
+        put_back(next, input);
         token.type = TOKEN_NOT;
         goto return_token;
       }
@@ -328,7 +339,7 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '.') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
         if (next == '.') {
           fprintf(stderr, "Scanner error: %d, invalid double dot\n",
@@ -346,7 +357,7 @@ Token get_token(FILE *input) {
         }
 
         else {
-          ungetc(next, input);
+          put_back(next, input);
           token.type = TOKEN_DOT;
           goto return_token;
         }
@@ -376,9 +387,6 @@ Token get_token(FILE *input) {
 
       fprintf(stderr, "Unknown character '%c' \n", currentChar);
       goto return_error;
-      ;
-
-      break;
 
     case S_STRING:
 
@@ -388,7 +396,6 @@ Token get_token(FILE *input) {
                 SCANNER_ERROR);
 
         goto return_error;
-        ;
       }
 
       else if (currentChar == EOF) {
@@ -399,8 +406,8 @@ Token get_token(FILE *input) {
 
       // escape chars
       else if (currentChar == '\\') {
-        // ungetc not needed
-        int next = fgetc(input);
+        // put_back not needed
+        int next = next_char(input);
 
         if (next == 'n') {
           str[len] = '\n';
@@ -436,12 +443,12 @@ Token get_token(FILE *input) {
       else if (currentChar == '"') {
 
         // third "
-        int next = fgetc(input);
+        int next = next_char(input);
         if (next == '"') {
           state = S_MULTI_LINE_STRING;
         } else {
 
-          ungetc(next, input);
+          put_back(next, input);
           token.type = TOKEN_STRING;
           str[len] = '\0';
           token.value.string = strdup(str);
@@ -465,8 +472,8 @@ Token get_token(FILE *input) {
       }
 
       else if (currentChar == '"') {
-        int next1 = fgetc(input);
-        int next2 = fgetc(input);
+        int next1 = next_char(input);
+        int next2 = next_char(input);
 
         if (next1 == '"' && next2 == '"') {
           str[len] = '\0';
@@ -474,8 +481,8 @@ Token get_token(FILE *input) {
           token.value.string = strdup(str);
           goto return_token;
         }
-        ungetc(next2, input);
-        ungetc(next1, input);
+        put_back(next2, input);
+        put_back(next1, input);
 
         str[len] = (char)currentChar;
         len++;
@@ -492,7 +499,7 @@ Token get_token(FILE *input) {
       if (!isdigit(currentChar)) {
         // check for double __
         if (currentChar == '_') {
-          int next = fgetc(input);
+          int next = next_char(input);
 
           if (!isdigit(next)) {
             fprintf(stderr, "Scanner error: %d, double _ in int\n",
@@ -500,7 +507,7 @@ Token get_token(FILE *input) {
 
             goto return_error;
           }
-          ungetc(next, input);
+          put_back(next, input);
         }
 
         else if (currentChar == 'e' || currentChar == 'E' ||
@@ -514,7 +521,7 @@ Token get_token(FILE *input) {
         }
 
         else if (currentChar == 'd' || currentChar == 'D') {
-          int next = fgetc(input);
+          int next = next_char(input);
 
           if (!number_token_end(next)) {
             fprintf(stderr, "Scanner error: %d, invalid suffix\n",
@@ -530,7 +537,7 @@ Token get_token(FILE *input) {
 
         else if (number_token_end(currentChar)) {
 
-          ungetc(currentChar, input);
+          put_back(currentChar, input);
           str[len] = '\0';
 
           // len > 1 because we want to pass "0" not "01"
@@ -611,19 +618,19 @@ Token get_token(FILE *input) {
 
         // Underscore between digits
         else if (currentChar == '_') {
-          int next = fgetc(input);
+          int next = next_char(input);
           if (!isdigit(str[len - 1]) || !isdigit(next)) {
             fprintf(stderr,
                     "Scanner error: %d, underscore is not between digits\n",
                     SCANNER_ERROR);
             goto return_error;
           }
-          ungetc(next, input);
+          put_back(next, input);
         }
 
         // d / D suffix
         else if (currentChar == 'd' || currentChar == 'D') {
-          int next = fgetc(input);
+          int next = next_char(input);
 
           if (next != EOF && (!isdigit(str[len - 1]) || isdigit(next))) {
             fprintf(stderr, "Scanner error: %d, invalid suffix\n",
@@ -631,7 +638,7 @@ Token get_token(FILE *input) {
             goto return_error;
           }
 
-          ungetc(next, input);
+          put_back(next, input);
 
           str[len] = '\0';
           token.type = TOKEN_DOUBLE;
@@ -649,7 +656,7 @@ Token get_token(FILE *input) {
             goto return_error;
           }
 
-          ungetc(currentChar, input);
+          put_back(currentChar, input);
           str[len] = '\0';
 
           token.type = TOKEN_DOUBLE;
@@ -682,7 +689,7 @@ Token get_token(FILE *input) {
       }
 
       else {
-        ungetc(currentChar, input);
+        put_back(currentChar, input);
         str[len] = '\0';
 
         // its keyword
@@ -715,12 +722,14 @@ Token get_token(FILE *input) {
   }
 return_token:
   free(str);
+  token.line = tokenLine;
   return token;
 
 return_error:
   scanner_destroy();
   free(str);
   token.type = TOKEN_ERROR;
+  token.line = tokenLine;
   return token;
 }
 
@@ -775,7 +784,7 @@ int calculateIndent(FILE *input, int *error) {
     int indentChar;
 
     while (true) {
-      indentChar = fgetc(input);
+      indentChar = next_char(input);
 
       if (indentChar == ' ') {
         spaces++;
@@ -800,12 +809,12 @@ int calculateIndent(FILE *input, int *error) {
       }
 
       else if (indentChar == '/') {
-        int next = fgetc(input);
+        int next = next_char(input);
 
-        // One-line comment
+        // One-line comment from start of the line
         if (next == '/') {
           while (next != '\n' && next != EOF) {
-            next = fgetc(input);
+            next = next_char(input);
           }
 
           spaces = 0;
@@ -818,7 +827,7 @@ int calculateIndent(FILE *input, int *error) {
           int prev = 0;
 
           while (depth > 0) {
-            next = fgetc(input);
+            next = next_char(input);
             if (next == EOF) {
               fprintf(stderr, "Scanner error: %d, Never ending block comment\n",
                       SCANNER_ERROR);
@@ -846,14 +855,14 @@ int calculateIndent(FILE *input, int *error) {
         }
 
         // not a comment
-        ungetc(next, input);
-        ungetc(indentChar, input);
+        put_back(next, input);
+        put_back(indentChar, input);
         lineStart = false;
         return spaces;
       }
 
       else {
-        ungetc(indentChar, input);
+        put_back(indentChar, input);
         lineStart = false;
         return spaces;
       }
@@ -874,4 +883,20 @@ void scanner_destroy(void) {
   bracketDepth = 0;
   pendingDedents = 0;
   lineStart = true;
+  currentLine = 1;
+}
+
+int next_char(FILE *input) {
+  int next = fgetc(input);
+  if (next == '\n') {
+    currentLine++;
+  }
+  return next;
+}
+
+void put_back(int currentChar, FILE *input) {
+  if (currentChar == '\n') {
+    currentLine--;
+  }
+  ungetc(currentChar, input);
 }

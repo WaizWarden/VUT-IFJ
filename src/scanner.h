@@ -82,6 +82,7 @@ typedef union {
 typedef struct {
   TokenType type;
   TokenValue value;
+  int line;
 
 } Token;
 
