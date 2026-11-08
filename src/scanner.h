@@ -41,6 +41,7 @@ typedef enum {
   TOKEN_INDENT,
   TOKEN_DEDENT,
   TOKEN_AT, // @
+  TOKEN_COMMA,
 
 } TokenType;
 
@@ -82,6 +83,7 @@ typedef union {
 typedef struct {
   TokenType type;
   TokenValue value;
+  int line;
 
 } Token;
 

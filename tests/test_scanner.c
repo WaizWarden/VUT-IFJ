@@ -41,6 +41,7 @@ void run_test(char *testName, char *inputStr, TokenType expectedTokenType,
   FILE *file = fmemopen(inputStr, strlen(inputStr), "r");
   Token token = get_token(file);
   fclose(file);
+  scanner_destroy();
 
   bool tokenTypeOk = false;
   bool outputOk = false;
@@ -155,11 +156,11 @@ void first_iteration(void) {
   run_test("Operator greater or equal", ">=", TOKEN_GREATER_EQ, NULL, -1, -1);
   run_test("Semicolon", ";", TOKEN_SEMICOLON, NULL, -1, -1);
   run_test("Opening bracket", "(", TOKEN_OPENING_BRACKET, NULL, -1, -1);
-  run_test("Closing bracket", ")", TOKEN_CLOSING_BRACKET, NULL, -1, -1);
   run_test("Newline outside brackets", "\n", TOKEN_NEWLINE, NULL, -1, -1);
   run_test("Unmatched closing bracket error", ")", TOKEN_ERROR, NULL, -1, -1);
   run_test("Dot", ".", TOKEN_DOT, NULL, -1, -1);
   run_test("@", "@", TOKEN_AT, NULL, -1, -1);
+  run_test(",", ",", TOKEN_COMMA, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic string", "\"Hello World\"", TOKEN_STRING, "Hello World", -1,
@@ -323,7 +324,11 @@ void run_sequence_test(char *testName, char *inputStr, TokenType *expectedTypes,
 }
 
 void indentation_flow_tests(void) {
-  printf("\nIndentation & Dedent Tests\n");
+  printf("\nIndent & Dedent Tests\n");
+
+  TokenType expectedBr[] = {TOKEN_OPENING_BRACKET, TOKEN_CLOSING_BRACKET};
+  run_sequence_test("Closing bracket", "()", expectedBr, 2);
+  scanner_destroy();
 
   // Test 1: Basic test
   // Code:
