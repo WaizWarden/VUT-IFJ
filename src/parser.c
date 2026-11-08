@@ -233,12 +233,53 @@ static Parameter *parse_params(uint16_t *outCount) {
   *outCount = (uint16_t)paramCount;
   return params;
 }
+
+static AstNode *parse_block(void);
+static AstNode *parse_block(void) {
+     exit(2);
+      /* TODO */ 
+    }
 /**
  * @brief Checking if the function definition contains all the needed parameters
  * from ast.h
  *
  */
-static void parse_fun_definition() {}
+static AstNode* parse_fun_definition(void) {
+    int line = pToken.line;
+    expect_keyword(KW_DEF);
+
+    char * name = NULL;
+    bool isMain = false;
+    isMain = parse_get_fun_name(&name);
+
+    expect_type(TOKEN_OPENING_BRACKET);
+    uint16_t paramCount = 0;
+    Parameter *parameters = parse_params(&paramCount);
+    expect_type(TOKEN_CLOSING_BRACKET);
+
+    DataType returnType = T_UNIT;
+    if (accept_type(TOKEN_COLON)) {
+        returnType = parse_type();
+    }
+
+    expect_type(TOKEN_ASSIGN);
+    AstNode *body = NULL;
+    // the function can be either assigned on the same line like: "def f(x: Int): Int = x * 2"
+    // or it can have '=' on one line and rest of the fun bellow with indent (or the fun is invalid)
+    if(accept_type(TOKEN_NEWLINE)){
+        // If there is new line, next token must be indent ()
+        expect_type(TOKEN_INDENT);
+        body = parse_block();
+        expect_type(TOKEN_DEDENT);
+    }else{
+        body = precedence_parse(pInput, &pToken, NULL);
+        if (body == NULL) {
+            exit(2);
+        }
+    }
+
+    return ast_new_func_def(name, isMain, returnType, parameters, paramCount, body, line);
+}
 
 AstNode *parser_parse(FILE *fileInput) {
   pInput = fileInput;
