@@ -235,7 +235,34 @@ static Parameter *parse_params(uint16_t *outCount) {
   return params;
 }
 
-static AstNode *parse_while(void);
+static AstNode *parse_block(void);
+
+/**
+ * @brief Parses the while loop
+ *
+ * @details Grammar: while → while expr do NEWLINE INDENT block DEDENT
+ * @return AstNode*
+ */
+static AstNode *parse_while(void){
+    int line = pToken.line;
+
+    // Checking if the keyword is "while"
+    expect_keyword(KW_WHILE);
+
+    AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+    if (condition == NULL){
+        exit(2);
+    }
+
+    // Now expecting" KW_TO NEWLINE, INDENT
+    expect_keyword(KW_DO);
+    expect_type(TOKEN_NEWLINE);
+    expect_type(TOKEN_INDENT);
+    AstNode *body = parse_block();
+
+    expect_type(TOKEN_DEDENT);
+    return ast_new_while(condition, body, line);
+}
 static AstNode *parse_if(void);
 static AstNode *parse_expr_or_call(void);
 static AstNode **parse_call_arguments(size_t *outCount);
