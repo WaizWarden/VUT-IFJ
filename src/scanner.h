@@ -41,6 +41,7 @@ typedef enum {
   TOKEN_INDENT,
   TOKEN_DEDENT,
   TOKEN_AT, // @
+  TOKEN_COMMA,
 
 } TokenType;
 

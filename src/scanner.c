@@ -321,6 +321,11 @@ Token get_token(FILE *input) {
         goto return_token;
       }
 
+      if (currentChar == ',') {
+        token.type = TOKEN_COMMA;
+        goto return_token;
+      }
+
       if (currentChar == '(') {
         bracketDepth++;
         token.type = TOKEN_OPENING_BRACKET;
@@ -764,7 +769,7 @@ bool number_token_end(int currentChar) {
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
        currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
-       currentChar == EOF);
+       currentChar == ';' || currentChar == EOF);
 
   return (bool)result;
 }

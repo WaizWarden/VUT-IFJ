@@ -160,6 +160,7 @@ void first_iteration(void) {
   run_test("Unmatched closing bracket error", ")", TOKEN_ERROR, NULL, -1, -1);
   run_test("Dot", ".", TOKEN_DOT, NULL, -1, -1);
   run_test("@", "@", TOKEN_AT, NULL, -1, -1);
+  run_test(",", ",", TOKEN_COMMA, NULL, -1, -1);
 
   printf("\n");
   run_test("Basic string", "\"Hello World\"", TOKEN_STRING, "Hello World", -1,
