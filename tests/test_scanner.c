@@ -392,8 +392,8 @@ void indentation_flow_tests(void) {
                            TOKEN_INDENT,  TOKEN_KEYWORD,    TOKEN_IDENTIFIER,
                            TOKEN_NEWLINE, TOKEN_INDENT,     TOKEN_IDENTIFIER,
                            TOKEN_NEWLINE, TOKEN_DEDENT,     TOKEN_IDENTIFIER,
-                           TOKEN_NEWLINE, TOKEN_EOF};
-  run_sequence_test("5. Partial dedent", code5, expected5,
+                           TOKEN_NEWLINE, TOKEN_DEDENT,     TOKEN_EOF};
+  run_sequence_test("5. Remaining dedents after EOF", code5, expected5,
                     sizeof(expected5) / sizeof(expected5[0]));
 
   // Test 6: Empty Line
