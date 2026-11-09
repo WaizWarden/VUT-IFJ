@@ -1,15 +1,12 @@
 /**
  * @file    test_semantic.h
  * @author  xsirmat00
- * @brief   Deklarace unit testů pro sémantický analyzátor.
+ * @brief   Header file for the semantic analyzer unit tests.
  */
 
 #ifndef TEST_SEMANTIC_H
 #define TEST_SEMANTIC_H
 
-/**
- * @brief Spustí všechny testy sémantického analyzátoru.
- */
 void test_semantic(void);
 
-#endif
+#endif // TEST_SEMANTIC_H
