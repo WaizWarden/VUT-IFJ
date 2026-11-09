@@ -565,7 +565,13 @@ static AstNode *parse_block(void) {
       }
       stmts = tmp;
     }
-    stmts[count++] = parse_statement();
+    AstNode *statement = parse_statement();
+    stmts[count++] = statement;
+    if (statement->type != AST_IF && statement->type != AST_WHILE &&
+        pToken.type != TOKEN_NEWLINE && pToken.type != TOKEN_SEMICOLON &&
+        pToken.type != TOKEN_DEDENT) {
+      exit(2);
+    }
   }
   if (count == 0) {
     exit(2);

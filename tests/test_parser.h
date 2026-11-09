@@ -11,5 +11,6 @@
  * @brief Runs all parser analysis tests
  */
 void test_parser(void);
+void test_parser_valid(void);
 
 #endif
