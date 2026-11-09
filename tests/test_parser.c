@@ -518,6 +518,26 @@ static void test_syntax_errors(void) {
                      2);
 }
 /**
+ * @brief testing lexical errror from scanner
+ */
+static void test_lexical_errors(void) {
+    assert_parser_exit(
+        "import ifj26.*\n"
+        "def broken(): Int = $\n",
+        1);
+
+    assert_parser_exit(
+        "import ifj26.*\n"
+        "def broken(): Unit =\n"
+        "\treturn\n",
+        1);
+
+    assert_parser_exit(
+        "import ifj26.*\n"
+        "def broken(): String = \"unfinished",
+        1);
+}
+/**
  * @brief Runs all parser analysis tests
  */
 void test_parser(void) {
@@ -530,4 +550,6 @@ void test_parser(void) {
   test_if_else();
   test_while_statement();
   test_bare_return_at_eof();
+  test_syntax_errors();
+  test_lexical_errors();
 }
