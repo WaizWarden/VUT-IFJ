@@ -498,6 +498,14 @@ static void assert_parser_exit(const char *source, int expectedCode) {
  * @brief Testing the syntax errors
  */
 static void test_syntax_errors(void) {
+  assert_parser_exit("import ifj26.*\n"
+                     "def broken(): Unit =\n"
+                     "    output() output()\n",
+                     2);
+  assert_parser_exit("import ifj26.*\n"
+                     "def broken(): Unit =\n"
+                     "    var x = readInt() x = 1\n",
+                     2);
   assert_parser_exit("def answer(): Int = 42\n", 2);
 
   assert_parser_exit("import ifj26.* def answer(): Int = 42\n", 2);
@@ -521,26 +529,97 @@ static void test_syntax_errors(void) {
  * @brief testing lexical errror from scanner
  */
 static void test_lexical_errors(void) {
-    assert_parser_exit(
-        "import ifj26.*\n"
-        "def broken(): Int = $\n",
-        1);
+  assert_parser_exit("import ifj26.*\n"
+                     "def broken(): Int = $\n",
+                     1);
 
-    assert_parser_exit(
-        "import ifj26.*\n"
-        "def broken(): Unit =\n"
-        "\treturn\n",
-        1);
+  assert_parser_exit("import ifj26.*\n"
+                     "def broken(): Unit =\n"
+                     "\treturn\n",
+                     1);
 
-    assert_parser_exit(
-        "import ifj26.*\n"
-        "def broken(): String = \"unfinished",
-        1);
+  assert_parser_exit("import ifj26.*\n"
+                     "def broken(): String = \"unfinished",
+                     1);
 }
 /**
  * @brief Runs all parser analysis tests
  */
-void test_parser(void) {
+static void test_multiple_functions(void) {
+  AstNode *program = parser_program_helper("import ifj26.*\n"
+                                           "def first(): Int = 1\n"
+                                           "def second(): Int =\n"
+                                           "    return 2\n"
+                                           "@main def run(): Unit = ()\n");
+  assert(program != NULL && program->type == AST_PROGRAM);
+  assert(program->as.program.count == 3);
+  const char *names[] = {"first", "second", "run"};
+  for (size_t index = 0; index < 3; index++) {
+    const AstNode *function = program->as.program.functions[index];
+    assert(function != NULL && function->type == AST_FUNC_DEF);
+    assert(strcmp(function->as.funcDef.name, names[index]) == 0);
+    assert(function->as.funcDef.isMain == (index == 2));
+  }
+  assert(program->as.program.functions[0]->as.funcDef.body->type ==
+         AST_LITERAL_INT);
+  assert(program->as.program.functions[0]->as.funcDef.body->as.intValue == 1);
+  const AstNode *body = program->as.program.functions[1]->as.funcDef.body;
+  assert(body->type == AST_BLOCK && body->as.block.count == 1);
+  assert(body->as.block.stmts[0]->type == AST_RETURN);
+  assert(body->as.block.stmts[0]->as.ret.expr->as.intValue == 2);
+  assert(program->as.program.functions[2]->as.funcDef.body->type ==
+         AST_LITERAL_UNIT);
+  ast_free(program);
+}
+
+static void test_nested_control_flow(void) {
+  AstNode *program = parser_program_helper("import ifj26.*\n"
+                                           "def nested(): Unit =\n"
+                                           "    while 1 < 2 do\n"
+                                           "        if 2 > 1 then\n"
+                                           "            while 3 > 2 do\n"
+                                           "                output(1)\n"
+                                           "            output(2)\n"
+                                           "        else\n"
+                                           "            output(3)\n"
+                                           "        output(4)\n"
+                                           "    return\n");
+  assert(program != NULL && program->type == AST_PROGRAM);
+  assert(program->as.program.count == 1);
+  const AstNode *body = program->as.program.functions[0]->as.funcDef.body;
+  assert(body->type == AST_BLOCK && body->as.block.count == 2);
+  const AstNode *outer = body->as.block.stmts[0];
+  assert(outer->type == AST_WHILE);
+  const AstNode *outerBody = outer->as.whileStatement.bodyBlock;
+  assert(outerBody->type == AST_BLOCK && outerBody->as.block.count == 2);
+  const AstNode *branch = outerBody->as.block.stmts[0];
+  assert(branch->type == AST_IF);
+  const AstNode *thenBody = branch->as.ifStatement.thenBlock;
+  const AstNode *elseBody = branch->as.ifStatement.elseBlock;
+  assert(thenBody->type == AST_BLOCK && thenBody->as.block.count == 2);
+  assert(elseBody->type == AST_BLOCK && elseBody->as.block.count == 1);
+  const AstNode *inner = thenBody->as.block.stmts[0];
+  assert(inner->type == AST_WHILE);
+  const AstNode *innerBody = inner->as.whileStatement.bodyBlock;
+  assert(innerBody->type == AST_BLOCK && innerBody->as.block.count == 1);
+  const AstNode *statements[] = {
+      innerBody->as.block.stmts[0], thenBody->as.block.stmts[1],
+      elseBody->as.block.stmts[0], outerBody->as.block.stmts[1]};
+  for (size_t index = 0; index < 4; index++) {
+    assert(statements[index]->type == AST_EXPR_STATEMENT);
+    const AstNode *call = statements[index]->as.exprStatement.expr;
+    assert(call != NULL && call->type == AST_FUNC_CALL);
+    assert(strcmp(call->as.funcCall.funcName, "output") == 0);
+    assert(call->as.funcCall.argCount == 1);
+    assert(call->as.funcCall.args[0]->type == AST_LITERAL_INT);
+    assert(call->as.funcCall.args[0]->as.intValue == (int)index + 1);
+  }
+  assert(body->as.block.stmts[1]->type == AST_RETURN);
+  assert(body->as.block.stmts[1]->as.ret.expr == NULL);
+  ast_free(program);
+}
+
+void test_parser_valid(void) {
   test_prolog_validity();
   test_function_parameters();
   test_main_annotation();
@@ -550,6 +629,13 @@ void test_parser(void) {
   test_if_else();
   test_while_statement();
   test_bare_return_at_eof();
+  test_multiple_functions();
+  test_nested_control_flow();
+}
+
+void test_parser(void) {
+  test_parser_valid();
   test_syntax_errors();
   test_lexical_errors();
+  printf("Parser tests done\n");
 }
