@@ -133,10 +133,10 @@ typedef struct AstNode {
 /**
  * @brief Creates a binary operation node (takes ownership of children)
  */
-AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
-                        AstNode *right, int line);
+AstNode *ast_new_binary(BinaryOperation op, AstNode *left, AstNode *right,
+                        int line);
 
-AstNode *ast_new_unary(UnaryOperation operation, AstNode *operand, int line);
+AstNode *ast_new_unary(UnaryOperation op, AstNode *operand, int line);
 AstNode *ast_new_int(int value, int line);
 AstNode *ast_new_double(double value, int line);
 AstNode *ast_new_identifier(char *name, int line); // steals `name`
