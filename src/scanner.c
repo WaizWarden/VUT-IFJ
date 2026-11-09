@@ -776,7 +776,7 @@ static bool number_token_end(int currentChar) {
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
        currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
-       currentChar == ';' || currentChar == EOF);
+       currentChar == ',' || currentChar == EOF);
 
   return (bool)result;
 }
