@@ -1,7 +1,7 @@
 /**
  * @file    test_semantic.c
  * @author  xsirmat00
- * @brief   Samostatné unit testy pro sémantický analyzátor.
+ * @brief   Independent unit tests for the semantic analyzer.
  */
 
 #include "test_semantic.h"
@@ -35,7 +35,7 @@ static void test_valid_assignment(void) {
   ast_free(assign);
   st_free(&symtable);
   free(var_x);
-  printf("Test: Sémanticky platné přiřazení Passed\n");
+  printf("Test: Semantically valid assignment Passed\n");
 }
 
 static void test_undefined_variable(void) {
@@ -50,7 +50,7 @@ static void test_undefined_variable(void) {
 
   ast_free(assign);
   st_free(&symtable);
-  printf("Test: Nedefinovaná proměnná Passed\n");
+  printf("Test: Undefined variable Passed\n");
 }
 
 static void test_type_mismatch(void) {
@@ -69,7 +69,7 @@ static void test_type_mismatch(void) {
   ast_free(assign);
   st_free(&symtable);
   free(var_num);
-  printf("Test: Typová nekompatibilita Passed\n");
+  printf("Test: Type mismatch Passed\n");
 }
 
 static void test_int_to_double_implicit_conversion(void) {
@@ -88,7 +88,7 @@ static void test_int_to_double_implicit_conversion(void) {
   ast_free(assign);
   st_free(&symtable);
   free(var_d);
-  printf("Test: Implicitní konverze Int na Double Passed\n");
+  printf("Test: Implicit conversion Int to Double Passed\n");
 }
 
 static void test_readonly_variable_assign(void) {
@@ -107,15 +107,15 @@ static void test_readonly_variable_assign(void) {
   ast_free(assign);
   st_free(&symtable);
   free(var_const);
-  printf("Test: Přiřazení do konstanty (val) Passed\n");
+  printf("Test: Assignment to constant (val) Passed\n");
 }
 
 void test_semantic(void) {
-  printf("\n--- SÉMANTICKÉ TESTY ---\n");
+  printf("\n--- SEMANTIC TESTS ---\n");
   test_valid_assignment();
   test_undefined_variable();
   test_type_mismatch();
   test_int_to_double_implicit_conversion();
   test_readonly_variable_assign();
-  printf("Sémantické testy dokončeny\n");
+  printf("Semantic tests completed\n");
 }
