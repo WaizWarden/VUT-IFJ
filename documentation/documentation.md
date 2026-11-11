@@ -30,8 +30,6 @@ This part processes the structure of programm using the method of recursive desc
 
 ### How parser communicates with scanner
 
-Parser keeps the actual token and also the token ahead of it (needed for the references) - process called "Look-ahead"
-
 Helper functions expect some type of given token or keywords and loads next token. If the input does not meet the expected syntax, parser ends with critical error (syntax error)
 
 ### Prolog, Program and definition of functions
@@ -50,15 +48,15 @@ Then parser processes definition of function by function until it reaches End Of
 
 #### How is the block of function defined
 
-The block can be defined as a expression (`x = 5 + 3`) or by a function call (`x = f(y)`). The definition can be on the same line or be indnted.
+The block can be defined as a expression (`def f(): Int = 5 + 3`) or by a function call (`def g(): Int = f()`). The definition can be on the same line or be indnted.
 
 Anotation of `"@main"` is only noted by parser into the AST. The corectness of sematics is not checked by parser.
 
 ### Block 
 
-For blocks, there are 2 specific commands: `"INDEND"` and `"DEDENT"`.
+For blocks, there are 2 specific commands: `"INDENT"` and `"DEDENT"`.
 
-  - `"INDEND"` is a unit of functing nesting further into the block
+  - `"INDENT"` is a unit of functing nesting further into the block
   - `"DEDENT"` is opposite to INDENT
 
 Both `"INDEND"` and `"DEDENT"` are created by scanner based on the indentation of parsed input. Parser does not work with indentation itself, only with the two specified tokens.
@@ -70,6 +68,7 @@ Simple commands are separated by new line or semicolon
 Block must contain at least one command. Empty block can be expressed by `"()"`
 
 Supported block constructions:
+
 - Declaration of variables `var` or `val`
 - Assigning value to some declared variable
 - Function call
@@ -96,3 +95,32 @@ Upon the handover of expression to the precedence analysis, parser hands over al
 Precedence analysyscan continue without repeated loading of the token.
 
 Arguments of calling parser processes as a list of terms that are divided by commas, not as a general expressions.
+
+## Operator-Precedence Parsing
+
+Expression are processed by independent module `precedence.c` with a method of the precedence syntax analysys. In precedence.c is not used the recursive descent, but the decision is based on precedence table. Precedence table states relation between terminal on stack and actual input token.
+Result of this analysis is a sub-tree that represents the parser expression. Its structure shows the priority of operators, asociativity, and grouping with `"()"`
+
+### Stack and precedence symbols
+
+The analysis uses implemented stack in `stack.c`, in the bottom is symbol `"$"`. During the precedence analysis stack stores: terminals, nonterminals that represents processed sub-part of the expression and the signs of the start.
+
+Tokens from scanner are converted to precedence symbols. operators with similiar priority and its act are grouped together (+ and -), but the exact type of operator is stored to distinguish the difference between the elements in the group (+ and - cant be viewed as same element).
+
+Upon searching the relation in precedence table is used the top terminal on the stack, not only the top element. Nonterminals are skipped in this search.
+
+### Shift and reduction
+
+Precedence table distinguishes 4 types of relations: 
+
+| Relation | Action |
+   |---|---|
+   | `<` | Marks the start sign and inserts the input symbol on the stack and loads next token  |
+   | `=` | Inserts input symbol on the stack and loads next token without insertion of start sign|
+   | `>` | Does the reduction of the part of stack depending on the correct reduction rule. |
+   | Empty | Expression is denied as syntax error. |
+
+
+Upon reduction of the analysis removes elements to the sign of start. If it matches the relation, replaces them with nonterminals with its assigned AST node. Upon reduction the new input token is not loaded
+
+Analysis ends correctly only if the input symbol is the ending `"$"` and on the stack remains only the stack bottom and one nonterminal that represents the whole parsed expression.
