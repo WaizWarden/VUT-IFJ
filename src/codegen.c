@@ -447,18 +447,282 @@ void cg_gen_program(const AstNode *root) {
 /// @author xsirmat00 from here
 /// -----------------------------------------------
 
-void cg_gen_expr(const AstNode *expr) { (void)expr; }
+void cg_gen_expr(const AstNode *expr) {
+  if (!expr) {
+    return;
+  }
+
+  switch (expr->type) {
+  case AST_LITERAL_INT:
+    fputs("PUSHS ", stdout);
+    cg_print_int(expr->as.intValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_DOUBLE:
+    fputs("PUSHS ", stdout);
+    cg_print_double(expr->as.doubleValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_STRING:
+    fputs("PUSHS ", stdout);
+    cg_print_string(expr->as.stringValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_BOOL:
+    fputs("PUSHS ", stdout);
+    cg_print_bool(expr->as.boolValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_UNIT:
+    puts("PUSHS nil@nil");
+    break;
+
+  case AST_IDENTIFIER:
+    fputs("PUSHS ", stdout);
+    cg_print_var(expr->as.identif, expr->uid);
+    putchar('\n');
+    break;
+
+  case AST_UNARY:
+    // OP_UNARY_MINUS (IFJcode26 lacks NEGS, so compute 0 - expr)
+    if (expr->evalType == T_DOUBLE) {
+      puts("PUSHS float@0x0p+0");
+    } else {
+      puts("PUSHS int@0");
+    }
+    cg_gen_expr(expr->as.unary.operand);
+    puts("SUBS");
+    break;
+
+  case AST_BINARY: {
+    DataType leftType = expr->as.binary.left->evalType;
+    DataType rightType = expr->as.binary.right->evalType;
+
+    // 1. Evaluate left operand
+    cg_gen_expr(expr->as.binary.left);
+
+    // If expression operates on T_DOUBLE but left operand is T_INT, convert immediately on stack top
+    if (expr->evalType == T_DOUBLE && leftType == T_INT) {
+      puts("INT2FLOATS");
+    }
+
+    // 2. Evaluate right operand
+    cg_gen_expr(expr->as.binary.right);
+
+    // If right operand requires T_INT -> T_DOUBLE conversion
+    if (expr->evalType == T_DOUBLE && rightType == T_INT) {
+      puts("INT2FLOATS");
+    }
+
+    // 3. Generate operation instruction
+    switch (expr->as.binary.operation) {
+    case OP_ADD:
+      if (leftType == T_STRING || rightType == T_STRING) {
+        // String concatenation via GF@$tmp1 and GF@$tmp2
+        puts("POPS GF@$tmp2\n"
+             "POPS GF@$tmp1\n"
+             "CONCAT GF@$tmp1 GF@$tmp1 GF@$tmp2\n"
+             "PUSHS GF@$tmp1");
+      } else {
+        puts("ADDS");
+      }
+      break;
+
+    case OP_SUB:
+      puts("SUBS");
+      break;
+
+    case OP_MUL:
+      puts("MULS");
+      break;
+
+    case OP_DIV:
+      if (expr->evalType == T_DOUBLE) {
+        puts("DIVS");
+      } else {
+        puts("IDIVS");
+      }
+      break;
+
+    case OP_EQ:
+      puts("EQS");
+      break;
+
+    case OP_NEQ:
+      puts("EQS\nNOTS");
+      break;
+
+    case OP_LT:
+      puts("LTS");
+      break;
+
+    case OP_LE:
+      puts("GTS\nNOTS");
+      break;
+
+    case OP_GT:
+      puts("GTS");
+      break;
+
+    case OP_GE:
+      puts("LTS\nNOTS");
+      break;
+
+    default:
+      break;
+    }
+    break;
+  }
+
+  case AST_FUNC_CALL:
+    cg_gen_call(expr);
+    break;
+
+  default:
+    break;
+  }
+}
+
+void cg_gen_call(const AstNode *callNode) {
+  if (!callNode || callNode->type != AST_FUNC_CALL) {
+    return;
+  }
+
+  const char *name = callNode->as.funcCall.funcName;
+  size_t argCount = callNode->as.funcCall.argCount;
+  AstNode **args = callNode->as.funcCall.args;
+
+  // Evaluate arguments from left to right (pushed onto data stack)
+  for (size_t i = 0; i < argCount; i++) {
+    cg_gen_expr(args[i]);
+  }
+
+  // --- Inline built-in functions ---
+  if (strcmp(name, "print") == 0) {
+    for (size_t i = 0; i < argCount; i++) {
+      puts("POPS GF@$tmp1\n"
+           "WRITE GF@$tmp1");
+    }
+    // print returns Unit (nil@nil on stack top)
+    puts("PUSHS nil@nil");
+    return;
+  }
+
+  if (strcmp(name, "toStr") == 0) {
+    puts("POPS GF@$tmp1\n"
+         "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "toInt") == 0) {
+    puts("POPS GF@$tmp1\n"
+         "FLOAT2INT GF@$tmp1 GF@$tmp1\n"
+         "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "chr") == 0) {
+    puts("POPS GF@$tmp1\n"
+         "INT2CHAR GF@$tmp1 GF@$tmp1\n"
+         "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "strLength") == 0) {
+    puts("POPS GF@$tmp1\n"
+         "STRLEN GF@$tmp1 GF@$tmp1\n"
+         "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "readLine") == 0) {
+    puts("READ GF@$tmp1 string\n"
+         "PUSHS GF@$tmp1");
+    return;
+  }
+
+  // --- Subroutine built-in functions ---
+  if (strcmp(name, "readInt") == 0) {
+    puts("CALL $builtin_readInt");
+    return;
+  }
+
+  if (strcmp(name, "readDouble") == 0) {
+    puts("CALL $builtin_readDouble");
+    return;
+  }
+
+  if (strcmp(name, "ord") == 0) {
+    puts("CALL $builtin_ord");
+    return;
+  }
+
+  if (strcmp(name, "substr") == 0) {
+    puts("CALL $builtin_substr");
+    return;
+  }
+
+  // --- User defined functions ---
+  printf("CALL $func_%s\n", name);
+}
 
 void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
                DataType funcRetType) {
-  (void)ifNode;
-  (void)isExprOrReturn;
-  (void)funcRetType;
+  if (!ifNode || ifNode->type != AST_IF) {
+    return;
+  }
+
+  uint32_t id = cg_next_label_id();
+
+  // 1. Evaluate condition
+  cg_gen_expr(ifNode->as.ifStatement.condition);
+
+  // 2. Conditional jump to else branch on false
+  puts("PUSHS bool@false");
+  printf("JUMPIFEQS $if_else_%" PRIu32 "\n", id);
+
+  // 3. Generate 'then' block
+  cg_gen_block(ifNode->as.ifStatement.thenBlock, isExprOrReturn, funcRetType);
+  printf("JUMP $if_end_%" PRIu32 "\n", id);
+
+  // 4. Generate 'else' block
+  printf("LABEL $if_else_%" PRIu32 "\n", id);
+  if (ifNode->as.ifStatement.elseBlock) {
+    cg_gen_block(ifNode->as.ifStatement.elseBlock, isExprOrReturn, funcRetType);
+  } else if (isExprOrReturn) {
+    puts("PUSHS nil@nil");
+  }
+
+  // 5. End label
+  printf("LABEL $if_end_%" PRIu32 "\n", id);
 }
 
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
-  (void)whileNode;
-  (void)funcRetType;
-}
+  if (!whileNode || whileNode->type != AST_WHILE) {
+    return;
+  }
 
-void cg_gen_call(const AstNode *callNode) { (void)callNode; }
+  uint32_t id = cg_next_label_id();
+
+  // 1. Loop start label
+  printf("LABEL $while_start_%" PRIu32 "\n", id);
+
+  // 2. Evaluate condition
+  cg_gen_expr(whileNode->as.whileStatement.cond);
+
+  // 3. Conditional jump on condition failure (false)
+  puts("PUSHS bool@false");
+  printf("JUMPIFEQS $while_end_%" PRIu32 "\n", id);
+
+  // 4. Loop body (values from loop body are popped, isLastInFunc = false)
+  cg_gen_block(whileNode->as.whileStatement.bodyBlock, false, funcRetType);
+
+  // 5. Jump to start and end label
+  printf("JUMP $while_start_%" PRIu32 "\n"
+         "LABEL $while_end_%" PRIu32 "\n",
+         id, id);
+}
