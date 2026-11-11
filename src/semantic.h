@@ -1,7 +1,7 @@
 /**
  * @file    semantic.h
  * @author  xsirmat00
- * @brief   Rozhraní pro sémantickou analýzu a typovou kontrolu.
+ * @brief   Header file for semantic analysis
  */
 
 #ifndef SEMANTIC_H
@@ -11,24 +11,24 @@
 #include "symtable.h"
 #include <stdbool.h>
 
+/**
+ * @brief Semantic error codes according to IFJcode26 specification
+ */
 typedef enum {
-  ERR_SEM_OK = 0,
-  ERR_SEM_UNDEFINED = 3,
-  ERR_SEM_REDEFINITION = 4,
-  ERR_SEM_TYPE_MISMATCH = 5,
-  ERR_SEM_FUNC_ARGS = 6,
-  ERR_SEM_OTHER = 7,
+  ERR_SEM_OK = 0,               /**< OK */
+  ERR_SEM_UNDEFINED_SYMBOL = 3, /**< Undefined function or variable */
+  ERR_SEM_WRONG_TYPE = 4,       /**< Type incompatibility */
+  ERR_SEM_REDEFINITION = 5,     /**< Redefinition error */
+  ERR_SEM_FUNCTION_PARAMS = 6,  /**< Invalid param or return type count/type */
+  ERR_SEM_OTHER = 10            /**< Other semantic error */
 } SemanticError;
 
 /**
- * @brief Vyhodnotí datový typ výrazu reprezentovaného uzlem AST.
+ * @brief Performs complete semantic analysis over the parsed AST program
+ * @param Symtable *st
+ * @param AstNode *root
+ * @returns SemanticError status code
  */
-DataType analyze_expression(Symtable *symtable, const AstNode *node,
-                            SemanticError *err);
+SemanticError analyze_semantics(Symtable *st, AstNode *root);
 
-/**
- * @brief Prochází a provádí sémantické kontroly na podstromu AST.
- */
-SemanticError analyze_semantics(Symtable *symtable, const AstNode *node);
-
-#endif
+#endif // SEMANTIC_H
