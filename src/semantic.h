@@ -20,8 +20,7 @@ typedef enum {
   ERR_SEM_WRONG_TYPE = 4,       /**< Type incompatibility */
   ERR_SEM_REDEFINITION = 5,     /**< Redefinition error */
   ERR_SEM_FUNCTION_PARAMS = 6,  /**< Invalid param or return type count/type */
-  ERR_SEM_TYPE_INFERENCE =
-      7, /**< Type incompatibility in expression/statement context */
+  ERR_SEM_TYPE_INFERENCE = 7, /**< Type incompatibility in expression/statement context */
   ERR_SEM_OTHER = 10, /**< Other semantic error */
 } SemanticError;
 
