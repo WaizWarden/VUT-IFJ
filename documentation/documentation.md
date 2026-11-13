@@ -124,3 +124,61 @@ Precedence table distinguishes 4 types of relations:
 Upon reduction of the analysis removes elements to the sign of start. If it matches the relation, replaces them with nonterminals with its assigned AST node. Upon reduction the new input token is not loaded
 
 Analysis ends correctly only if the input symbol is the ending `"$"` and on the stack remains only the stack bottom and one nonterminal that represents the whole parsed expression.
+
+### Construction of the precedence table (from 6x6 to 9x9)
+
+The base of precedence table was created using the lecture`s
+table that featured 6x6 relations. This table contains these 
+operations: `*` and `+`. Because operators with the same asociativity and same priority has identical lines and columns, they are not directly in the table and are grouped into two sections: (+,-) and (*,/)
+
+Because the specification requires unary minus (u-), the 6x6 table cannot distinguish between normal and unary minus. Also there were more operations and comparators that required the expansion of the original table (like `<`, `<=`, or `==` and `!=`)
+
+Relation operators and comparators are non-asociative. Because of this chaining like "a<b<c<d" or "a<b == c" is not permited by the specification.
+
+The result is table containing 9 columns and 9 lines with symbols: +- ,  */ ,  u- ,  rel ,  ==!= ,  ( ,  ) ,  i ,  $
+
+#### The conversion of 6x6 table to 9x9 itself
+
+Reduction rules:
+  - E -> i (term)
+  - E -> (E)
+  - E -> E +- E (for + and -)
+  - E -> E */ E (for * and /)
+  - E → E rel E  (for <, <=, >, >=)
+  - E → E ==!= E (covers == and !=)
+  - E -> -E(Unary minus)
+  - E -> ( ) (unit literal)
+
+For every reduction rule exist a sematic rule that creates AST
+
+1) Expansion for unary minus (-u) 6x6 to 7x7
+  - I had to add a new symbol into the table `-u`
+  - Column for operators `(`, `$`  and the `u-` itself is `<`
+    - for `i` and `(` is empty
+  - The line is the same like for */
+2) Expansion for rel
+  - Column: for `+-`, `*/` , `u-` and `)`, `$` is the value `<`, otherwise `>`
+  - Line: `+-`, `*/`, `u-` is `>` because of asociativity
+3) Expansion for `==` and `!=`
+  - The lowest priority is created like the `rel 
+  - Other operators must be `>
+
+### How does the expression end
+
+The IFJ26 does not have a special ending symbol, precedence cannot determine the end until the input symbol is `$
+
+Upon conversion of tokens to precedence symbols are on $ mapped like:
+  - NEWLINE - End of an expression statement or initializer
+  - SEMICOLON - Statement separator inside a block
+  - DEDENT - Expression as the last statement of a block
+  - EOF - Expression at the end of the input
+  - `then` - End of an `if` condition
+  - `do` - End of a `while` condition
+
+The ending symbol is not consumed and is instead given back to the parser itself and stays stored in `currentToken`
+
+Two requirements for sucessfull ending of expression:
+  - Input symbol is `$`
+  - The stack contains exactly `$` and one non-terminal (`E`)
+
+If `$` arrives in the middle of construction process, it ends with an error.
