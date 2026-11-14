@@ -19,12 +19,6 @@
 #define TEST_INT_VAL_4 100
 #define TEST_DOUBLE_VAL 3.14
 
-/**
- * @brief Wraps a single statement inside `fun main() { stmt }`
- *
- * @param stmt Statement node to wrap
- * @return Program AST node containing main function
- */
 static AstNode *wrap_in_main_program(AstNode *stmt) {
   AstNode **stmts = malloc(sizeof(AstNode *));
   assert(stmts != NULL);
@@ -41,9 +35,6 @@ static AstNode *wrap_in_main_program(AstNode *stmt) {
   return ast_new_program(funcs, 1, 1);
 }
 
-/**
- * @brief Tests semantically valid assignment to a mutable variable
- */
 static void test_valid_assignment(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
@@ -61,9 +52,6 @@ static void test_valid_assignment(void) {
   printf("Test: Semantically valid assignment Passed\n");
 }
 
-/**
- * @brief Tests assignment to an undefined variable
- */
 static void test_undefined_variable(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
@@ -80,9 +68,6 @@ static void test_undefined_variable(void) {
   printf("Test: Undefined variable Passed\n");
 }
 
-/**
- * @brief Tests assignment with incompatible types
- */
 static void test_type_mismatch(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
@@ -100,9 +85,6 @@ static void test_type_mismatch(void) {
   printf("Test: Type mismatch Passed\n");
 }
 
-/**
- * @brief Tests implicit conversion from Int to Double on assignment
- */
 static void test_int_to_double_implicit_conversion(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
@@ -120,9 +102,6 @@ static void test_int_to_double_implicit_conversion(void) {
   printf("Test: Implicit conversion Int to Double Passed\n");
 }
 
-/**
- * @brief Tests assignment to a read-only variable (val)
- */
 static void test_readonly_variable_assign(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
@@ -149,3 +128,4 @@ void test_semantic(void) {
   test_readonly_variable_assign();
   printf("Semantic tests completed\n");
 }
+
