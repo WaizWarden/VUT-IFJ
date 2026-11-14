@@ -614,7 +614,8 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
   }
 
   // Main pass: analyze bodies of functions
-  SemanticContext ctx = {.symtable = st_get(symtable, "main") ? symtable : symtable,
+  SemanticContext ctx = {.symtable =
+                             st_get(symtable, "main") ? symtable : symtable,
                          .currentRetType = T_UNIT,
                          .varUidCounter = 0,
                          .scopeDepth = 0,
