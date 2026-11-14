@@ -711,7 +711,7 @@ void cg_gen_call(const AstNode *callNode) {
         puts("POPS GF@$tmp1\n"
              "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
-      } else if (argType == T_BOOL) {
+      } else if (argType == T_BOOLEAN) {
         uint32_t labelId = cg_next_label_id();
         printf("PUSHS bool@true\n"
                "JUMPIFNEQS $tostr_false_%u\n"
