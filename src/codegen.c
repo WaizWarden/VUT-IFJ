@@ -494,16 +494,14 @@ void cg_gen_expr(const AstNode *expr) {
     break;
 
   case AST_UNARY: {
-    cg_gen_expr(expr->as.unary.operand);
-
     if (expr->as.unary.op == OP_UNARY_MINUS) {
       if (expr->evalType == T_INT) {
-        puts("PUSHS int@-1\n"
-             "MULS");
+        puts("PUSHS int@0");
       } else {
-        puts("PUSHS float@-0x1p+0\n"
-             "MULS");
+        puts("PUSHS float@0x0p+0");
       }
+      cg_gen_expr(expr->as.unary.operand);
+      puts("SUBS");
     }
     break;
   }
@@ -602,8 +600,8 @@ void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
 
   // Evaluate condition
   cg_gen_expr(ifNode->as.ifStatement.condition);
-  printf("PUSHS bool@true\n"
-         "JUMPIFNEQS $if_else_%u\n",
+  printf("PUSHS bool@false\n"
+         "JUMPIFEQS $if_else_%u\n",
          labelId);
 
   // THEN branch
@@ -632,8 +630,8 @@ void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
 
   // Loop condition
   cg_gen_expr(whileNode->as.whileStatement.cond);
-  printf("PUSHS bool@true\n"
-         "JUMPIFNEQS $while_end_%u\n",
+  printf("PUSHS bool@false\n"
+         "JUMPIFEQS $while_end_%u\n",
          labelId);
 
   // Loop body
@@ -658,6 +656,17 @@ void cg_gen_call(const AstNode *callNode) {
   if (strcmp(name, "readLine") == 0) {
     puts("READ GF@$tmp1 string\n"
          "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "readBoolean") == 0) {
+    uint32_t labelId = cg_next_label_id();
+    printf("READ GF@$tmp1 bool\n"
+           "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
+           "MOVE GF@$tmp1 bool@false\n"
+           "LABEL $readBool_ok_%u\n"
+           "PUSHS GF@$tmp1\n",
+           labelId, labelId);
     return;
   }
 
