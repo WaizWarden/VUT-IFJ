@@ -447,18 +447,322 @@ void cg_gen_program(const AstNode *root) {
 /// @author xsirmat00 from here
 /// -----------------------------------------------
 
-void cg_gen_expr(const AstNode *expr) { (void)expr; }
+void cg_gen_expr(const AstNode *expr) {
+  if (!expr) {
+    return;
+  }
+
+  switch (expr->type) {
+  case AST_LITERAL_INT:
+    fputs("PUSHS ", stdout);
+    cg_print_int((int64_t)expr->as.intValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_DOUBLE:
+    fputs("PUSHS ", stdout);
+    cg_print_double(expr->as.doubleValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_STRING:
+    fputs("PUSHS ", stdout);
+    cg_print_string(expr->as.stringValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_BOOL:
+    fputs("PUSHS ", stdout);
+    cg_print_bool(expr->as.boolValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_UNIT:
+    fputs("PUSHS ", stdout);
+    cg_print_unit();
+    putchar('\n');
+    break;
+
+  case AST_IDENTIFIER:
+    fputs("PUSHS ", stdout);
+    cg_print_var(expr->as.identif, expr->uid);
+    putchar('\n');
+    break;
+
+  case AST_FUNC_CALL:
+    cg_gen_call(expr);
+    break;
+
+  case AST_UNARY: {
+    cg_gen_expr(expr->as.unary.operand);
+
+    if (expr->as.unary.op == OP_UNARY_MINUS) {
+      if (expr->evalType == T_INT) {
+        puts("PUSHS int@-1\n"
+             "MULS");
+      } else {
+        puts("PUSHS float@-0x1p+0\n"
+             "MULS");
+      }
+    }
+    break;
+  }
+
+  case AST_BINARY: {
+    const AstNode *left = expr->as.binary.left;
+    const AstNode *right = expr->as.binary.right;
+    BinaryOperation operation = expr->as.binary.operation;
+
+    // 1. Evaluate left operand + implicit Int -> Double conversion
+    cg_gen_expr(left);
+    if (left->evalType == T_INT && right->evalType == T_DOUBLE) {
+      puts("INT2FLOATS");
+    }
+
+    // 2. Evaluate right operand + implicit Int -> Double conversion
+    cg_gen_expr(right);
+    if (right->evalType == T_INT && left->evalType == T_DOUBLE) {
+      puts("INT2FLOATS");
+    }
+
+    // 3. Perform binary operation
+    switch (operation) {
+    case OP_ADD:
+      if (expr->evalType == T_STRING) {
+        puts("POPS GF@$tmp2\n"
+             "POPS GF@$tmp1\n"
+             "CONCAT GF@$tmp1 GF@$tmp1 GF@$tmp2\n"
+             "PUSHS GF@$tmp1");
+      } else {
+        puts("ADDS");
+      }
+      break;
+
+    case OP_SUB:
+      puts("SUBS");
+      break;
+
+    case OP_MUL:
+      puts("MULS");
+      break;
+
+    case OP_DIV:
+      if (expr->evalType == T_INT) {
+        puts("IDIVS");
+      } else {
+        puts("DIVS");
+      }
+      break;
+
+    case OP_LT:
+      puts("LTS");
+      break;
+
+    case OP_GT:
+      puts("GTS");
+      break;
+
+    case OP_EQ:
+      puts("EQS");
+      break;
+
+    case OP_NEQ:
+      puts("EQS\n"
+           "NOTS");
+      break;
+
+    case OP_LE:
+      puts("GTS\n"
+           "NOTS");
+      break;
+
+    case OP_GE:
+      puts("LTS\n"
+           "NOTS");
+      break;
+
+    default:
+      break;
+    }
+    break;
+  }
+
+  default:
+    break;
+  }
+}
 
 void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
                DataType funcRetType) {
-  (void)ifNode;
-  (void)isExprOrReturn;
-  (void)funcRetType;
+  if (!ifNode) {
+    return;
+  }
+
+  uint32_t labelId = cg_next_label_id();
+
+  // Evaluate condition
+  cg_gen_expr(ifNode->as.ifStatement.condition);
+  printf("PUSHS bool@true\n"
+         "JUMPIFNEQS $if_else_%u\n",
+         labelId);
+
+  // THEN branch
+  cg_gen_block(ifNode->as.ifStatement.thenBlock, isExprOrReturn, funcRetType);
+  printf("JUMP $if_end_%u\n", labelId);
+
+  // ELSE branch
+  printf("LABEL $if_else_%u\n", labelId);
+  if (ifNode->as.ifStatement.elseBlock) {
+    cg_gen_block(ifNode->as.ifStatement.elseBlock, isExprOrReturn, funcRetType);
+  } else if (isExprOrReturn) {
+    puts("PUSHS nil@nil");
+  }
+
+  printf("LABEL $if_end_%u\n", labelId);
 }
 
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
-  (void)whileNode;
-  (void)funcRetType;
+  if (!whileNode) {
+    return;
+  }
+
+  uint32_t labelId = cg_next_label_id();
+
+  printf("LABEL $while_start_%u\n", labelId);
+
+  // Loop condition
+  cg_gen_expr(whileNode->as.whileStatement.cond);
+  printf("PUSHS bool@true\n"
+         "JUMPIFNEQS $while_end_%u\n",
+         labelId);
+
+  // Loop body
+  cg_gen_block(whileNode->as.whileStatement.bodyBlock, false, funcRetType);
+
+  printf("JUMP $while_start_%u\n"
+         "LABEL $while_end_%u\n",
+         labelId, labelId);
 }
 
-void cg_gen_call(const AstNode *callNode) { (void)callNode; }
+void cg_gen_call(const AstNode *callNode) {
+  if (!callNode) {
+    return;
+  }
+
+  const char *name = callNode->as.funcCall.funcName;
+  size_t argCount = callNode->as.funcCall.argCount;
+  AstNode **args = callNode->as.funcCall.args;
+
+  // --- INLINE BUILT-IN FUNCTIONS ---
+
+  if (strcmp(name, "readLine") == 0) {
+    puts("READ GF@$tmp1 string\n"
+         "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "toInt") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      if (args[0]->evalType == T_DOUBLE) {
+        puts("FLOAT2INTS");
+      }
+    }
+    return;
+  }
+
+  if (strcmp(name, "strLength") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      puts("POPS GF@$tmp1\n"
+           "STRLEN GF@$tmp1 GF@$tmp1\n"
+           "PUSHS GF@$tmp1");
+    }
+    return;
+  }
+
+  if (strcmp(name, "chr") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      puts("INT2CHARS");
+    }
+    return;
+  }
+
+  if (strcmp(name, "toStr") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      DataType argType = args[0]->evalType;
+
+      if (argType == T_INT) {
+        puts("POPS GF@$tmp1\n"
+             "INT2STR GF@$tmp1 GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
+      } else if (argType == T_DOUBLE) {
+        puts("POPS GF@$tmp1\n"
+             "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
+      } else if (argType == T_BOOL) {
+        uint32_t labelId = cg_next_label_id();
+        printf("PUSHS bool@true\n"
+               "JUMPIFNEQS $tostr_false_%u\n"
+               "PUSHS string@true\n"
+               "JUMP $tostr_end_%u\n"
+               "LABEL $tostr_false_%u\n"
+               "PUSHS string@false\n"
+               "LABEL $tostr_end_%u\n",
+               labelId, labelId, labelId, labelId);
+      } else if (argType == T_UNIT) {
+        puts("POPS GF@$tmp1\n"
+             "PUSHS string@()");
+      }
+    }
+    return;
+  }
+
+  if (strcmp(name, "print") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      puts("POPS GF@$tmp1\n"
+           "WRITE GF@$tmp1\n"
+           "PUSHS nil@nil");
+    } else {
+      puts("PUSHS nil@nil");
+    }
+    return;
+  }
+
+  // --- EXTRA BUILT-IN FUNCTIONS ($builtin_...) ---
+
+  if (strcmp(name, "readInt") == 0) {
+    puts("CALL $builtin_readInt");
+    return;
+  }
+
+  if (strcmp(name, "readDouble") == 0) {
+    puts("CALL $builtin_readDouble");
+    return;
+  }
+
+  if (strcmp(name, "ord") == 0) {
+    for (size_t i = 0; i < argCount; i++) {
+      cg_gen_expr(args[i]);
+    }
+    puts("CALL $builtin_ord");
+    return;
+  }
+
+  if (strcmp(name, "substr") == 0) {
+    for (size_t i = 0; i < argCount; i++) {
+      cg_gen_expr(args[i]);
+    }
+    puts("CALL $builtin_substr");
+    return;
+  }
+
+  // --- USER-DEFINED FUNCTIONS ($func_...) ---
+  for (size_t i = 0; i < argCount; i++) {
+    cg_gen_expr(args[i]);
+  }
+  printf("CALL $func_%s\n", name);
+}
