@@ -1,7 +1,7 @@
 /**
  * @file    test_semantic.c
  * @author  xsirmat00
- * @brief   Independent unit tests for the semantic analyzer.
+ * @brief   Independent unit tests for the semantic analyzer
  */
 
 #include "test_semantic.h"
@@ -19,94 +19,124 @@
 #define TEST_INT_VAL_4 100
 #define TEST_DOUBLE_VAL 3.14
 
+/**
+ * @brief Wraps a single statement inside `fun main() { stmt }`
+ *
+ * @param stmt Statement node to wrap
+ * @return Program AST node containing main function
+ */
+static AstNode *wrap_in_main_program(AstNode *stmt) {
+  AstNode **stmts = malloc(sizeof(AstNode *));
+  assert(stmts != NULL);
+  stmts[0] = stmt;
+
+  AstNode *body = ast_new_block(stmts, 1, 1);
+  AstNode *mainFunc =
+      ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, body, 1);
+
+  AstNode **funcs = malloc(sizeof(AstNode *));
+  assert(funcs != NULL);
+  funcs[0] = mainFunc;
+
+  return ast_new_program(funcs, 1, 1);
+}
+
+/**
+ * @brief Tests semantically valid assignment to a mutable variable
+ */
 static void test_valid_assignment(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
-
-  char *var_x = strdup("x");
-  assert(st_insert_var(&symtable, var_x, T_INT, true) == true);
+  assert(st_insert_var(&symtable, "x", T_INT, true) == true);
 
   AstNode *val = ast_new_int(TEST_INT_VAL, 1);
   AstNode *assign = ast_new_assign(strdup("x"), val, 1);
+  AstNode *program = wrap_in_main_program(assign);
 
-  SemanticError err = analyze_semantics(&symtable, assign);
+  SemanticError err = analyze_semantics(&symtable, program);
   assert(err == ERR_SEM_OK);
 
-  ast_free(assign);
+  ast_free(program);
   st_free(&symtable);
-  free(var_x);
   printf("Test: Semantically valid assignment Passed\n");
 }
 
+/**
+ * @brief Tests assignment to an undefined variable
+ */
 static void test_undefined_variable(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
 
   AstNode *val = ast_new_int(TEST_INT_VAL_2, 1);
   AstNode *assign = ast_new_assign(strdup("y"), val, 1);
+  AstNode *program = wrap_in_main_program(assign);
 
-  SemanticError err = analyze_semantics(&symtable, assign);
+  SemanticError err = analyze_semantics(&symtable, program);
   assert(err == ERR_SEM_UNDEFINED_SYMBOL);
 
-  ast_free(assign);
+  ast_free(program);
   st_free(&symtable);
   printf("Test: Undefined variable Passed\n");
 }
 
+/**
+ * @brief Tests assignment with incompatible types
+ */
 static void test_type_mismatch(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
-
-  char *var_num = strdup("num");
-  assert(st_insert_var(&symtable, var_num, T_INT, true) == true);
+  assert(st_insert_var(&symtable, "num", T_INT, true) == true);
 
   AstNode *val = ast_new_double(TEST_DOUBLE_VAL, 1);
   AstNode *assign = ast_new_assign(strdup("num"), val, 1);
+  AstNode *program = wrap_in_main_program(assign);
 
-  SemanticError err = analyze_semantics(&symtable, assign);
+  SemanticError err = analyze_semantics(&symtable, program);
   assert(err == ERR_SEM_WRONG_TYPE);
 
-  ast_free(assign);
+  ast_free(program);
   st_free(&symtable);
-  free(var_num);
   printf("Test: Type mismatch Passed\n");
 }
 
+/**
+ * @brief Tests implicit conversion from Int to Double on assignment
+ */
 static void test_int_to_double_implicit_conversion(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
-
-  char *var_d = strdup("d");
-  assert(st_insert_var(&symtable, var_d, T_DOUBLE, true) == true);
+  assert(st_insert_var(&symtable, "d", T_DOUBLE, true) == true);
 
   AstNode *val = ast_new_int(TEST_INT_VAL_3, 1);
   AstNode *assign = ast_new_assign(strdup("d"), val, 1);
+  AstNode *program = wrap_in_main_program(assign);
 
-  SemanticError err = analyze_semantics(&symtable, assign);
+  SemanticError err = analyze_semantics(&symtable, program);
   assert(err == ERR_SEM_OK);
 
-  ast_free(assign);
+  ast_free(program);
   st_free(&symtable);
-  free(var_d);
   printf("Test: Implicit conversion Int to Double Passed\n");
 }
 
+/**
+ * @brief Tests assignment to a read-only variable (val)
+ */
 static void test_readonly_variable_assign(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
-
-  char *var_const = strdup("constVal");
-  assert(st_insert_var(&symtable, var_const, T_INT, false) == true);
+  assert(st_insert_var(&symtable, "constVal", T_INT, false) == true);
 
   AstNode *val = ast_new_int(TEST_INT_VAL_4, 1);
   AstNode *assign = ast_new_assign(strdup("constVal"), val, 1);
+  AstNode *program = wrap_in_main_program(assign);
 
-  SemanticError err = analyze_semantics(&symtable, assign);
+  SemanticError err = analyze_semantics(&symtable, program);
   assert(err == ERR_SEM_OTHER);
 
-  ast_free(assign);
+  ast_free(program);
   st_free(&symtable);
-  free(var_const);
   printf("Test: Assignment to constant (val) Passed\n");
 }
 
