@@ -37,7 +37,27 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
                                         bool isFuncBody, DataType expectedRet);
 
 /**
+ * @brief Wraps an Int AST expression node in `expr + 0.0` so codegen emits
+ * INT2FLOATS
+ *
+ * @param expr Original Int expression node
+ * @return Double-typed AST binary addition node
+ */
+static AstNode *promote_int_to_double(AstNode *expr) {
+  AstNode *zeroDouble = ast_new_double(0.0, expr->line);
+  zeroDouble->evalType = T_DOUBLE;
+  AstNode *promoted = ast_new_binary(OP_ADD, expr, zeroDouble, expr->line);
+  promoted->evalType = T_DOUBLE;
+  return promoted;
+}
+
+/**
  * @brief Records variable UID in current lexical scope depth
+ *
+ * @param ctx Semantic context
+ * @param name Variable identifier
+ * @param uid Unique variable identifier
+ * @return True on success, false on allocation failure
  */
 static bool ctx_push_var_uid(SemanticContext *ctx, const char *name,
                              uint32_t uid) {
@@ -61,6 +81,10 @@ static bool ctx_push_var_uid(SemanticContext *ctx, const char *name,
 
 /**
  * @brief Looks up innermost variable UID by name
+ *
+ * @param ctx Semantic context
+ * @param name Variable identifier
+ * @return Variable UID or 0 if not found
  */
 static uint32_t ctx_lookup_var_uid(const SemanticContext *ctx,
                                    const char *name) {
@@ -74,6 +98,8 @@ static uint32_t ctx_lookup_var_uid(const SemanticContext *ctx,
 
 /**
  * @brief Removes variable UIDs belonging to scopes deeper than current
+ *
+ * @param ctx Semantic context
  */
 static void ctx_pop_scope_uids(SemanticContext *ctx) {
   while (ctx->uidCount > 0 &&
@@ -83,7 +109,10 @@ static void ctx_pop_scope_uids(SemanticContext *ctx) {
 }
 
 /**
- * @brief Helper for adding parameters to builtin function definitions
+ * @brief Helper for creating parameter arrays for built-in function definitions
+ *
+ * @param count Number of parameters
+ * @return Dynamically allocated array of Parameter structs
  */
 static Parameter *create_builtin_params(size_t count, ...) {
   if (count == 0) {
@@ -107,70 +136,54 @@ static Parameter *create_builtin_params(size_t count, ...) {
 }
 
 /**
- * @brief Registers all built-in functions into symtable
+ * @brief Registers all built-in functions into symtable matching codegen.c
+ *
+ * @param symtable Global symbol table
+ * @return ERR_SEM_OK on success or error code
  */
 static SemanticError register_builtins(Symtable *symtable) {
-  // readLine(): String
-  if (!st_insert_func(symtable, "readLine", T_STRING, NULL, 0, false, true)) {
+  if (!st_insert_func(symtable, "readString", T_STRING, NULL, 0, false, true)) {
     return ERR_SEM_OTHER;
   }
-
-  // readInt(): Int
   if (!st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true)) {
     return ERR_SEM_OTHER;
   }
-
-  // readDouble(): Double
   if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
     return ERR_SEM_OTHER;
   }
 
-  // readBoolean(): Boolean
-  if (!st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false,
-                      true)) {
+  Parameter *writeParams = create_builtin_params(1, T_ANY);
+  if (!st_insert_func(symtable, "write", T_UNIT, writeParams, 1, false, true)) {
     return ERR_SEM_OTHER;
   }
 
-  // print(term: Any): Unit
-  Parameter *printParams = create_builtin_params(1, T_ANY);
-  if (!st_insert_func(symtable, "print", T_UNIT, printParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
-  }
-
-  // toStr(term: Any): String
-  Parameter *toStrParams = create_builtin_params(1, T_ANY);
-  if (!st_insert_func(symtable, "toStr", T_STRING, toStrParams, 1, false,
-                      true)) {
-    return ERR_SEM_OTHER;
-  }
-
-  // toInt(term: Double): Int
   Parameter *toIntParams = create_builtin_params(1, T_DOUBLE);
   if (!st_insert_func(symtable, "toInt", T_INT, toIntParams, 1, false, true)) {
     return ERR_SEM_OTHER;
   }
 
-  // strLength(s: String): Int
+  Parameter *toDoubleParams = create_builtin_params(1, T_INT);
+  if (!st_insert_func(symtable, "toDouble", T_DOUBLE, toDoubleParams, 1, false,
+                      true)) {
+    return ERR_SEM_OTHER;
+  }
+
   Parameter *lenParams = create_builtin_params(1, T_STRING);
-  if (!st_insert_func(symtable, "strLength", T_INT, lenParams, 1, false,
-                      true)) {
+  if (!st_insert_func(symtable, "length", T_INT, lenParams, 1, false, true)) {
     return ERR_SEM_OTHER;
   }
 
-  // substr(s: String, start: Int, end: Int): String
   Parameter *subParams = create_builtin_params(3, T_STRING, T_INT, T_INT);
-  if (!st_insert_func(symtable, "substr", T_STRING, subParams, 3, false,
+  if (!st_insert_func(symtable, "substring", T_STRING, subParams, 3, false,
                       true)) {
     return ERR_SEM_OTHER;
   }
 
-  // ord(s: String, i: Int): Int
   Parameter *ordParams = create_builtin_params(2, T_STRING, T_INT);
   if (!st_insert_func(symtable, "ord", T_INT, ordParams, 2, false, true)) {
     return ERR_SEM_OTHER;
   }
 
-  // chr(i: Int): String
   Parameter *chrParams = create_builtin_params(1, T_INT);
   if (!st_insert_func(symtable, "chr", T_STRING, chrParams, 1, false, true)) {
     return ERR_SEM_OTHER;
@@ -181,6 +194,11 @@ static SemanticError register_builtins(Symtable *symtable) {
 
 /**
  * @brief Analyzes expressions and sets node evalType and uid
+ *
+ * @param ctx Semantic context
+ * @param node Expression AST node
+ * @param outType Output parameter for deduced DataType
+ * @return SemanticError status code
  */
 static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
                                   DataType *outType) {
@@ -238,7 +256,6 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
 
     BinaryOperation operation = node->as.binary.operation;
 
-    // Relational operations (<, <=, >, >=, ==, !=)
     if (operation == OP_LT || operation == OP_LE || operation == OP_GT ||
         operation == OP_GE || operation == OP_EQ || operation == OP_NEQ) {
       if (leftT != rightT) {
@@ -249,7 +266,6 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
       }
       node->evalType = T_BOOLEAN;
     } else {
-      // Arithmetic and string concatenation operations
       if (leftT == T_STRING && rightT == T_STRING && operation == OP_ADD) {
         node->evalType = T_STRING;
       } else if ((leftT == T_INT || leftT == T_DOUBLE) &&
@@ -286,7 +302,9 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
       return ERR_SEM_UNDEFINED_SYMBOL;
     }
 
-    if (node->as.funcCall.argCount != funcSym->data.func.paramCount) {
+    bool isWrite = (strcmp(funcName, "write") == 0);
+    if (!isWrite &&
+        node->as.funcCall.argCount != funcSym->data.func.paramCount) {
       return ERR_SEM_FUNCTION_PARAMS;
     }
 
@@ -297,11 +315,15 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         return err;
       }
 
-      DataType paramT = funcSym->data.func.parameters[idx].type;
-      if (paramT != T_ANY && argT != paramT) {
-        // Allow Int -> Double implicit conversion
-        if (!(paramT == T_DOUBLE && argT == T_INT)) {
-          return ERR_SEM_FUNCTION_PARAMS;
+      if (!isWrite) {
+        DataType paramT = funcSym->data.func.parameters[idx].type;
+        if (paramT != T_ANY && argT != paramT) {
+          if (paramT == T_DOUBLE && argT == T_INT) {
+            node->as.funcCall.args[idx] =
+                promote_int_to_double(node->as.funcCall.args[idx]);
+          } else {
+            return ERR_SEM_FUNCTION_PARAMS;
+          }
         }
       }
     }
@@ -320,6 +342,12 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
 
 /**
  * @brief Analyzes a block or single statement and checks return value if needed
+ *
+ * @param ctx Semantic context
+ * @param body Block or statement AST node
+ * @param isFuncBody True if body belongs directly to a function definition
+ * @param expectedRet Expected return type of the enclosing function
+ * @return SemanticError status code
  */
 static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
                                         bool isFuncBody, DataType expectedRet) {
@@ -336,12 +364,17 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
       return err;
     }
     if (isFuncBody && expectedRet != T_UNIT && body->type != AST_RETURN) {
-      DataType actualRet = (body->type == AST_EXPR_STATEMENT)
-                               ? body->as.exprStatement.expr->evalType
-                               : body->evalType;
-      if (actualRet != expectedRet &&
-          !(expectedRet == T_DOUBLE && actualRet == T_INT)) {
-        return ERR_SEM_FUNCTION_PARAMS;
+      AstNode *exprNode = (body->type == AST_EXPR_STATEMENT)
+                              ? body->as.exprStatement.expr
+                              : body;
+      DataType actualRet = exprNode->evalType;
+      if (actualRet != expectedRet) {
+        if (expectedRet == T_DOUBLE && actualRet == T_INT &&
+            body->type == AST_EXPR_STATEMENT) {
+          body->as.exprStatement.expr = promote_int_to_double(exprNode);
+        } else {
+          return ERR_SEM_FUNCTION_PARAMS;
+        }
       }
     }
     return ERR_SEM_OK;
@@ -367,19 +400,23 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
     }
   }
 
-  // Verify implicit return value at the end of a non-Unit function
   if (isFuncBody && expectedRet != T_UNIT) {
     if (body->as.block.count == 0) {
       return ERR_SEM_FUNCTION_PARAMS;
     }
     AstNode *last = body->as.block.stmts[body->as.block.count - 1];
     if (last->type != AST_RETURN) {
-      DataType lastType = (last->type == AST_EXPR_STATEMENT)
-                              ? last->as.exprStatement.expr->evalType
-                              : last->evalType;
-      if (lastType != expectedRet &&
-          !(expectedRet == T_DOUBLE && lastType == T_INT)) {
-        return ERR_SEM_FUNCTION_PARAMS;
+      AstNode *exprNode = (last->type == AST_EXPR_STATEMENT)
+                              ? last->as.exprStatement.expr
+                              : last;
+      DataType lastType = exprNode->evalType;
+      if (lastType != expectedRet) {
+        if (expectedRet == T_DOUBLE && lastType == T_INT &&
+            last->type == AST_EXPR_STATEMENT) {
+          last->as.exprStatement.expr = promote_int_to_double(exprNode);
+        } else {
+          return ERR_SEM_FUNCTION_PARAMS;
+        }
       }
     }
   }
@@ -395,6 +432,10 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
 
 /**
  * @brief Analyzes statements in block or function body
+ *
+ * @param ctx Semantic context
+ * @param node Statement or expression AST node
+ * @return SemanticError status code
  */
 static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
   if (!node) {
@@ -421,8 +462,13 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
                         : initT;
 
     if (node->as.varDecl.hasDeclaredType && node->as.varDecl.initExpr) {
-      if (varT != initT && !(varT == T_DOUBLE && initT == T_INT)) {
-        return ERR_SEM_WRONG_TYPE;
+      if (varT != initT) {
+        if (varT == T_DOUBLE && initT == T_INT) {
+          node->as.varDecl.initExpr =
+              promote_int_to_double(node->as.varDecl.initExpr);
+        } else {
+          return ERR_SEM_WRONG_TYPE;
+        }
       }
     }
 
@@ -457,9 +503,12 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       return err;
     }
 
-    if (sym->data.var.type != valT &&
-        !(sym->data.var.type == T_DOUBLE && valT == T_INT)) {
-      return ERR_SEM_WRONG_TYPE;
+    if (sym->data.var.type != valT) {
+      if (sym->data.var.type == T_DOUBLE && valT == T_INT) {
+        node->as.assign.value = promote_int_to_double(node->as.assign.value);
+      } else {
+        return ERR_SEM_WRONG_TYPE;
+      }
     }
 
     node->uid = ctx_lookup_var_uid(ctx, node->as.assign.name);
@@ -488,7 +537,6 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       return err;
     }
 
-    // Propagate type if used as expression
     if (node->as.ifStatement.thenBlock && node->as.ifStatement.elseBlock) {
       DataType thenT = node->as.ifStatement.thenBlock->evalType;
       DataType elseT = node->as.ifStatement.elseBlock->evalType;
@@ -538,9 +586,13 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       if (node->as.ret.expr != NULL && exprT != T_UNIT) {
         return ERR_SEM_FUNCTION_PARAMS;
       }
-    } else if (ctx->currentRetType != exprT &&
-               !(ctx->currentRetType == T_DOUBLE && exprT == T_INT)) {
-      return ERR_SEM_FUNCTION_PARAMS;
+    } else if (ctx->currentRetType != exprT) {
+      if (ctx->currentRetType == T_DOUBLE && exprT == T_INT &&
+          node->as.ret.expr != NULL) {
+        node->as.ret.expr = promote_int_to_double(node->as.ret.expr);
+      } else {
+        return ERR_SEM_FUNCTION_PARAMS;
+      }
     }
     node->evalType = exprT;
     break;
@@ -573,7 +625,6 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     return err;
   }
 
-  // Pre-pass: collect function declarations into global symtable
   bool hasMain = false;
   for (size_t idx = 0; idx < root->as.program.count; idx++) {
     AstNode *fnNode = root->as.program.functions[idx];
@@ -613,9 +664,7 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     return ERR_SEM_UNDEFINED_SYMBOL;
   }
 
-  // Main pass: analyze bodies of functions
-  SemanticContext ctx = {.symtable =
-                             st_get(symtable, "main") ? symtable : symtable,
+  SemanticContext ctx = {.symtable = symtable,
                          .currentRetType = T_UNIT,
                          .varUidCounter = 0,
                          .scopeDepth = 0,
@@ -635,7 +684,6 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     }
     ctx.scopeDepth = 1;
 
-    // Register function parameters in function scope
     for (uint16_t parIdx = 0; parIdx < fnNode->as.funcDef.paramCount;
          parIdx++) {
       uint32_t paramUid = ++(ctx.varUidCounter);
