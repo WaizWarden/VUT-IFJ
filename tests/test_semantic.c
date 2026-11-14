@@ -46,7 +46,7 @@ static void test_undefined_variable(void) {
   AstNode *assign = ast_new_assign(strdup("y"), val, 1);
 
   SemanticError err = analyze_semantics(&symtable, assign);
-  assert(err == ERR_SEM_UNDEFINED);
+  assert(err == ERR_SEM_UNDEFINED_SYMBOL);
 
   ast_free(assign);
   st_free(&symtable);
@@ -64,7 +64,7 @@ static void test_type_mismatch(void) {
   AstNode *assign = ast_new_assign(strdup("num"), val, 1);
 
   SemanticError err = analyze_semantics(&symtable, assign);
-  assert(err == ERR_SEM_TYPE_MISMATCH);
+  assert(err == ERR_SEM_WRONG_TYPE);
 
   ast_free(assign);
   st_free(&symtable);

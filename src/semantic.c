@@ -20,15 +20,17 @@ typedef struct {
 
 static SemanticError analyze_node(SemanticContext *ctx, AstNode *node);
 static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
-                                   DataType *outType);
+                                  DataType *outType);
 
 /**
  * @brief Helper for adding parameters to builtin function definitions.
  */
 static Parameter *create_builtin_params(size_t count, ...) {
-  if (count == 0) return NULL;
+  if (count == 0)
+    return NULL;
   Parameter *params = calloc(count, sizeof(Parameter));
-  if (!params) return NULL;
+  if (!params)
+    return NULL;
 
   va_list args;
   va_start(args, count);
@@ -49,59 +51,60 @@ static Parameter *create_builtin_params(size_t count, ...) {
 static SemanticError register_builtins(Symtable *st) {
   // readString(): String
   if (!st_insert_func(st, "readString", T_STRING, NULL, 0, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   // readInt(): Int
   if (!st_insert_func(st, "readInt", T_INT, NULL, 0, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   // readDouble(): Double
   if (!st_insert_func(st, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
-  // write(term: Any): Unit
-  Parameter *writeParams = create_builtin_params(1, T_ANY);
-  if (!st_insert_func(st, "write", T_UNIT, writeParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+  // print(term: Any): Unit
+  Parameter *printParams = create_builtin_params(1, T_ANY);
+  if (!st_insert_func(st, "print", T_UNIT, printParams, 1, false, true)) {
+    return ERR_INTERNAL;
   }
 
   // toInt(term: Double): Int
   Parameter *toIntParams = create_builtin_params(1, T_DOUBLE);
   if (!st_insert_func(st, "toInt", T_INT, toIntParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   // toDouble(term: Int): Double
   Parameter *toDoubleParams = create_builtin_params(1, T_INT);
-  if (!st_insert_func(st, "toDouble", T_DOUBLE, toDoubleParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+  if (!st_insert_func(st, "toDouble", T_DOUBLE, toDoubleParams, 1, false,
+                      true)) {
+    return ERR_INTERNAL;
   }
 
   // length(s: String): Int
   Parameter *lenParams = create_builtin_params(1, T_STRING);
   if (!st_insert_func(st, "length", T_INT, lenParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   // substring(s: String, i: Int, j: Int): String
   Parameter *subParams = create_builtin_params(3, T_STRING, T_INT, T_INT);
   if (!st_insert_func(st, "substring", T_STRING, subParams, 3, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   // ord(s: String, i: Int): Int
   Parameter *ordParams = create_builtin_params(2, T_STRING, T_INT);
   if (!st_insert_func(st, "ord", T_INT, ordParams, 2, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   // chr(i: Int): String
   Parameter *chrParams = create_builtin_params(1, T_INT);
   if (!st_insert_func(st, "chr", T_STRING, chrParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   return ERR_SEM_OK;
@@ -115,7 +118,7 @@ static SemanticError register_builtins(Symtable *st) {
  * @returns SemanticError
  */
 static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
-                                   DataType *outType) {
+                                  DataType *outType) {
   if (!node) {
     *outType = T_UNIT;
     return ERR_SEM_OK;
@@ -156,6 +159,7 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
 
   case AST_BINARY: {
     DataType leftT, rightT;
+
     err = analyze_expr(ctx, node->as.binary.left, &leftT);
     if (err != ERR_SEM_OK) {
       return err;
@@ -171,6 +175,7 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
     // Relational operations
     if (op == OP_LT || op == OP_LE || op == OP_GT || op == OP_GE ||
         op == OP_EQ || op == OP_NEQ) {
+
       if (leftT != rightT) {
         // Allow implicit Int -> Double comparison
         if (!((leftT == T_INT && rightT == T_DOUBLE) ||
@@ -179,14 +184,21 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         }
       }
       node->evalType = T_BOOLEAN;
-    } else {
-      // Arithmetic operations
+    }
+
+    // Non-relational operations
+    else {
+
+      // String + String = String
       if (leftT == T_STRING && rightT == T_STRING && op == OP_ADD) {
         node->evalType = T_STRING;
+
+
       } else if ((leftT == T_INT || leftT == T_DOUBLE) &&
                  (rightT == T_INT || rightT == T_DOUBLE)) {
-        node->evalType =
-            (leftT == T_DOUBLE || rightT == T_DOUBLE) ? T_DOUBLE : T_INT;
+
+        node->evalType = (leftT == T_DOUBLE || rightT == T_DOUBLE) ? T_DOUBLE : T_INT;
+
       } else {
         return ERR_SEM_WRONG_TYPE;
       }
@@ -288,7 +300,9 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       }
     }
 
-    DataType varT = node->as.varDecl.hasDeclaredType ? node->as.varDecl.declaredType : initT;
+    DataType varT = node->as.varDecl.hasDeclaredType
+                        ? node->as.varDecl.declaredType
+                        : initT;
 
     if (node->as.varDecl.hasDeclaredType && initT != T_UNIT) {
       if (varT != initT && !(varT == T_DOUBLE && initT == T_INT)) {
@@ -299,7 +313,8 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
     // Generate unique UID for codegen
     node->uid = ++(ctx->varUidCounter);
 
-    if (!st_insert_var(ctx->symtable, node->as.varDecl.name, varT, node->as.varDecl.isModifiable)) {
+    if (!st_insert_var(ctx->symtable, node->as.varDecl.name, varT,
+                       node->as.varDecl.isModifiable)) {
       return ERR_SEM_REDEFINITION;
     }
 
@@ -319,7 +334,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       return ERR_SEM_UNDEFINED_SYMBOL;
     }
     if (!sym->data.var.modifiable) {
-      return ERR_SEM_WRONG_TYPE;
+      return ERR_SEM_IMMUTABLE;
     }
 
     DataType valT;
@@ -328,7 +343,8 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       return err;
     }
 
-    if (sym->data.var.type != valT && !(sym->data.var.type == T_DOUBLE && valT == T_INT)) {
+    if (sym->data.var.type != valT &&
+        !(sym->data.var.type == T_DOUBLE && valT == T_INT)) {
       return ERR_SEM_WRONG_TYPE;
     }
 
@@ -388,7 +404,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
 
     if (ctx->currentRetType != exprT &&
         !(ctx->currentRetType == T_DOUBLE && exprT == T_INT)) {
-      return ERR_SEM_FUNCTION_PARAMS;
+      return ERR_SEM_WRONG_TYPE;
     }
     break;
   }
@@ -411,7 +427,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
 
 SemanticError analyze_semantics(Symtable *st, AstNode *root) {
   if (!st || !root || root->type != AST_PROGRAM) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL; // MAYBE NOT ERR_INTERNAL
   }
 
   SemanticError err = register_builtins(st);
@@ -430,12 +446,14 @@ SemanticError analyze_semantics(Symtable *st, AstNode *root) {
     Parameter *params = NULL;
     if (fnNode->as.funcDef.paramCount > 0) {
       params = calloc(fnNode->as.funcDef.paramCount, sizeof(Parameter));
-      if (!params) return ERR_SEM_OTHER;
+      if (params == NULL)
+        return ERR_INTERNAL;
 
+      // copy param names from astNode
       for (uint16_t p = 0; p < fnNode->as.funcDef.paramCount; p++) {
         params[p].name = strdup(fnNode->as.funcDef.params[p].name);
         params[p].type = fnNode->as.funcDef.params[p].type;
-        params[p].uid = 0;
+        params[p].uid = 0; // temporary value, will change in Main pass
       }
     }
 
