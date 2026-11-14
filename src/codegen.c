@@ -447,6 +447,12 @@ void cg_gen_program(const AstNode *root) {
 /// @author xsirmat00 from here
 /// -----------------------------------------------
 
+/**
+ * @brief Generates IFJcode26 instructions for an expression and pushes result
+ * onto data stack
+ *
+ * @param expr AST node representing the expression
+ */
 void cg_gen_expr(const AstNode *expr) {
   if (!expr) {
     return;
@@ -590,6 +596,14 @@ void cg_gen_expr(const AstNode *expr) {
   }
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for an if-else statement or
+ * expression
+ *
+ * @param ifNode AST node of type AST_IF
+ * @param isExprOrReturn True if result value must be left on the stack
+ * @param funcRetType Return type of enclosing function
+ */
 void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
                DataType funcRetType) {
   if (!ifNode) {
@@ -619,6 +633,12 @@ void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
   printf("LABEL $if_end_%u\n", labelId);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for a while loop
+ *
+ * @param whileNode AST node of type AST_WHILE
+ * @param funcRetType Return type of enclosing function
+ */
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
   if (!whileNode) {
     return;
@@ -642,6 +662,11 @@ void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
          labelId, labelId);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for built-in and user function calls
+ *
+ * @param callNode AST node of type AST_FUNC_CALL
+ */
 void cg_gen_call(const AstNode *callNode) {
   if (!callNode) {
     return;
@@ -653,20 +678,9 @@ void cg_gen_call(const AstNode *callNode) {
 
   // --- INLINE BUILT-IN FUNCTIONS ---
 
-  if (strcmp(name, "readLine") == 0) {
+  if (strcmp(name, "readString") == 0) {
     puts("READ GF@$tmp1 string\n"
          "PUSHS GF@$tmp1");
-    return;
-  }
-
-  if (strcmp(name, "readBoolean") == 0) {
-    uint32_t labelId = cg_next_label_id();
-    printf("READ GF@$tmp1 bool\n"
-           "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
-           "MOVE GF@$tmp1 bool@false\n"
-           "LABEL $readBool_ok_%u\n"
-           "PUSHS GF@$tmp1\n",
-           labelId, labelId);
     return;
   }
 
@@ -680,7 +694,17 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "strLength") == 0) {
+  if (strcmp(name, "toDouble") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      if (args[0]->evalType == T_INT) {
+        puts("INT2FLOATS");
+      }
+    }
+    return;
+  }
+
+  if (strcmp(name, "length") == 0) {
     if (argCount > 0) {
       cg_gen_expr(args[0]);
       puts("POPS GF@$tmp1\n"
@@ -698,46 +722,13 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "toStr") == 0) {
-    if (argCount > 0) {
-      cg_gen_expr(args[0]);
-      DataType argType = args[0]->evalType;
-
-      if (argType == T_INT) {
-        puts("POPS GF@$tmp1\n"
-             "INT2STR GF@$tmp1 GF@$tmp1\n"
-             "PUSHS GF@$tmp1");
-      } else if (argType == T_DOUBLE) {
-        puts("POPS GF@$tmp1\n"
-             "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
-             "PUSHS GF@$tmp1");
-      } else if (argType == T_BOOLEAN) {
-        uint32_t labelId = cg_next_label_id();
-        printf("PUSHS bool@true\n"
-               "JUMPIFNEQS $tostr_false_%u\n"
-               "PUSHS string@true\n"
-               "JUMP $tostr_end_%u\n"
-               "LABEL $tostr_false_%u\n"
-               "PUSHS string@false\n"
-               "LABEL $tostr_end_%u\n",
-               labelId, labelId, labelId, labelId);
-      } else if (argType == T_UNIT) {
-        puts("POPS GF@$tmp1\n"
-             "PUSHS string@()");
-      }
-    }
-    return;
-  }
-
-  if (strcmp(name, "print") == 0) {
-    if (argCount > 0) {
-      cg_gen_expr(args[0]);
+  if (strcmp(name, "write") == 0) {
+    for (size_t idx = 0; idx < argCount; idx++) {
+      cg_gen_expr(args[idx]);
       puts("POPS GF@$tmp1\n"
-           "WRITE GF@$tmp1\n"
-           "PUSHS nil@nil");
-    } else {
-      puts("PUSHS nil@nil");
+           "WRITE GF@$tmp1");
     }
+    puts("PUSHS nil@nil");
     return;
   }
 
@@ -754,24 +745,24 @@ void cg_gen_call(const AstNode *callNode) {
   }
 
   if (strcmp(name, "ord") == 0) {
-    for (size_t i = 0; i < argCount; i++) {
-      cg_gen_expr(args[i]);
+    for (size_t idx = 0; idx < argCount; idx++) {
+      cg_gen_expr(args[idx]);
     }
     puts("CALL $builtin_ord");
     return;
   }
 
-  if (strcmp(name, "substr") == 0) {
-    for (size_t i = 0; i < argCount; i++) {
-      cg_gen_expr(args[i]);
+  if (strcmp(name, "substring") == 0) {
+    for (size_t idx = 0; idx < argCount; idx++) {
+      cg_gen_expr(args[idx]);
     }
     puts("CALL $builtin_substr");
     return;
   }
 
   // --- USER-DEFINED FUNCTIONS ($func_...) ---
-  for (size_t i = 0; i < argCount; i++) {
-    cg_gen_expr(args[i]);
+  for (size_t idx = 0; idx < argCount; idx++) {
+    cg_gen_expr(args[idx]);
   }
   printf("CALL $func_%s\n", name);
 }
