@@ -9,6 +9,7 @@
 #include "test_precedence.h"
 #include "test_scanner.h"
 #include "test_stack.h"
+#include "test_semantic.h"
 
 #include <string.h>
 
@@ -23,5 +24,7 @@ int main(int argc, char **argv) {
   test_ast();
   test_precedence();
   test_parser();
+  test_semantic();
+
   return 0;
 }
