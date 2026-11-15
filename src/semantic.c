@@ -636,8 +636,10 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     return err;
   }
 
-  bool hasMain = false;
+  int mainCount = 0;
+  // loop through functions
   for (size_t idx = 0; idx < root->as.program.count; idx++) {
+
     AstNode *fnNode = root->as.program.functions[idx];
     if (fnNode->type != AST_FUNC_DEF) {
       return ERR_SEM_OTHER;
@@ -654,7 +656,7 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
            parIdx++) {
         params[parIdx].name = strdup(fnNode->as.funcDef.params[parIdx].name);
         params[parIdx].type = fnNode->as.funcDef.params[parIdx].type;
-        params[parIdx].uid = 0;
+        params[parIdx].uid = 0; // temporary
       }
     }
 
@@ -665,13 +667,24 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
       return ERR_SEM_REDEFINITION;
     }
 
-    if (fnNode->as.funcDef.isMain ||
-        strcmp(fnNode->as.funcDef.name, "main") == 0) {
-      hasMain = true;
+    if (fnNode->as.funcDef.isMain) {
+      mainCount++;
+
+      if (mainCount > 1) {
+        return ERR_SEM_REDEFINITION;
+      }
+
+      if (fnNode->as.funcDef.paramCount > 0){
+        return ERR_SEM_FUNCTION_PARAMS;
+      }
+
+      if (fnNode->as.funcDef.retType != T_UNIT){
+        return ERR_SEM_WRONG_TYPE;    
+      }
     }
   }
 
-  if (!hasMain) {
+  if (mainCount == 0) {
     return ERR_SEM_UNDEFINED_SYMBOL;
   }
 
