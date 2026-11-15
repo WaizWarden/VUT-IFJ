@@ -678,9 +678,20 @@ void cg_gen_call(const AstNode *callNode) {
 
   // --- INLINE BUILT-IN FUNCTIONS ---
 
-  if (strcmp(name, "readString") == 0) {
+  if (strcmp(name, "readLine") == 0) {
     puts("READ GF@$tmp1 string\n"
          "PUSHS GF@$tmp1");
+    return;
+  }
+
+  if (strcmp(name, "readBoolean") == 0) {
+    uint32_t labelId = cg_next_label_id();
+    printf("READ GF@$tmp1 bool\n"
+           "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
+           "MOVE GF@$tmp1 bool@false\n"
+           "LABEL $readBool_ok_%u\n"
+           "PUSHS GF@$tmp1\n",
+           labelId, labelId);
     return;
   }
 
@@ -694,17 +705,7 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "toDouble") == 0) {
-    if (argCount > 0) {
-      cg_gen_expr(args[0]);
-      if (args[0]->evalType == T_INT) {
-        puts("INT2FLOATS");
-      }
-    }
-    return;
-  }
-
-  if (strcmp(name, "length") == 0) {
+  if (strcmp(name, "strLength") == 0) {
     if (argCount > 0) {
       cg_gen_expr(args[0]);
       puts("POPS GF@$tmp1\n"
@@ -722,13 +723,46 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "write") == 0) {
-    for (size_t idx = 0; idx < argCount; idx++) {
-      cg_gen_expr(args[idx]);
-      puts("POPS GF@$tmp1\n"
-           "WRITE GF@$tmp1");
+  if (strcmp(name, "toStr") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      DataType argType = args[0]->evalType;
+
+      if (argType == T_INT) {
+        puts("POPS GF@$tmp1\n"
+             "INT2STR GF@$tmp1 GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
+      } else if (argType == T_DOUBLE) {
+        puts("POPS GF@$tmp1\n"
+             "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
+      } else if (argType == T_BOOLEAN) {
+        uint32_t labelId = cg_next_label_id();
+        printf("PUSHS bool@true\n"
+               "JUMPIFNEQS $tostr_false_%u\n"
+               "PUSHS string@true\n"
+               "JUMP $tostr_end_%u\n"
+               "LABEL $tostr_false_%u\n"
+               "PUSHS string@false\n"
+               "LABEL $tostr_end_%u\n",
+               labelId, labelId, labelId, labelId);
+      } else if (argType == T_UNIT) {
+        puts("POPS GF@$tmp1\n"
+             "PUSHS string@()");
+      }
     }
-    puts("PUSHS nil@nil");
+    return;
+  }
+
+  if (strcmp(name, "print") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      puts("POPS GF@$tmp1\n"
+           "WRITE GF@$tmp1\n"
+           "PUSHS nil@nil");
+    } else {
+      puts("PUSHS nil@nil");
+    }
     return;
   }
 
@@ -752,9 +786,9 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "substring") == 0) {
-    for (size_t idx = 0; idx < argCount; idx++) {
-      cg_gen_expr(args[idx]);
+  if (strcmp(name, "substr") == 0) {
+    for (size_t i = 0; i < argCount; i++) {
+      cg_gen_expr(args[i]);
     }
     puts("CALL $builtin_substr");
     return;
