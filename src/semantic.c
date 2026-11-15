@@ -143,50 +143,50 @@ static Parameter *create_builtin_params(size_t count, ...) {
  */
 static SemanticError register_builtins(Symtable *symtable) {
   if (!st_insert_func(symtable, "readString", T_STRING, NULL, 0, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
   if (!st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
   if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
-  Parameter *writeParams = create_builtin_params(1, T_ANY);
-  if (!st_insert_func(symtable, "write", T_UNIT, writeParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+  Parameter *printParams = create_builtin_params(1, T_ANY);
+  if (!st_insert_func(symtable, "print", T_UNIT, printParams, 1, false, true)) {
+    return ERR_INTERNAL;
   }
 
   Parameter *toIntParams = create_builtin_params(1, T_DOUBLE);
   if (!st_insert_func(symtable, "toInt", T_INT, toIntParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   Parameter *toDoubleParams = create_builtin_params(1, T_INT);
   if (!st_insert_func(symtable, "toDouble", T_DOUBLE, toDoubleParams, 1, false,
                       true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   Parameter *lenParams = create_builtin_params(1, T_STRING);
   if (!st_insert_func(symtable, "length", T_INT, lenParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   Parameter *subParams = create_builtin_params(3, T_STRING, T_INT, T_INT);
   if (!st_insert_func(symtable, "substring", T_STRING, subParams, 3, false,
                       true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   Parameter *ordParams = create_builtin_params(2, T_STRING, T_INT);
   if (!st_insert_func(symtable, "ord", T_INT, ordParams, 2, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   Parameter *chrParams = create_builtin_params(1, T_INT);
   if (!st_insert_func(symtable, "chr", T_STRING, chrParams, 1, false, true)) {
-    return ERR_SEM_OTHER;
+    return ERR_INTERNAL;
   }
 
   return ERR_SEM_OK;
@@ -255,7 +255,6 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
     }
 
     BinaryOperation operation = node->as.binary.operation;
-
     if (operation == OP_LT || operation == OP_LE || operation == OP_GT ||
         operation == OP_GE || operation == OP_EQ || operation == OP_NEQ) {
       if (leftT != rightT) {
@@ -265,6 +264,7 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         }
       }
       node->evalType = T_BOOLEAN;
+
     } else {
       if (leftT == T_STRING && rightT == T_STRING && operation == OP_ADD) {
         node->evalType = T_STRING;
@@ -296,15 +296,15 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
   }
 
   case AST_FUNC_CALL: {
+
+    // left side of =
     const char *funcName = node->as.funcCall.funcName;
     Symbol *funcSym = st_get(ctx->symtable, funcName);
     if (!funcSym || funcSym->type != ST_FUNC) {
       return ERR_SEM_UNDEFINED_SYMBOL;
     }
 
-    bool isWrite = (strcmp(funcName, "write") == 0);
-    if (!isWrite &&
-        node->as.funcCall.argCount != funcSym->data.func.paramCount) {
+    if (node->as.funcCall.argCount != funcSym->data.func.paramCount) {
       return ERR_SEM_FUNCTION_PARAMS;
     }
 
@@ -315,7 +315,7 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         return err;
       }
 
-      if (!isWrite) {
+
         DataType paramT = funcSym->data.func.parameters[idx].type;
         if (paramT != T_ANY && argT != paramT) {
           if (paramT == T_DOUBLE && argT == T_INT) {
@@ -324,7 +324,6 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
           } else {
             return ERR_SEM_FUNCTION_PARAMS;
           }
-        }
       }
     }
 
@@ -494,7 +493,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       return ERR_SEM_UNDEFINED_SYMBOL;
     }
     if (!sym->data.var.modifiable) {
-      return ERR_SEM_OTHER;
+      return ERR_SEM_IMMUTABLE;
     }
 
     DataType valT = T_UNIT;
