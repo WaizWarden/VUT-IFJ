@@ -142,48 +142,62 @@ static Parameter *create_builtin_params(size_t count, ...) {
  * @return ERR_SEM_OK on success or error code
  */
 static SemanticError register_builtins(Symtable *symtable) {
-  if (!st_insert_func(symtable, "readString", T_STRING, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }
-  if (!st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }
-  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }
 
+  //  print(value: Any): Unit
   Parameter *printParams = create_builtin_params(1, T_ANY);
   if (!st_insert_func(symtable, "print", T_UNIT, printParams, 1, false, true)) {
     return ERR_INTERNAL;
   }
 
+  // readLine(): String
+  if (!st_insert_func(symtable, "readLine", T_STRING, NULL, 0, false, true)) {
+    return ERR_INTERNAL;
+  }
+
+  // readInt(): Int
+  if (!st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true)) {
+    return ERR_INTERNAL;
+  }
+
+  // readDouble(): Double
+  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
+    return ERR_INTERNAL;
+  }
+
+  // toStr(value: Any): String
+  Parameter *toStrParams = create_builtin_params(1, T_ANY);
+  if (!st_insert_func(symtable, "toStr", T_STRING, toStrParams, 1, false,
+                      true)) {
+    return ERR_INTERNAL;
+  }
+
+  // toInt(value: Double): Int
   Parameter *toIntParams = create_builtin_params(1, T_DOUBLE);
   if (!st_insert_func(symtable, "toInt", T_INT, toIntParams, 1, false, true)) {
     return ERR_INTERNAL;
   }
 
-  Parameter *toDoubleParams = create_builtin_params(1, T_INT);
-  if (!st_insert_func(symtable, "toDouble", T_DOUBLE, toDoubleParams, 1, false,
-                      true)) {
-    return ERR_INTERNAL;
-  }
-
+  // strLength(value: String): Int
   Parameter *lenParams = create_builtin_params(1, T_STRING);
-  if (!st_insert_func(symtable, "length", T_INT, lenParams, 1, false, true)) {
-    return ERR_INTERNAL;
-  }
-
-  Parameter *subParams = create_builtin_params(3, T_STRING, T_INT, T_INT);
-  if (!st_insert_func(symtable, "substring", T_STRING, subParams, 3, false,
+  if (!st_insert_func(symtable, "strLength", T_INT, lenParams, 1, false,
                       true)) {
     return ERR_INTERNAL;
   }
 
+  // subStr(value: String, start: Int, end: Int): String
+  Parameter *subParams = create_builtin_params(3, T_STRING, T_INT, T_INT);
+  if (!st_insert_func(symtable, "subStr", T_STRING, subParams, 3, false,
+                      true)) {
+    return ERR_INTERNAL;
+  }
+
+  // ord(value: String, index: Int): Int
   Parameter *ordParams = create_builtin_params(2, T_STRING, T_INT);
   if (!st_insert_func(symtable, "ord", T_INT, ordParams, 2, false, true)) {
     return ERR_INTERNAL;
   }
 
+  // chr(code: Int): String
   Parameter *chrParams = create_builtin_params(1, T_INT);
   if (!st_insert_func(symtable, "chr", T_STRING, chrParams, 1, false, true)) {
     return ERR_INTERNAL;
@@ -264,7 +278,6 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         }
       }
       node->evalType = T_BOOLEAN;
-
     } else {
       if (leftT == T_STRING && rightT == T_STRING && operation == OP_ADD) {
         node->evalType = T_STRING;
@@ -315,15 +328,14 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         return err;
       }
 
-
-        DataType paramT = funcSym->data.func.parameters[idx].type;
-        if (paramT != T_ANY && argT != paramT) {
-          if (paramT == T_DOUBLE && argT == T_INT) {
-            node->as.funcCall.args[idx] =
-                promote_int_to_double(node->as.funcCall.args[idx]);
-          } else {
-            return ERR_SEM_FUNCTION_PARAMS;
-          }
+      DataType paramT = funcSym->data.func.parameters[idx].type;
+      if (paramT != T_ANY && argT != paramT) {
+        if (paramT == T_DOUBLE && argT == T_INT) {
+          node->as.funcCall.args[idx] =
+              promote_int_to_double(node->as.funcCall.args[idx]);
+        } else {
+          return ERR_SEM_FUNCTION_PARAMS;
+        }
       }
     }
 
@@ -583,14 +595,14 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
 
     if (ctx->currentRetType == T_UNIT) {
       if (node->as.ret.expr != NULL && exprT != T_UNIT) {
-        return ERR_SEM_FUNCTION_PARAMS;
+        return ERR_SEM_WRONG_TYPE;
       }
     } else if (ctx->currentRetType != exprT) {
       if (ctx->currentRetType == T_DOUBLE && exprT == T_INT &&
           node->as.ret.expr != NULL) {
         node->as.ret.expr = promote_int_to_double(node->as.ret.expr);
       } else {
-        return ERR_SEM_FUNCTION_PARAMS;
+        return ERR_SEM_WRONG_TYPE;
       }
     }
     node->evalType = exprT;
@@ -635,7 +647,7 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     if (fnNode->as.funcDef.paramCount > 0) {
       params = calloc(fnNode->as.funcDef.paramCount, sizeof(Parameter));
       if (!params) {
-        return ERR_SEM_OTHER;
+        return ERR_INTERNAL;
       }
 
       for (uint16_t parIdx = 0; parIdx < fnNode->as.funcDef.paramCount;

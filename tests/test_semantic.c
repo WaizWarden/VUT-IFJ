@@ -128,4 +128,3 @@ void test_semantic(void) {
   test_readonly_variable_assign();
   printf("Semantic tests completed\n");
 }
-

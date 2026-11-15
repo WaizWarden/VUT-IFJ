@@ -8,8 +8,8 @@
 #include "test_parser.h"
 #include "test_precedence.h"
 #include "test_scanner.h"
-#include "test_stack.h"
 #include "test_semantic.h"
+#include "test_stack.h"
 
 #include <string.h>
 
