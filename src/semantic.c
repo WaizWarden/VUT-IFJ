@@ -586,6 +586,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
 
   case AST_RETURN: {
     DataType exprT = T_UNIT;
+
     if (node->as.ret.expr) {
       err = analyze_expr(ctx, node->as.ret.expr, &exprT);
       if (err != ERR_SEM_OK) {
@@ -593,18 +594,20 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
       }
     }
 
-    if (ctx->currentRetType == T_UNIT) {
-      if (node->as.ret.expr != NULL && exprT != T_UNIT) {
+    if (ctx->currentRetType != T_UNIT) {
+      if (!node->as.ret.expr) {
         return ERR_SEM_WRONG_TYPE;
       }
-    } else if (ctx->currentRetType != exprT) {
-      if (ctx->currentRetType == T_DOUBLE && exprT == T_INT &&
-          node->as.ret.expr != NULL) {
-        node->as.ret.expr = promote_int_to_double(node->as.ret.expr);
-      } else {
-        return ERR_SEM_WRONG_TYPE;
+
+      if (ctx->currentRetType != exprT) {
+        if (ctx->currentRetType == T_DOUBLE && exprT == T_INT) {
+          node->as.ret.expr = promote_int_to_double(node->as.ret.expr);
+        } else {
+          return ERR_SEM_WRONG_TYPE;
+        }
       }
     }
+
     node->evalType = exprT;
     break;
   }
@@ -674,12 +677,12 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
         return ERR_SEM_REDEFINITION;
       }
 
-      if (fnNode->as.funcDef.paramCount > 0){
+      if (fnNode->as.funcDef.paramCount > 0) {
         return ERR_SEM_FUNCTION_PARAMS;
       }
 
-      if (fnNode->as.funcDef.retType != T_UNIT){
-        return ERR_SEM_WRONG_TYPE;    
+      if (fnNode->as.funcDef.retType != T_UNIT) {
+        return ERR_SEM_WRONG_TYPE;
       }
     }
   }
