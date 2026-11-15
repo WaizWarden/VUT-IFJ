@@ -294,12 +294,17 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   switch (stmt->type) {
 
   case AST_VAR_DECL: // var / val ...
-    cg_gen_expr(stmt->as.varDecl.initExpr);
+    if (stmt->as.varDecl.initExpr) {
+      cg_gen_expr(stmt->as.varDecl.initExpr);
 
-    if (stmt->as.varDecl.hasDeclaredType &&
-        stmt->as.varDecl.declaredType == T_DOUBLE &&
-        stmt->as.varDecl.initExpr->evalType == T_INT) {
-      puts("INT2FLOATS");
+      if (stmt->as.varDecl.hasDeclaredType &&
+          stmt->as.varDecl.declaredType == T_DOUBLE &&
+          stmt->as.varDecl.initExpr->evalType == T_INT) {
+        puts("INT2FLOATS");
+      }
+    } else {
+      // Uninitialized variables receive the nil value
+      puts("PUSHS nil@nil");
     }
 
     // save stack top to var (declared by prepass of var declarations)
@@ -444,8 +449,7 @@ void cg_gen_program(const AstNode *root) {
   }
 }
 
-/// @author xsirmat00 from here
-/// -----------------------------------------------
+/// @author xsirmat00 from here with fixes by xoramst00 ------------------------
 
 /**
  * @brief Generates IFJcode26 instructions for an expression and pushes result
