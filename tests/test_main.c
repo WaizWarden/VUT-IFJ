@@ -25,6 +25,5 @@ int main(int argc, char **argv) {
   test_precedence();
   test_parser();
   test_semantic();
-
   return 0;
 }
