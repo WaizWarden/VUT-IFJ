@@ -20,6 +20,7 @@ typedef enum {
   SYM_EQ_NEQ,     // == !=
   SYM_AND,        // &&
   SYM_OR,         // ||
+  SYM_DOT,        // . member access
   SYM_LPAREN,
   SYM_RPAREN,
   SYM_TERM,
