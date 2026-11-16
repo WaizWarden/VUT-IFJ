@@ -790,7 +790,7 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "substr") == 0) {
+  if (strcmp(name, "subStr") == 0) {
     for (size_t i = 0; i < argCount; i++) {
       cg_gen_expr(args[i]);
     }
