@@ -54,15 +54,41 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
                   DataType funcRetType);
 
 /// @author xsirmat00 from here
-/// @todo add function descriptions -----
 
+/**
+ * @brief Generates IFJcode26 instructions for an expression and pushes the
+ * result onto the data stack
+ *
+ * @param expr AST node representing the expression
+ */
 void cg_gen_expr(const AstNode *expr);
 
+/**
+ * @brief Generates IFJcode26 instructions for an if-else statement or
+ * expression
+ *
+ * @param ifNode AST node of type AST_IF
+ * @param isExprOrReturn True if the evaluated branch value must remain on the
+ * stack
+ * @param funcRetType Return type of the enclosing function
+ */
 void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
                DataType funcRetType);
 
+/**
+ * @brief Generates IFJcode26 instructions for a while loop
+ *
+ * @param whileNode AST node of type AST_WHILE
+ * @param funcRetType Return type of the enclosing function
+ */
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType);
 
+/**
+ * @brief Generates IFJcode26 instructions for built-in and user-defined
+ * function calls
+ *
+ * @param callNode AST node of type AST_FUNC_CALL
+ */
 void cg_gen_call(const AstNode *callNode);
 
-#endif
+#endif // CODEGEN_H

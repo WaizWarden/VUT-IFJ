@@ -294,12 +294,17 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   switch (stmt->type) {
 
   case AST_VAR_DECL: // var / val ...
-    cg_gen_expr(stmt->as.varDecl.initExpr);
+    if (stmt->as.varDecl.initExpr) {
+      cg_gen_expr(stmt->as.varDecl.initExpr);
 
-    if (stmt->as.varDecl.hasDeclaredType &&
-        stmt->as.varDecl.declaredType == T_DOUBLE &&
-        stmt->as.varDecl.initExpr->evalType == T_INT) {
-      puts("INT2FLOATS");
+      if (stmt->as.varDecl.hasDeclaredType &&
+          stmt->as.varDecl.declaredType == T_DOUBLE &&
+          stmt->as.varDecl.initExpr->evalType == T_INT) {
+        puts("INT2FLOATS");
+      }
+    } else {
+      // Uninitialized variables receive the nil value
+      puts("PUSHS nil@nil");
     }
 
     // save stack top to var (declared by prepass of var declarations)
@@ -444,9 +449,14 @@ void cg_gen_program(const AstNode *root) {
   }
 }
 
-/// @author xsirmat00 from here
-/// -----------------------------------------------
+/// @author xsirmat00 from here with fixes by xoramst00 ------------------------
 
+/**
+ * @brief Generates IFJcode26 instructions for an expression and pushes result
+ * onto data stack
+ *
+ * @param expr AST node representing the expression
+ */
 void cg_gen_expr(const AstNode *expr) {
   if (!expr) {
     return;
@@ -590,6 +600,14 @@ void cg_gen_expr(const AstNode *expr) {
   }
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for an if-else statement or
+ * expression
+ *
+ * @param ifNode AST node of type AST_IF
+ * @param isExprOrReturn True if result value must be left on the stack
+ * @param funcRetType Return type of enclosing function
+ */
 void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
                DataType funcRetType) {
   if (!ifNode) {
@@ -619,6 +637,12 @@ void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
   printf("LABEL $if_end_%u\n", labelId);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for a while loop
+ *
+ * @param whileNode AST node of type AST_WHILE
+ * @param funcRetType Return type of enclosing function
+ */
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
   if (!whileNode) {
     return;
@@ -642,6 +666,11 @@ void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
          labelId, labelId);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for built-in and user function calls
+ *
+ * @param callNode AST node of type AST_FUNC_CALL
+ */
 void cg_gen_call(const AstNode *callNode) {
   if (!callNode) {
     return;
@@ -754,8 +783,8 @@ void cg_gen_call(const AstNode *callNode) {
   }
 
   if (strcmp(name, "ord") == 0) {
-    for (size_t i = 0; i < argCount; i++) {
-      cg_gen_expr(args[i]);
+    for (size_t idx = 0; idx < argCount; idx++) {
+      cg_gen_expr(args[idx]);
     }
     puts("CALL $builtin_ord");
     return;
@@ -770,8 +799,8 @@ void cg_gen_call(const AstNode *callNode) {
   }
 
   // --- USER-DEFINED FUNCTIONS ($func_...) ---
-  for (size_t i = 0; i < argCount; i++) {
-    cg_gen_expr(args[i]);
+  for (size_t idx = 0; idx < argCount; idx++) {
+    cg_gen_expr(args[idx]);
   }
   printf("CALL $func_%s\n", name);
 }
