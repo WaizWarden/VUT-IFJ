@@ -24,6 +24,7 @@ static int calculateIndent(FILE *input, int *error);
 static int next_char(FILE *input);
 static void put_back(int currentChar, FILE *input);
 static void handle_eof(Token *token);
+static Token scan_string(FILE *input);
 
 // States in scanner
 typedef enum {
@@ -45,11 +46,11 @@ typedef struct {
 } KeywordEntry;
 
 KeywordEntry keywordTable[] = {
-    {"Double", KW_DOUBLE}, {"Int", KW_INT},       {"String", KW_STRING},
-    {"val", KW_VAL},       {"var", KW_VAR},       {"if", KW_IF},
-    {"else", KW_ELSE},     {"then", KW_THEN},     {"while", KW_WHILE},
-    {"do", KW_DO},         {"import", KW_IMPORT}, {"Unit", KW_UNIT},
-    {"def", KW_DEF},       {"return", KW_RETURN}, {"for", KW_FOR},
+    {"Double", KW_DOUBLE},   {"Int", KW_INT},       {"String", KW_STRING},
+    {"val", KW_VAL},         {"var", KW_VAR},       {"if", KW_IF},
+    {"else", KW_ELSE},       {"then", KW_THEN},     {"while", KW_WHILE},
+    {"do", KW_DO},           {"import", KW_IMPORT}, {"Unit", KW_UNIT},
+    {"def", KW_DEF},         {"return", KW_RETURN}, {"for", KW_FOR},
     {"Boolean", KW_BOOLEAN},
 };
 //  End of AI usage
@@ -159,7 +160,7 @@ Token get_token(FILE *input) {
 
   while (true) {
 
-    // realloc test
+    // realloc
     if (len + REALLOC_CONST >= capcaity) {
       char *tmp = realloc(str, capcaity * 2);
       if (tmp == NULL) {
@@ -176,7 +177,6 @@ Token get_token(FILE *input) {
     }
 
     currentChar = next_char(input);
-
     switch (state) {
 
     case S_START:
@@ -192,7 +192,6 @@ Token get_token(FILE *input) {
           token.type = TOKEN_NEWLINE;
           goto return_token;
         }
-
         break;
       }
 
@@ -416,118 +415,15 @@ Token get_token(FILE *input) {
       }
 
       if (currentChar == '"') {
-        state = S_STRING;
-        break;
+        token = scan_string(input);
+        if (token.type == TOKEN_ERROR) {
+          goto return_error;
+        }
+        goto return_token;
       }
 
       fprintf(stderr, "Unknown character '%c' \n", currentChar);
       goto return_error;
-
-    case S_STRING:
-
-      if (currentChar == '\n') {
-        fprintf(stderr,
-                "Scanner error: %d, \\n detected in single line string\n",
-                SCANNER_ERROR);
-
-        goto return_error;
-      }
-
-      else if (currentChar == EOF) {
-        fprintf(stderr, "Scanner error: %d, Invalid EOF single line string\n",
-                SCANNER_ERROR);
-        goto return_error;
-      }
-
-      // escape chars
-      else if (currentChar == '\\') {
-        // put_back not needed
-        int next = next_char(input);
-
-        if (next == 'n') {
-          str[len] = '\n';
-        }
-
-        else if (next == '\\') {
-          str[len] = '\\';
-        }
-
-        else if (next == '"') {
-          str[len] = '\"';
-        }
-
-        else if (next == 't') {
-          str[len] = '\t';
-        }
-
-        else if (next == 'r') {
-          str[len] = '\r';
-        }
-
-        else {
-          fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
-                  SCANNER_ERROR);
-          goto return_error;
-        }
-
-        len++;
-        continue;
-      }
-
-      // string end / move to multi-line string
-      else if (currentChar == '"') {
-
-        // third "
-        int next = next_char(input);
-        if (next == '"') {
-          state = S_MULTI_LINE_STRING;
-        } else {
-
-          put_back(next, input);
-          token.type = TOKEN_STRING;
-          str[len] = '\0';
-          token.value.string = strdup(str);
-          goto return_token;
-        }
-      }
-
-      // Write string to arr
-      else {
-        str[len] = (char)currentChar;
-        len++;
-      }
-
-      break;
-
-    case S_MULTI_LINE_STRING:
-      if (currentChar == EOF) {
-        fprintf(stderr, "Scanner error: %d, Invalid EOF in multi-line string\n",
-                SCANNER_ERROR);
-        goto return_error;
-      }
-
-      else if (currentChar == '"') {
-        int next1 = next_char(input);
-        int next2 = next_char(input);
-
-        if (next1 == '"' && next2 == '"') {
-          str[len] = '\0';
-          token.type = TOKEN_STRING;
-          token.value.string = strdup(str);
-          goto return_token;
-        }
-        put_back(next2, input);
-        put_back(next1, input);
-
-        str[len] = (char)currentChar;
-        len++;
-      } else {
-
-        str[len] = (char)currentChar;
-        len++;
-      }
-
-      break;
 
     case S_INT:
 
@@ -749,13 +645,12 @@ Token get_token(FILE *input) {
             token.value.boolean = true;
             goto return_token;
           }
-            
+
           if (strcmp(str, "false") == 0) {
-              token.type = TOKEN_BOOL;
-              token.value.boolean = false;
-              goto return_token;
+            token.type = TOKEN_BOOL;
+            token.value.boolean = false;
+            goto return_token;
           }
-          
 
           token.type = TOKEN_IDENTIFIER;
           token.value.identifier = strdup(str);
@@ -783,6 +678,146 @@ return_error:
   token.type = TOKEN_ERROR;
   token.line = tokenLine;
   return token;
+}
+/**
+ * @brief Helper function that scans through single and multi line strings
+ *
+ * @param[in, out] input - input to stream of chars from stdin
+ * @return String token ready to be sent to parser
+ */
+static Token scan_string(FILE *input) {
+  Token token = {.type = TOKEN_ERROR};
+
+  // handle malloc
+  char *str = malloc(INITIAL_STR_LEN);
+  size_t capacity = INITIAL_STR_LEN;
+  size_t len = 0;
+  if (str == NULL) {
+    fprintf(stderr, "Lexer error: %d, scan_string malloc failed\n",
+            INTERPRET_ERROR);
+    return token;
+  }
+
+  bool multiLineString = false;
+  int currentChar = next_char(input);
+
+  // check multi-line string
+  // multi-line string can start only at start not in middle
+  int next = next_char(input);
+
+  if (currentChar == '"' && next == '"') {
+    multiLineString = true;
+    currentChar = next_char(input);
+  } else {
+    put_back(next, input);
+  }
+
+  while (true) {
+
+    if (currentChar == EOF) {
+      fprintf(stderr, "Scanner error: %d, Invalid EOF in string_scan()\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+
+    if (len + 2 >= capacity) {
+      char *tmp = realloc(str, capacity * 2);
+      if (tmp == NULL) {
+        fprintf(stderr, "Scanner error: %d, realloc failed\n", INTERPRET_ERROR);
+        free(str);
+        return token;
+      }
+      str = tmp;
+      capacity *= 2;
+    }
+
+    if (multiLineString) {
+      if (currentChar == '"') {
+        int next1 = next_char(input);
+        int next2 = next_char(input);
+
+        if (next1 == '"' && next2 == '"') {
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+
+          free(str);
+          return token;
+        }
+        put_back(next2, input);
+        put_back(next1, input);
+
+        str[len] = (char)currentChar;
+        len++;
+      } else {
+        str[len] = (char)currentChar;
+        len++;
+      }
+    } else {
+
+      if (currentChar == '\n') {
+        fprintf(stderr,
+                "Scanner error: %d, \\n detected in single line string\n",
+                SCANNER_ERROR);
+
+        free(str);
+        return token;
+      }
+
+      // Single-line string can contain escape characters as two chars
+      if (currentChar == '\\') {
+        // put_back not needed
+        int next = next_char(input);
+
+        if (next == 'n') {
+          str[len] = '\n';
+        }
+
+        else if (next == '\\') {
+          str[len] = '\\';
+        }
+
+        else if (next == '"') {
+          str[len] = '\"';
+        }
+
+        else if (next == 't') {
+          str[len] = '\t';
+        }
+
+        else if (next == 'r') {
+          str[len] = '\r';
+        }
+
+        else {
+          fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
+                  SCANNER_ERROR);
+          free(str);
+          return token;
+        }
+
+        len++;
+      }
+
+      // end of string
+      else if (currentChar == '"') {
+        str[len] = '\0';
+        token.type = TOKEN_STRING;
+        token.value.string = strdup(str);
+
+        free(str);
+        return token;
+      }
+
+      // Add char to array
+      else {
+        str[len] = (char)currentChar;
+        len++;
+      }
+    }
+    currentChar = next_char(input);
+  }
 }
 
 /**
@@ -816,7 +851,7 @@ static bool number_token_end(int currentChar) {
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
        currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
-       currentChar == ',' || currentChar == '|'|| currentChar == '&' || 
+       currentChar == ',' || currentChar == '|' || currentChar == '&' ||
        currentChar == EOF);
 
   return (bool)result;
