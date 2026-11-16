@@ -683,8 +683,13 @@ void cg_gen_call(const AstNode *callNode) {
   // --- INLINE BUILT-IN FUNCTIONS ---
 
   if (strcmp(name, "readLine") == 0) {
-    puts("READ GF@$tmp1 string\n"
-         "PUSHS GF@$tmp1");
+    uint32_t labelId = cg_next_label_id();
+    printf("READ GF@$tmp1 string\n"
+           "JUMPIFNEQ $readLine_ok_%u GF@$tmp1 nil@nil\n"
+           "MOVE GF@$tmp1 string@\n"
+           "LABEL $readLine_ok_%u\n"
+           "PUSHS GF@$tmp1\n",
+           labelId, labelId);
     return;
   }
 
@@ -761,9 +766,15 @@ void cg_gen_call(const AstNode *callNode) {
   if (strcmp(name, "print") == 0) {
     if (argCount > 0) {
       cg_gen_expr(args[0]);
-      puts("POPS GF@$tmp1\n"
-           "WRITE GF@$tmp1\n"
-           "PUSHS nil@nil");
+      if (args[0]->evalType == T_UNIT) {
+        puts("POPS GF@$tmp1\n"
+             "WRITE string@()\n"
+             "PUSHS nil@nil");
+      } else {
+        puts("POPS GF@$tmp1\n"
+             "WRITE GF@$tmp1\n"
+             "PUSHS nil@nil");
+      }
     } else {
       puts("PUSHS nil@nil");
     }
