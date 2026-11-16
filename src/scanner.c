@@ -298,6 +298,9 @@ Token get_token(FILE *input) {
         if (next == '=') {
           token.type = TOKEN_LOWER_EQ;
           goto return_token;
+        } else if (next == '-') {
+          token.type = TOKEN_LARROW;
+          goto return_token;
         }
         put_back(next, input);
         token.type = TOKEN_LOWER;
@@ -373,6 +376,28 @@ Token get_token(FILE *input) {
         }
 
         break;
+      }
+
+      if (currentChar == '&') {
+        int next = next_char(input);
+
+        if (next == '&') {
+          token.type = TOKEN_AND;
+          goto return_token;
+        }
+        fprintf(stderr, "Scanner error: %d, invalid char &\n", SCANNER_ERROR);
+        goto return_error;
+      }
+
+      if (currentChar == '|') {
+        int next = next_char(input);
+
+        if (next == '|') {
+          token.type = TOKEN_AND;
+          goto return_token;
+        }
+        fprintf(stderr, "Scanner error: %d, invalid char |\n", SCANNER_ERROR);
+        goto return_error;
       }
 
       if (isalpha(currentChar) || currentChar == '_') {
@@ -732,6 +757,7 @@ Token get_token(FILE *input) {
       goto return_error;
     }
   }
+
 return_token:
   free(str);
   token.line = tokenLine;
