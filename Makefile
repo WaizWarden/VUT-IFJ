@@ -35,3 +35,17 @@ tidy:
 
 pdf:
 	pandoc documentation/documentation.md -o documentation/documentation.pdf --pdf-engine=weasyprint --css=documentation/styles.css
+
+export: pdf
+	rm -rf result
+	rm -f export.zip
+	mkdir result
+	cp documentation/dokumentace.pdf result/
+	cp -r src result/
+	cp -r tests result/
+	cp -r Makefile result/
+	cp -r rozdeleni result/
+	cp rozsireni result/
+	cd result && zip -r ../export.zip .
+	rm -rf result
+	./is_it_ok.sh export.zip
