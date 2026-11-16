@@ -49,8 +49,8 @@ KeywordEntry keywordTable[] = {
     {"val", KW_VAL},       {"var", KW_VAR},       {"if", KW_IF},
     {"else", KW_ELSE},     {"then", KW_THEN},     {"while", KW_WHILE},
     {"do", KW_DO},         {"import", KW_IMPORT}, {"Unit", KW_UNIT},
-    {"def", KW_DEF},       {"return", KW_RETURN},
-
+    {"def", KW_DEF},       {"return", KW_RETURN}, {"for", KW_FOR},
+    {"Boolean", KW_BOOLEAN},
 };
 //  End of AI usage
 
@@ -393,7 +393,7 @@ Token get_token(FILE *input) {
         int next = next_char(input);
 
         if (next == '|') {
-          token.type = TOKEN_AND;
+          token.type = TOKEN_OR;
           goto return_token;
         }
         fprintf(stderr, "Scanner error: %d, invalid char |\n", SCANNER_ERROR);
@@ -743,6 +743,20 @@ Token get_token(FILE *input) {
                     SCANNER_ERROR);
             goto return_error;
           }
+
+          if (strcmp(str, "true") == 0) {
+            token.type = TOKEN_BOOL;
+            token.value.boolean = true;
+            goto return_token;
+          }
+            
+          if (strcmp(str, "false") == 0) {
+              token.type = TOKEN_BOOL;
+              token.value.boolean = false;
+              goto return_token;
+          }
+          
+
           token.type = TOKEN_IDENTIFIER;
           token.value.identifier = strdup(str);
         }
@@ -802,7 +816,8 @@ static bool number_token_end(int currentChar) {
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
        currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
-       currentChar == ',' || currentChar == EOF);
+       currentChar == ',' || currentChar == '|'|| currentChar == '&' || 
+       currentChar == EOF);
 
   return (bool)result;
 }
