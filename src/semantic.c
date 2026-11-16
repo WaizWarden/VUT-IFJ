@@ -226,10 +226,7 @@ static SemanticError register_builtins(Symtable *symtable) {
 static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
                                   DataType *outType) {
   if (!node) {
-    *outType = T_  // readDouble(): Double
-  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }UNIT;
+    *outType = T_UNIT;
     return ERR_SEM_OK;
   }
 
