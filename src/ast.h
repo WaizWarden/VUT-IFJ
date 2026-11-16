@@ -123,7 +123,7 @@ typedef struct AstNode {
       struct AstNode *from;
       struct AstNode *to;
       struct AstNode *step; // NULL = 1
-      bool inclusive;
+      bool inclusive;       // true = to, false = until
       struct AstNode **guards;
       size_t guardCount;
       struct AstNode *body;

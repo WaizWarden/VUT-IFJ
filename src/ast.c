@@ -494,7 +494,7 @@ AstNode *ast_new_return(AstNode *expr, int line) {
  * @param from
  * @param toExpr
  * @param step NULL = default step 1
- * @param inclusive false = to (exclusive), true = until (inclusive)
+ * @param inclusive true = to (right bound included), false = until (excluded)
  * @param guards
  * @param guardCount
  * @param body
