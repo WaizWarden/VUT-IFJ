@@ -204,6 +204,14 @@ static SemanticError register_builtins(Symtable *symtable) {
     return ERR_INTERNAL;
   }
 
+  // Extensions
+
+  // readBoolean(): Boolean
+  if (!st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false, true)) {
+    return ERR_INTERNAL;
+  }
+
+
   return ERR_SEM_OK;
 }
 
@@ -218,7 +226,10 @@ static SemanticError register_builtins(Symtable *symtable) {
 static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
                                   DataType *outType) {
   if (!node) {
-    *outType = T_UNIT;
+    *outType = T_  // readDouble(): Double
+  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
+    return ERR_INTERNAL;
+  }UNIT;
     return ERR_SEM_OK;
   }
 
