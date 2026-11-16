@@ -388,7 +388,7 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
 
 /// @brief Generate tail statement from non-block body
 /// @param node ast subNode
-/// @param funcRetType 
+/// @param funcRetType
 static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   if (!node) {
     return;
@@ -397,8 +397,7 @@ static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   switch (node->type) {
   case AST_EXPR_STATEMENT:
     cg_gen_expr(node->as.exprStatement.expr);
-    cg_adjust_return_value(node->as.exprStatement.expr->evalType,
-                           funcRetType);
+    cg_adjust_return_value(node->as.exprStatement.expr->evalType, funcRetType);
     break;
 
   case AST_IF:

@@ -207,10 +207,10 @@ static SemanticError register_builtins(Symtable *symtable) {
   // Extensions
 
   // readBoolean(): Boolean
-  if (!st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false, true)) {
+  if (!st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false,
+                      true)) {
     return ERR_INTERNAL;
   }
-
 
   return ERR_SEM_OK;
 }
