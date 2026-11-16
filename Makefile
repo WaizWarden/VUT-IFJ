@@ -36,6 +36,9 @@ tidy:
 pdf:
 	pandoc documentation/documentation.md -o documentation/documentation.pdf --pdf-engine=weasyprint --css=documentation/styles.css
 
+e2e: build
+	bash tests/e2e/tests.sh
+
 export: pdf
 	rm -rf result
 	rm -f export.zip
