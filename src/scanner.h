@@ -48,6 +48,7 @@ typedef enum {
   TOKEN_OR,
   TOKEN_LARROW,
   TOKEN_BOOL,
+  TOKEN_SKIP, /** Never gets to parser */
 
 } TokenType;
 
