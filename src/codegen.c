@@ -222,7 +222,26 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     cg_gen_vars_prepass(node->as.ret.expr);
     break;
 
-  default: // literals, function calls and othes do not require a pass
+  case AST_EXPR_STATEMENT:
+    cg_gen_vars_prepass(node->as.exprStatement.expr);
+    break;
+
+  case AST_BINARY:
+    cg_gen_vars_prepass(node->as.binary.left);
+    cg_gen_vars_prepass(node->as.binary.right);
+    break;
+
+  case AST_UNARY:
+    cg_gen_vars_prepass(node->as.unary.operand);
+    break;
+
+  case AST_FUNC_CALL:
+    for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
+      cg_gen_vars_prepass(node->as.funcCall.args[i]);
+    }
+    break;
+
+  default: // literals and identifiers do not require a pass
     break;
   }
 }
