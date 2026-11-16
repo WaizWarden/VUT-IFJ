@@ -3,6 +3,7 @@
  * @author  xjuricl01
  * @brief   Scanner header file
  */
+#include <stdbool.h>
 #include <stdio.h>
 
 typedef enum {
@@ -43,6 +44,11 @@ typedef enum {
   TOKEN_AT, // @
   TOKEN_COMMA,
 
+  TOKEN_AND,
+  TOKEN_OR,
+  TOKEN_LARROW,
+  TOKEN_BOOL,
+
 } TokenType;
 
 /**
@@ -63,6 +69,8 @@ typedef enum {
   KW_DEF,
   KW_UNIT,
   KW_RETURN,
+  KW_BOOLEAN,
+  KW_FOR,
 } Keyword;
 
 /**
@@ -74,7 +82,7 @@ typedef union {
   double numberDouble;
   char *string;
   char *identifier;
-
+  bool boolean;
 } TokenValue;
 
 /**

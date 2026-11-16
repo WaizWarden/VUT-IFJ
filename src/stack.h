@@ -15,8 +15,11 @@ typedef enum {
   SYM_PLUS_MINUS, // + -
   SYM_MUL_DIV,    // * /
   SYM_UMINUS,     // unární -
+  SYM_NOT,        // unární ! - negace
   SYM_REL,        // < <= > >=
   SYM_EQ_NEQ,     // == !=
+  SYM_AND,        // &&
+  SYM_OR,         // ||
   SYM_LPAREN,
   SYM_RPAREN,
   SYM_TERM,
