@@ -7,6 +7,7 @@
 #include "ast.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define INTERPRET_ERROR 99
 
@@ -526,6 +527,45 @@ AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
   node->as.funcCall.argCount = argCount;
 
   return node;
+}
+
+/**
+ * @brief Desugars member access `receiver.member` into a builtin call
+ *
+ * @param receiver
+ * @param memberName
+ * @param line
+ * @return AstNode* AST_FUNC_CALL node
+ */
+AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line) {
+  static const struct {
+    const char *member;
+    const char *builtin;
+  } memberMap[] = {{"toString", "toStr"},
+                   {"toInt", "toInt"},
+                   {"floor", "floor"},
+                   {"length", "strLength"}};
+
+  char *callName = memberName;
+
+  for (size_t i = 0; i < sizeof(memberMap) / sizeof(memberMap[0]); i++) {
+    if (strcmp(memberName, memberMap[i].member) == 0) {
+      callName = strdup(memberMap[i].builtin);
+      free(memberName);
+      if (callName == NULL) {
+        exit(INTERPRET_ERROR);
+      }
+      break;
+    }
+  }
+
+  AstNode **args = malloc(sizeof(*args));
+  if (args == NULL) {
+    exit(INTERPRET_ERROR);
+  }
+  args[0] = receiver;
+
+  return ast_new_func_call(callName, args, 1, line);
 }
 
 /**

@@ -565,11 +565,24 @@ static AstNode **parse_call_arguments(size_t *outCount) {
       exit(99);
     }
 
+    // Moving on next token
+    advance();
+
+    // VALMEM: member access chain `arg.id` desugars to a builtin call
+    while (pToken.type == TOKEN_DOT) {
+      advance();
+      if (pToken.type != TOKEN_IDENTIFIER) {
+        exit(2);
+      }
+      argument =
+          ast_new_member_call(argument, strdup(pToken.value.identifier),
+                              pToken.line);
+      advance();
+    }
+
     // Assigning the argument to the arguments array
     arguments[count] = argument;
     count++;
-    // Moving on next token
-    advance();
 
     // Reallocating if the arguments array is full
     if (accept_type(TOKEN_COMMA)) {

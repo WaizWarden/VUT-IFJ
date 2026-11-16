@@ -516,7 +516,7 @@ static void test_syntax_errors(void) {
 
   assert_parser_exit("import ifj26.*\n"
                      "def broken(): Int =\n"
-                     "    if 1 < 2 then\n"
+                     "    if 1 < 2\n"
                      "        return 1\n",
                      2);
 

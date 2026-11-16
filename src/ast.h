@@ -173,6 +173,8 @@ AstNode *ast_new_for(char *varName, AstNode *from, AstNode *toExpr,
 AstNode *ast_new_return(AstNode *expr, int line);
 AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
                            int line);
+
+AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line);
 AstNode *ast_new_expr_statement(AstNode *expr, int line);
 AstNode *ast_new_string(char *value, int line); // steals `value`
 AstNode *ast_new_bool(bool value, int line);
