@@ -502,9 +502,8 @@ AstNode *ast_new_return(AstNode *expr, int line) {
  * @return AstNode*
  */
 AstNode *ast_new_for(char *varName, AstNode *from, AstNode *toExpr,
-                     AstNode *step,
-                     bool inclusive, AstNode **guards, size_t guardCount,
-                     AstNode *body, int line) {
+                     AstNode *step, bool inclusive, AstNode **guards,
+                     size_t guardCount, AstNode *body, int line) {
   AstNode *node = ast_allocate(AST_FOR, line);
   node->as.forStatement.varName = varName;
   node->as.forStatement.varUid = 0;

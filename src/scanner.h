@@ -3,8 +3,8 @@
  * @author  xjuricl01
  * @brief   Scanner header file
  */
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef enum {
   TOKEN_IDENTIFIER, /** Uses strdup() - muse use free() ; Stored data in
