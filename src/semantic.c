@@ -1,6 +1,6 @@
 /**
  * @file    semantic.c
- * @author  xsirmat00
+ * @author  xsirmat00 xjuricl01
  * @brief   Implementation of semantic analysis
  */
 
@@ -35,6 +35,7 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
                                   DataType *outType);
 static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
                                         bool isFuncBody, DataType expectedRet);
+static bool always_returns(AstNode *node);
 
 /**
  * @brief Wraps an Int AST expression node in `expr + 0.0` so codegen emits
@@ -362,38 +363,55 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
  */
 static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
                                         bool isFuncBody, DataType expectedRet) {
+
+  // empty function
   if (!body) {
+    // def f(): T_UNIT
     if (isFuncBody && expectedRet != T_UNIT) {
-      return ERR_SEM_FUNCTION_PARAMS;
+      return ERR_SEM_WRONG_TYPE;
     }
     return ERR_SEM_OK;
   }
 
+  // one line function
   if (body->type != AST_BLOCK) {
     SemanticError err = analyze_node(ctx, body);
     if (err != ERR_SEM_OK) {
       return err;
     }
-    if (isFuncBody && expectedRet != T_UNIT && body->type != AST_RETURN) {
+
+    // body ends with value, check its type
+    if (isFuncBody && expectedRet != T_UNIT && body->type != AST_RETURN &&
+        !always_returns(body)) {
+
       AstNode *exprNode = (body->type == AST_EXPR_STATEMENT)
                               ? body->as.exprStatement.expr
-                              : body;
+                              : body; // def f(): INT = while ...? in one line
+
       DataType actualRet = exprNode->evalType;
+      if (body->type == AST_VAR_DECL || body->type == AST_ASSIGN ||
+          body->type == AST_WHILE || body->type == AST_IF) {
+        actualRet = T_UNIT;
+      }
+
       if (actualRet != expectedRet) {
         if (expectedRet == T_DOUBLE && actualRet == T_INT &&
             body->type == AST_EXPR_STATEMENT) {
+
           body->as.exprStatement.expr = promote_int_to_double(exprNode);
         } else {
-          return ERR_SEM_FUNCTION_PARAMS;
+
+          return ERR_SEM_WRONG_TYPE;
         }
       }
     }
     return ERR_SEM_OK;
   }
 
+  // inside if, else ...
   if (!isFuncBody) {
     if (!st_push_scope(ctx->symtable)) {
-      return ERR_SEM_OTHER;
+      return ERR_INTERNAL;
     }
     ctx->scopeDepth++;
   }
@@ -413,20 +431,31 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
 
   if (isFuncBody && expectedRet != T_UNIT) {
     if (body->as.block.count == 0) {
-      return ERR_SEM_FUNCTION_PARAMS;
+      return ERR_SEM_WRONG_TYPE;
     }
+
+    // body ends with value, check its type
     AstNode *last = body->as.block.stmts[body->as.block.count - 1];
-    if (last->type != AST_RETURN) {
-      AstNode *exprNode = (last->type == AST_EXPR_STATEMENT)
-                              ? last->as.exprStatement.expr
-                              : last;
-      DataType lastType = exprNode->evalType;
-      if (lastType != expectedRet) {
-        if (expectedRet == T_DOUBLE && lastType == T_INT &&
+    if (last->type != AST_RETURN && !always_returns(last)) {
+
+      AstNode *exprNode =
+          (last->type == AST_EXPR_STATEMENT)
+              ? last->as.exprStatement.expr // y*2
+              : last; // for example x = 5, usually ends like T_UNIT
+
+      // from specification: these things should return as T_UNIT
+      DataType actualRet = exprNode->evalType;
+      if (last->type == AST_VAR_DECL || last->type == AST_ASSIGN ||
+          last->type == AST_WHILE || last->type == AST_IF) {
+        actualRet = T_UNIT;
+      }
+
+      if (actualRet != expectedRet) {
+        if (expectedRet == T_DOUBLE && actualRet == T_INT &&
             last->type == AST_EXPR_STATEMENT) {
           last->as.exprStatement.expr = promote_int_to_double(exprNode);
         } else {
-          return ERR_SEM_FUNCTION_PARAMS;
+          return ERR_SEM_WRONG_TYPE;
         }
       }
     }
@@ -745,4 +774,33 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
 
   free(ctx.uidStack);
   return ERR_SEM_OK;
+}
+
+/**
+ * @brief Helper function that checks if all branches end with return statement
+ */
+static bool always_returns(AstNode *node) {
+  if (!node) {
+    return false;
+  }
+
+  switch (node->type) {
+
+  case AST_RETURN:
+    return true;
+
+  case AST_BLOCK:
+    if (node->as.block.count == 0) {
+      return true;
+    }
+    return always_returns(node->as.block.stmts[node->as.block.count - 1]);
+
+  case AST_IF:
+    bool result = always_returns(node->as.ifStatement.thenBlock) &&
+                  always_returns(node->as.ifStatement.elseBlock);
+    return result;
+
+  default:
+    return false;
+  }
 }
