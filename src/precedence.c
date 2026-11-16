@@ -9,6 +9,7 @@
 #include "hashtable.h"
 #include "stack.h"
 #include <stdlib.h>
+#include <string.h>
 #define PRECEDENCE_TERMINAL_COUNT 12
 
 /*
@@ -107,7 +108,16 @@ PrecedenceRelation precedence_get_relation(PrecSymbol stackSymbol,
 }
 
 static PrecSymbol convert_token_to_symbol(const Token *token,
-                                          PrecSymbol prevSymbol) {
+                                          PrecSymbol prevSymbol,
+                                          const char *const *stopIdents) {
+  if (token->type == TOKEN_IDENTIFIER && stopIdents != NULL) {
+    for (size_t i = 0; stopIdents[i] != NULL; i++) {
+      if (strcmp(token->value.identifier, stopIdents[i]) == 0) {
+        return SYM_DOLLAR;
+      }
+    }
+  }
+
   switch (token->type) {
   case TOKEN_PLUS:
     return SYM_PLUS_MINUS;
@@ -147,7 +157,9 @@ static PrecSymbol convert_token_to_symbol(const Token *token,
   case TOKEN_DEDENT:
     return SYM_DOLLAR;
   case TOKEN_KEYWORD:
-    if (token->value.keyword == KW_THEN || token->value.keyword == KW_DO) {
+    if (token->value.keyword == KW_THEN || token->value.keyword == KW_DO ||
+        token->value.keyword == KW_ELSE || token->value.keyword == KW_IF ||
+        token->value.keyword == KW_FOR) {
       return SYM_DOLLAR;
     }
     exit(2);
@@ -332,7 +344,8 @@ static void precedence_free_stack(void) {
 }
 
 AstNode *precedence_parse(FILE *input, Token *currentToken,
-                          AstNode *firstOperand) {
+                          AstNode *firstOperand,
+                          const char *const stopIdents[]) {
   stack_init();
 
   StackItem bot;
@@ -348,7 +361,8 @@ AstNode *precedence_parse(FILE *input, Token *currentToken,
     prevSymbol = SYM_TERM;
   }
 
-  PrecSymbol inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
+  PrecSymbol inputSymbol =
+      convert_token_to_symbol(currentToken, prevSymbol, stopIdents);
 
   while (1) {
     if (inputSymbol == SYM_DOLLAR && stack_size() == 2 &&
@@ -370,7 +384,8 @@ AstNode *precedence_parse(FILE *input, Token *currentToken,
       stack_push(stack_item_create(currentToken, inputSymbol));
       prevSymbol = inputSymbol;
       *currentToken = get_token(input);
-      inputSymbol = convert_token_to_symbol(currentToken, prevSymbol);
+      inputSymbol =
+          convert_token_to_symbol(currentToken, prevSymbol, stopIdents);
       break;
     case PRECEDENCE_GREATER:
       if (precedence_simplify() != 0) {

@@ -230,7 +230,7 @@ static AstNode *parse_while(void) {
   // Checking if the keyword is "while"
   expect_keyword(KW_WHILE);
 
-  AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+  AstNode *condition = precedence_parse(pInput, &pToken, NULL, NULL);
   if (condition == NULL) {
     exit(2);
   }
@@ -254,7 +254,7 @@ static AstNode *parse_if(void) {
   int line = pToken.line;
   expect_keyword(KW_IF);
 
-  AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+  AstNode *condition = precedence_parse(pInput, &pToken, NULL, NULL);
   if (condition == NULL) {
     exit(2);
   }
@@ -315,7 +315,7 @@ static AstNode *parse_id_stmt(void) {
 
   // Expression statement starting with identifier: x - 8
   AstNode *first = ast_new_identifier(name, line);
-  AstNode *expr = precedence_parse(pInput, &pToken, first);
+  AstNode *expr = precedence_parse(pInput, &pToken, first, NULL);
   if (expr == NULL) {
     exit(2);
   }
@@ -458,7 +458,7 @@ static AstNode **parse_call_arguments(size_t *outCount) {
 static AstNode *parse_expr_or_call(void) {
   if (pToken.type != TOKEN_IDENTIFIER) {
     // If the token is not a identifier, then just call the precedence parser
-    AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+    AstNode *expression = precedence_parse(pInput, &pToken, NULL, NULL);
 
     if (expression == NULL) {
       exit(2);
@@ -478,7 +478,7 @@ static AstNode *parse_expr_or_call(void) {
   if (pToken.type != TOKEN_OPENING_BRACKET) {
     // Expression is in format of = x-1...
     AstNode *first = ast_new_identifier(name, line);
-    AstNode *expr = precedence_parse(pInput, &pToken, first);
+    AstNode *expr = precedence_parse(pInput, &pToken, first, NULL);
     if (expr == NULL) {
       exit(2);
     }
@@ -522,7 +522,7 @@ static AstNode *parse_statement(void) {
     return parse_id_stmt();
   default: {
     int line = pToken.line;
-    AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+    AstNode *expression = precedence_parse(pInput, &pToken, NULL, NULL);
     if (expression == NULL) {
       exit(2);
     }
