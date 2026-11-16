@@ -367,6 +367,43 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   }
 }
 
+/// @brief Generate tail statement from non-block body
+/// @param node ast subNode
+/// @param funcRetType 
+static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
+  if (!node) {
+    return;
+  }
+
+  switch (node->type) {
+  case AST_EXPR_STATEMENT:
+    cg_gen_expr(node->as.exprStatement.expr);
+    cg_adjust_return_value(node->as.exprStatement.expr->evalType,
+                           funcRetType);
+    break;
+
+  case AST_IF:
+    cg_gen_if(node, true, funcRetType);
+    break;
+
+  case AST_VAR_DECL:
+  case AST_ASSIGN:
+  case AST_WHILE:
+    cg_gen_statement(node, funcRetType);
+    puts("PUSHS nil@nil");
+    break;
+
+  case AST_RETURN:
+    cg_gen_statement(node, funcRetType);
+    break;
+
+  default:
+    cg_gen_expr(node);
+    cg_adjust_return_value(node->evalType, funcRetType);
+    break;
+  }
+}
+
 void cg_gen_block(const AstNode *block, bool isLastInFunc,
                   DataType funcRetType) {
   if (!block) {
@@ -374,13 +411,8 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
   }
 
   if (block->type != AST_BLOCK) {
-    const AstNode *expr =
-        (block->type == AST_EXPR_STATEMENT)
-            ? block->as.exprStatement.expr // get internal expression
-            : block;
     if (isLastInFunc) {
-      cg_gen_expr(expr);
-      cg_adjust_return_value(expr->evalType, funcRetType);
+      cg_gen_tail(block, funcRetType);
     } else {
       cg_gen_statement(block, funcRetType);
     }
@@ -407,32 +439,7 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
   }
 
   // end of a function body
-  switch (last->type) {
-  case AST_EXPR_STATEMENT:
-    cg_gen_expr(last->as.exprStatement.expr);
-    cg_adjust_return_value(last->as.exprStatement.expr->evalType, funcRetType);
-    break;
-
-  case AST_IF:
-    cg_gen_if(last, true, funcRetType);
-    break;
-
-  case AST_VAR_DECL:
-  case AST_ASSIGN:
-  case AST_WHILE: // retunr nil@nil
-    cg_gen_statement(last, funcRetType);
-    puts("PUSHS nil@nil");
-    break;
-
-  case AST_RETURN:
-    cg_gen_statement(last, funcRetType);
-    break;
-
-  default:
-    cg_gen_expr(last);
-    cg_adjust_return_value(last->evalType, funcRetType);
-    break;
-  }
+  cg_gen_tail(last, funcRetType);
 }
 
 void cg_gen_program(const AstNode *root) {
@@ -501,6 +508,10 @@ void cg_gen_expr(const AstNode *expr) {
 
   case AST_FUNC_CALL:
     cg_gen_call(expr);
+    break;
+
+  case AST_IF:
+    cg_gen_if(expr, true, expr->evalType);
     break;
 
   case AST_UNARY: {
