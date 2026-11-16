@@ -4,6 +4,7 @@
  * @brief   Scanner header file
  */
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef enum {
   TOKEN_IDENTIFIER, /** Uses strdup() - muse use free() ; Stored data in
@@ -68,6 +69,8 @@ typedef enum {
   KW_DEF,
   KW_UNIT,
   KW_RETURN,
+  KW_BOOLEAN,
+  KW_FOR,
 } Keyword;
 
 /**
@@ -79,7 +82,7 @@ typedef union {
   double numberDouble;
   char *string;
   char *identifier;
-
+  bool boolean;
 } TokenValue;
 
 /**
