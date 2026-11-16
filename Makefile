@@ -34,21 +34,23 @@ tidy:
 	clang-tidy $(ALL_SRCS) -- $(CFLAGS)
 
 pdf:
-	pandoc documentation/documentation.md -o documentation/documentation.pdf --pdf-engine=weasyprint --css=documentation/styles.css
+	pandoc documentation/documentation.md -o documentation/dokumentace.pdf --pdf-engine=weasyprint --css=documentation/styles.css
 
 e2e: build
 	bash tests/e2e/tests.sh
 
 export: pdf
 	rm -rf result
-	rm -f export.zip
+	rm -f xjuricl01.zip
 	mkdir result
 	cp documentation/dokumentace.pdf result/
 	cp -r src result/
 	cp -r tests result/
+	rm -f result/tests/e2e/ic26int-linux-x86_64
+	rm -rf result/tests/e2e/tmp
 	cp -r Makefile result/
 	cp -r rozdeleni result/
 	cp rozsireni result/
-	cd result && zip -r ../export.zip .
+	cd result && zip -r ../xjuricl01.zip .
 	rm -rf result
-	./is_it_ok.sh export.zip
+	./is_it_ok.sh xjuricl01.zip
