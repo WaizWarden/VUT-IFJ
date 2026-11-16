@@ -9,56 +9,82 @@
 #include "hashtable.h"
 #include "stack.h"
 #include <stdlib.h>
-#define PRECEDENCE_TERMINAL_COUNT 9
+#define PRECEDENCE_TERMINAL_COUNT 12
 
 /*
- * Precedence table from IFJ 8 lecture extended with unary minus,
- * relational and equality operators are non-associative and mutually
- * exclusive
+ * Precedence table from IFJ 8 lecture extended with unary minus and
+ * logical operators (! && ||). Relational and equality operators are
+ * non-associative and mutually exclusive.
+ * Priorities (highest first): u-, ! then *, / then +, - then rel
+ * then ==, != then && then ||
  */
 /**
  * @brief Precedence table, row = topmost terminal on the stack,
  *        column = input terminal. Order matches PrecSymbol:
- *        +-  * /  u-  rel  ==!=  (  )  i  $
+ *        +-  * /  u-  !  rel  ==!=  &&  ||  (  )  i  $
  */
 static const PrecedenceRelation
     precedenceTable[PRECEDENCE_TERMINAL_COUNT][PRECEDENCE_TERMINAL_COUNT] = {
         // +-
         {PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
          PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
          PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
         // * /
         {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
          PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
          PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
         // u-
         {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        // !
+        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
          PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
          PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
         // rel
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY,
-         PRECEDENCE_EMPTY, PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_EMPTY, PRECEDENCE_EMPTY,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
         // ==!=
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY,
-         PRECEDENCE_EMPTY, PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_EMPTY, PRECEDENCE_EMPTY,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        // &&
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        // ||
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
         // (
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EQUAL, PRECEDENCE_LESS,
-         PRECEDENCE_EMPTY},
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_EQUAL, PRECEDENCE_LESS, PRECEDENCE_EMPTY},
         // )
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
+        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
          PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
          PRECEDENCE_GREATER, PRECEDENCE_EMPTY, PRECEDENCE_GREATER},
         // i
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
+        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
+         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
          PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
          PRECEDENCE_GREATER, PRECEDENCE_EMPTY, PRECEDENCE_GREATER},
         // $
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY, PRECEDENCE_LESS,
-         PRECEDENCE_EMPTY}};
+        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
+         PRECEDENCE_EMPTY, PRECEDENCE_LESS, PRECEDENCE_EMPTY}};
 
 /**
  * @brief
@@ -101,6 +127,12 @@ static PrecSymbol convert_token_to_symbol(const Token *token,
   case TOKEN_EQ:
   case TOKEN_NOT_EQ:
     return SYM_EQ_NEQ;
+  case TOKEN_AND:
+    return SYM_AND;
+  case TOKEN_OR:
+    return SYM_OR;
+  case TOKEN_NOT:
+    return SYM_NOT;
   case TOKEN_OPENING_BRACKET:
     return SYM_LPAREN;
   case TOKEN_CLOSING_BRACKET:
@@ -109,6 +141,7 @@ static PrecSymbol convert_token_to_symbol(const Token *token,
   case TOKEN_DOUBLE:
   case TOKEN_STRING:
   case TOKEN_IDENTIFIER:
+  case TOKEN_BOOL:
     return SYM_TERM;
   case TOKEN_EOF:
   case TOKEN_NEWLINE:
@@ -145,6 +178,9 @@ static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
     break;
   case TOKEN_STRING:
     item.node = ast_new_string(token->value.string, 0);
+    break;
+  case TOKEN_BOOL:
+    item.node = ast_new_bool(token->value.boolean, 0);
     break;
   default:
     break;
@@ -205,7 +241,8 @@ static int precedence_simplify(void) {
   if (cnt == 3 && handle[0].symbol == SYM_NONTERM &&
       handle[2].symbol == SYM_NONTERM &&
       (handle[1].symbol == SYM_PLUS_MINUS || handle[1].symbol == SYM_MUL_DIV ||
-       handle[1].symbol == SYM_REL || handle[1].symbol == SYM_EQ_NEQ)) {
+       handle[1].symbol == SYM_REL || handle[1].symbol == SYM_EQ_NEQ ||
+       handle[1].symbol == SYM_AND || handle[1].symbol == SYM_OR)) {
     BinaryOperation operation;
 
     switch (handle[1].token) {
@@ -239,6 +276,12 @@ static int precedence_simplify(void) {
     case TOKEN_NOT_EQ:
       operation = OP_NEQ;
       break;
+    case TOKEN_AND:
+      operation = OP_AND;
+      break;
+    case TOKEN_OR:
+      operation = OP_OR;
+      break;
     default:
       exit(99);
     }
@@ -256,6 +299,13 @@ static int precedence_simplify(void) {
   if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
       handle[1].symbol == SYM_UMINUS) {
     push_nonterm(ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
+    return 0;
+  }
+
+  // Converting ! E to E
+  if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
+      handle[1].symbol == SYM_NOT) {
+    push_nonterm(ast_new_unary(OP_UNARY_NOT, handle[0].node, 0));
     return 0;
   }
 
