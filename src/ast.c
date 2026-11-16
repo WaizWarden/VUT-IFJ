@@ -196,6 +196,19 @@ void ast_free(AstNode *node) {
   case AST_LITERAL_STRING:
     free(node->as.stringValue);
     break;
+  case AST_FOR:
+    free(node->as.forStatement.varName);
+    ast_free(node->as.forStatement.from);
+    ast_free(node->as.forStatement.to);
+    ast_free(node->as.forStatement.step);
+
+    for (size_t i = 0; i < node->as.forStatement.guardCount; i++) {
+      ast_free(node->as.forStatement.guards[i]);
+    }
+
+    free((void *)node->as.forStatement.guards);
+    ast_free(node->as.forStatement.body);
+    break;
   default:
     // If literals -> nothing to free
     break;
@@ -299,6 +312,19 @@ void ast_print(const AstNode *node, int indent) {
     break;
   case AST_LITERAL_UNIT:
     printf("Literal Unit ()\n");
+    break;
+  case AST_FOR:
+    printf("For %s inclusive=%d guards=%zu\n", node->as.forStatement.varName,
+           (int)node->as.forStatement.inclusive,
+           node->as.forStatement.guardCount);
+    ast_print(node->as.forStatement.from, indent + 1);
+    ast_print(node->as.forStatement.to, indent + 1);
+    ast_print(node->as.forStatement.step, indent + 1);
+    for (size_t i = 0; i < node->as.forStatement.guardCount; i++) {
+      ast_print(node->as.forStatement.guards[i], indent + 1);
+    }
+
+    ast_print(node->as.forStatement.body, indent + 1);
     break;
   }
 }
@@ -460,6 +486,38 @@ AstNode *ast_new_return(AstNode *expr, int line) {
  * @param line
  * @return AstNode*
  */
+
+/**
+ * @brief Creates a new node for for loop
+ *
+ * @param varName
+ * @param from
+ * @param to
+ * @param step NULL = default step 1
+ * @param inclusive false = to (exclusive), true = until (inclusive)
+ * @param guards
+ * @param guardCount
+ * @param body
+ * @param line
+ * @return AstNode*
+ */
+AstNode *ast_new_for(char *varName, AstNode *from, AstNode *to, AstNode *step,
+                     bool inclusive, AstNode **guards, size_t guardCount,
+                     AstNode *body, int line) {
+  AstNode *node = ast_allocate(AST_FOR, line);
+  node->as.forStatement.varName = varName;
+  node->as.forStatement.varUid = 0;
+  node->as.forStatement.from = from;
+  node->as.forStatement.to = to;
+  node->as.forStatement.step = step;
+  node->as.forStatement.inclusive = inclusive;
+  node->as.forStatement.guards = guards;
+  node->as.forStatement.guardCount = guardCount;
+  node->as.forStatement.body = body;
+
+  return node;
+}
+
 AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
                            int line) {
   AstNode *node = ast_allocate(AST_FUNC_CALL, line);
