@@ -574,9 +574,8 @@ static AstNode **parse_call_arguments(size_t *outCount) {
       if (pToken.type != TOKEN_IDENTIFIER) {
         exit(2);
       }
-      argument =
-          ast_new_member_call(argument, strdup(pToken.value.identifier),
-                              pToken.line);
+      argument = ast_new_member_call(argument, strdup(pToken.value.identifier),
+                                     pToken.line);
       advance();
     }
 

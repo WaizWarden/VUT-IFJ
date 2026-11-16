@@ -67,8 +67,8 @@ static const PrecedenceRelation
         // ||
         {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
          PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_GREATER,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_GREATER,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER},
+         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
+         PRECEDENCE_GREATER},
         // .   (member access: '<' only for the identifier operand,
         //      '>' reduces E.i once the right operand is formed)
         {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
@@ -324,8 +324,7 @@ static int precedence_simplify(void) {
   // Converting E . i to E (member access, VALMEM desugar)
   if (cnt == 3 && handle[0].symbol == SYM_NONTERM &&
       handle[1].symbol == SYM_DOT && handle[2].symbol == SYM_NONTERM) {
-    if (handle[0].node == NULL ||
-        handle[0].node->type != AST_IDENTIFIER) {
+    if (handle[0].node == NULL || handle[0].node->type != AST_IDENTIFIER) {
       goto syntax_error;
     }
 

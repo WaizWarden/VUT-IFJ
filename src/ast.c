@@ -559,7 +559,7 @@ AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line) {
     }
   }
 
-  AstNode **args = malloc(sizeof(*args));
+  AstNode **args = (AstNode **)malloc(sizeof(*args));
   if (args == NULL) {
     exit(INTERPRET_ERROR);
   }
