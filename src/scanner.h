@@ -43,6 +43,11 @@ typedef enum {
   TOKEN_AT, // @
   TOKEN_COMMA,
 
+  TOKEN_AND,
+  TOKEN_OR,
+  TOKEN_LARROW,
+  TOKEN_BOOL,
+
 } TokenType;
 
 /**
