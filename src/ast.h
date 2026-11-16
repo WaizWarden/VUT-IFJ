@@ -148,10 +148,10 @@ typedef struct AstNode {
 /**
  * @brief Creates a binary operation node (takes ownership of children)
  */
-AstNode *ast_new_binary(BinaryOperation op, AstNode *left, AstNode *right,
-                        int line);
+AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
+                        AstNode *right, int line);
 
-AstNode *ast_new_unary(UnaryOperation op, AstNode *operand, int line);
+AstNode *ast_new_unary(UnaryOperation operation, AstNode *operand, int line);
 AstNode *ast_new_int(int value, int line);
 AstNode *ast_new_double(double value, int line);
 AstNode *ast_new_identifier(char *name, int line); // steals `name`
@@ -167,9 +167,9 @@ AstNode *ast_new_var_decl(char *name, bool isModifiable, DataType declaredType,
 AstNode *ast_new_if(AstNode *cond, AstNode *thenBlock, AstNode *elseBlock,
                     int line);
 AstNode *ast_new_while(AstNode *cond, AstNode *bodyBlock, int line);
-AstNode *ast_new_for(char *varName, AstNode *from, AstNode *to, AstNode *step,
-                     bool inclusive, AstNode **guards, size_t guardCount,
-                     AstNode *body, int line);
+AstNode *ast_new_for(char *varName, AstNode *from, AstNode *toExpr,
+                     AstNode *step, bool inclusive, AstNode **guards,
+                     size_t guardCount, AstNode *body, int line);
 AstNode *ast_new_return(AstNode *expr, int line);
 AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
                            int line);

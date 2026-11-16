@@ -55,16 +55,16 @@ AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
 
 /**
  * @brief Creates a new unary operation AST node
- * @param UnaryOperation op
+ * @param UnaryOperation operation
  * @param AstNode *operand
  * @param int line
  *
  * @returns pointer to AstNode
  */
-AstNode *ast_new_unary(UnaryOperation op, AstNode *operand, int line) {
+AstNode *ast_new_unary(UnaryOperation operation, AstNode *operand, int line) {
   AstNode *node = ast_allocate(AST_UNARY, line);
 
-  node->as.unary.op = op;
+  node->as.unary.op = operation;
   node->as.unary.operand = operand;
 
   return node;
@@ -492,7 +492,7 @@ AstNode *ast_new_return(AstNode *expr, int line) {
  *
  * @param varName
  * @param from
- * @param to
+ * @param toExpr
  * @param step NULL = default step 1
  * @param inclusive false = to (exclusive), true = until (inclusive)
  * @param guards
@@ -501,14 +501,15 @@ AstNode *ast_new_return(AstNode *expr, int line) {
  * @param line
  * @return AstNode*
  */
-AstNode *ast_new_for(char *varName, AstNode *from, AstNode *to, AstNode *step,
+AstNode *ast_new_for(char *varName, AstNode *from, AstNode *toExpr,
+                     AstNode *step,
                      bool inclusive, AstNode **guards, size_t guardCount,
                      AstNode *body, int line) {
   AstNode *node = ast_allocate(AST_FOR, line);
   node->as.forStatement.varName = varName;
   node->as.forStatement.varUid = 0;
   node->as.forStatement.from = from;
-  node->as.forStatement.to = to;
+  node->as.forStatement.to = toExpr;
   node->as.forStatement.step = step;
   node->as.forStatement.inclusive = inclusive;
   node->as.forStatement.guards = guards;
