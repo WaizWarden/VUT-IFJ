@@ -138,6 +138,9 @@ static DataType check_type(void) {
   case KW_UNIT:
     advance();
     return T_UNIT;
+  case KW_BOOLEAN:
+    advance();
+    return T_BOOLEAN;
   default:
     exit(2);
   }
@@ -217,6 +220,7 @@ static Parameter *parse_params(uint16_t *outCount) {
 }
 
 static AstNode *parse_block(void);
+static AstNode *parse_statement(void);
 
 /**
  * @brief Parses the while loop
@@ -246,11 +250,29 @@ static AstNode *parse_while(void) {
 }
 
 /**
- * @brief Parser of the if block
+ * @brief Parses one branch body of if/else: an indented block
+ *        (NEWLINE INDENT block DEDENT) or a single-line statement.
  *
+ * @return AstNode* block or single statement node
+ */
+static AstNode *parse_if_body(void) {
+  if (pToken.type == TOKEN_NEWLINE) {
+    advance();
+    expect_type(TOKEN_INDENT);
+    AstNode *block = parse_block();
+    expect_type(TOKEN_DEDENT);
+    return block;
+  }
+  return parse_statement();
+}
+
+/**
+ * @brief Parser of the if statement / if expression
+ *
+ * @param elseRequired true when used as an expression (else is mandatory)
  * @return AstNode*
  */
-static AstNode *parse_if(void) {
+static AstNode *parse_if(bool elseRequired) {
   int line = pToken.line;
   expect_keyword(KW_IF);
 
@@ -260,20 +282,22 @@ static AstNode *parse_if(void) {
   }
 
   expect_keyword(KW_THEN);
-  expect_type(TOKEN_NEWLINE);
-  expect_type(TOKEN_INDENT);
+  AstNode *thenBlock = parse_if_body();
 
-  AstNode *block = parse_block();
+  AstNode *elseBlock = NULL;
+  if (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_ELSE) {
+    advance();
+    if (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_IF) {
+      // else if -> desugared to a nested if in the else branch
+      elseBlock = parse_if(elseRequired);
+    } else {
+      elseBlock = parse_if_body();
+    }
+  } else if (elseRequired) {
+    exit(2);
+  }
 
-  expect_type(TOKEN_DEDENT);
-  expect_keyword(KW_ELSE);
-
-  expect_type(TOKEN_NEWLINE);
-  expect_type(TOKEN_INDENT);
-  AstNode *elseBlock = parse_block();
-  expect_type(TOKEN_DEDENT);
-
-  return ast_new_if(condition, block, elseBlock, line);
+  return ast_new_if(condition, thenBlock, elseBlock, line);
 }
 static AstNode *parse_expr_or_call(void);
 static AstNode **parse_call_arguments(size_t *outCount);
@@ -414,6 +438,9 @@ static AstNode **parse_call_arguments(size_t *outCount) {
     case TOKEN_STRING:
       argument = ast_new_string(strdup(pToken.value.string), pToken.line);
       break;
+    case TOKEN_BOOL:
+      argument = ast_new_bool(pToken.value.boolean, pToken.line);
+      break;
     default:
       exit(2);
     }
@@ -456,6 +483,11 @@ static AstNode **parse_call_arguments(size_t *outCount) {
  * @return AstNode*
  */
 static AstNode *parse_expr_or_call(void) {
+  // CONTROL: if used as an expression (else branch is mandatory)
+  if (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_IF) {
+    return parse_if(true);
+  }
+
   if (pToken.type != TOKEN_IDENTIFIER) {
     // If the token is not a identifier, then just call the precedence parser
     AstNode *expression = precedence_parse(pInput, &pToken, NULL, NULL);
@@ -509,7 +541,7 @@ static AstNode *parse_statement(void) {
     case KW_VAR:
       return parse_var_decl();
     case KW_IF:
-      return parse_if();
+      return parse_if(false);
     case KW_WHILE:
       return parse_while();
     case KW_RETURN:
