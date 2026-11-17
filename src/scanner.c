@@ -18,9 +18,17 @@
 #define SCANNER_ERROR 1
 #define INTERPRET_ERROR 99
 
+typedef enum {
+  INDENT_OK,
+  INDENT_NEW_LINE,
+  INDENT_EOF,
+  INDENT_ERROR,
+} IndentResult;
+
 static int is_keyword(char *str);
 static bool number_token_end(int currentChar);
-static int calculateIndent(FILE *input, int *error);
+static IndentResult calculate_indent(FILE *input, int *spaces);
+static TokenType resolve_indent(int spaces);
 static int next_char(FILE *input);
 static void put_back(int currentChar, FILE *input);
 static void handle_eof(Token *token);
@@ -74,10 +82,10 @@ Token get_token(FILE *input) {
   int tokenLine = currentLine;
   int currentChar;
 
+  // malloc logic
   char *str = malloc(INITIAL_STR_LEN);
   size_t capcaity = INITIAL_STR_LEN;
   size_t len = 0;
-
   if (str == NULL) {
     token.type = TOKEN_ERROR;
     fprintf(stderr, "Lexer error: %d, str malloc failed\n", INTERPRET_ERROR);
@@ -101,65 +109,42 @@ Token get_token(FILE *input) {
     goto return_token;
   }
 
-  // indent calculation
-  int error = 0;
-  bool atLineStart = lineStart && bracketDepth == 0; // NOLINT
-  int spaces = calculateIndent(input, &error);
-  tokenLine = currentLine;
+  // line start
+  if (lineStart && bracketDepth == 0) {
+    int spaces = 0;
+    IndentResult result = calculate_indent(input, &spaces);
 
-  if (spaces == -1) {
-    if (error == -1) {
+    switch (result) {
+    case INDENT_ERROR:
       goto return_error;
-    } else if (error == 2) {
 
+    case INDENT_EOF:
       handle_eof(&token);
       goto return_token;
-    } else if (error == 1) {
 
+    case INDENT_NEW_LINE:
       tokenLine = currentLine - 1; // calculateIndent() is one ahead
       token.type = TOKEN_NEWLINE;
       goto return_token;
-    } else {
-      fprintf(stderr,
-              "Scanner error: %d, Unknown error in indent calculation\n",
-              SCANNER_ERROR);
-      goto return_error;
-    }
-  } else if (atLineStart) {
-    int currentTop = *scanner_stack_top();
-    int topIndex = scanner_stack_size() - 1;
 
-    if (spaces > currentTop) {
-      scanner_stack_push(spaces);
-      token.type = TOKEN_INDENT;
-      goto return_token;
-    } else if (spaces < currentTop) {
-      int index = find_number_in_stack(spaces);
-
-      if (index == -1) {
-        fprintf(stderr, "Scanner error: %d, Indentation error \n",
-                SCANNER_ERROR);
+    case INDENT_OK:
+      TokenType type = resolve_indent(spaces);
+      if (type == TOKEN_ERROR) {
         goto return_error;
       }
 
-      int levels_to_pop = topIndex - index;
-
-      for (int i = 0; i < levels_to_pop; i++) {
-        scanner_stack_pop();
+      if (type != TOKEN_SKIP) {
+        tokenLine = currentLine;
+        token.type = type;
+        goto return_token;
       }
-
-      if (levels_to_pop > 1) {
-        pendingDedents = levels_to_pop - 1;
-      }
-
-      token.type = TOKEN_DEDENT;
-      goto return_token;
+      break;
     }
   }
 
   while (true) {
 
-    // realloc
+    // realloc logic
     if (len + REALLOC_CONST >= capcaity) {
       char *tmp = realloc(str, capcaity * 2);
       if (tmp == NULL) {
@@ -484,11 +469,13 @@ return_error:
   token.line = tokenLine;
   return token;
 }
+
 /**
  * @brief Helper function geos valides single-line and multi-line comments
  *
  * @param[in, out] input - input to stream of chars from stdin
- * @param[in] currentChar currentChar from input (so you don't have to putback before calling)
+ * @param[in] currentChar currentChar from input (so you don't have to putback
+ * before calling)
  * @return True - comment is valid, else otherwise
  */
 static bool valid_comment(FILE *input, int currentChar) {
@@ -536,13 +523,14 @@ static bool valid_comment(FILE *input, int currentChar) {
   return true;
 }
 
-
 /**
  * @brief Helper function geos through single lines and picks TOKEN_TYPE
- * @brief Its used at start and determines if token is more complex (like string)
+ * @brief Its used at start and determines if token is more complex (like
+ * string)
  *
  * @param[in, out] input - input to stream of chars from stdin
- * @param[in] currentChar currentChar from input (so you don't have to putback before calling)
+ * @param[in] currentChar currentChar from input (so you don't have to putback
+ * before calling)
  * @return TokenType
  */
 static TokenType single_operator(FILE *input, int currentChar) {
@@ -873,105 +861,105 @@ static bool number_token_end(int currentChar) {
 }
 
 /**
+ * @brief Compares indentation with stack and decides if its INDENT/DEDENT/ERROR
+ *
+ * @param[in] indentation of the current line
+ * @returns TOKEN_INDENT, TOKEN_DEDENT, TOKEN_SKIP, TOKEN_ERROR
+ */
+static TokenType resolve_indent(int spaces) {
+  int currentTop = *scanner_stack_top();
+  int topIndex = scanner_stack_size() - 1;
+
+  if (spaces > currentTop) {
+    scanner_stack_push(spaces);
+    return TOKEN_INDENT;
+  } else if (spaces < currentTop) {
+    int index = find_number_in_stack(spaces);
+
+    if (index == -1) {
+      fprintf(stderr, "Scanner error: %d, Indentation error \n", SCANNER_ERROR);
+      return TOKEN_ERROR;
+    }
+
+    int levels_to_pop = topIndex - index;
+
+    for (int i = 0; i < levels_to_pop; i++) {
+      scanner_stack_pop();
+    }
+
+    if (levels_to_pop > 1) {
+      pendingDedents = levels_to_pop - 1;
+    }
+
+    return TOKEN_DEDENT;
+  } else {
+    // Same level
+    return TOKEN_SKIP;
+  }
+}
+
+/**
  * @brief Calculates indent for control flow, functions, etc.
  *
  * @param[in, out] input stream
- * @param[out] Possible error states: 0 = No error, -1 = Error, 1 = New line,
- * 2 = EOF
- * @returns space count, if value is -1, error happened
+ * @param[out] spaces
+ * @returns IndentResult
  */
-static int calculateIndent(FILE *input, int *error) {
-  *error = 0;
-  if (lineStart && bracketDepth == 0) {
-    int spaces = 0;
-    int indentChar;
+static IndentResult calculate_indent(FILE *input, int *spaces) {
+  *spaces = 0;
+  int indentChar;
 
-    while (true) {
-      indentChar = next_char(input);
+  while (true) {
+    indentChar = next_char(input);
 
-      if (indentChar == ' ') {
-        spaces++;
-      }
+    if (indentChar == ' ') {
+      *spaces += 1;
+    }
 
-      else if (indentChar == '\t') {
-        fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
-                SCANNER_ERROR);
+    else if (indentChar == '\t') {
+      fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
+              SCANNER_ERROR);
 
-        *error = -1;
-        return -1;
-      }
+      return INDENT_ERROR;
+    }
 
-      else if (indentChar == '\n') {
-        *error = 1;
-        return -1;
-      }
+    else if (indentChar == '\n') {
+      return INDENT_NEW_LINE;
+    }
 
-      else if (indentChar == EOF) {
-        *error = 2;
-        return -1;
-      }
+    else if (indentChar == EOF) {
+      return INDENT_EOF;
+    }
 
-      else if (indentChar == '/') {
-        int next = next_char(input);
+    else if (indentChar == '/') {
+      int next = next_char(input);
 
-        // One-line comment from start of the line
+      if (next == '/' || next == '*') {
+        if (!valid_comment(input, next)) {
+          return INDENT_ERROR;
+        }
+
+      
         if (next == '/') {
-          while (next != '\n' && next != EOF) {
-            next = next_char(input);
-          }
-
-          spaces = 0;
-          continue;
+          next_char(input);
         }
 
-        // Multi-line comment
-        if (next == '*') {
-          int depth = 1;
-          int prev = 0;
-
-          while (depth > 0) {
-            next = next_char(input);
-            if (next == EOF) {
-              fprintf(stderr, "Scanner error: %d, Never ending block comment\n",
-                      SCANNER_ERROR);
-              *error = -1;
-              return -1;
-            }
-
-            if (prev == '/' && next == '*') {
-              depth++;
-              prev = 0;
-            }
-
-            else if (prev == '*' && next == '/') {
-              depth--;
-              prev = 0;
-            }
-
-            else {
-              prev = next;
-            }
-          }
-
-          spaces = 0;
-          continue;
-        }
-
-        // not a comment
-        put_back(next, input);
-        put_back(indentChar, input);
-        lineStart = false;
-        return spaces;
+        *spaces = 0;
+        continue;
       }
 
-      else {
-        put_back(indentChar, input);
-        lineStart = false;
-        return spaces;
-      }
+      put_back(next, input);
+      put_back(indentChar, input);
+      lineStart = false;
+      return INDENT_OK;
+    }
+
+    else {
+      put_back(indentChar, input);
+      lineStart = false;
+      return INDENT_OK;
     }
   }
-  return 0;
 }
 
 /**
