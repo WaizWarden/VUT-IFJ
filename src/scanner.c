@@ -25,15 +25,19 @@ typedef enum {
   INDENT_ERROR,
 } IndentResult;
 
-static int is_keyword(char *str);
-static bool number_token_end(int currentChar);
-static IndentResult calculate_indent(FILE *input, int *spaces);
-static TokenType resolve_indent(int spaces);
 static int next_char(FILE *input);
 static void put_back(int currentChar, FILE *input);
+
+static int is_keyword(char *str);
 static void handle_eof(Token *token);
-static Token scan_string(FILE *input);
+static bool number_token_end(int currentChar);
+
+static IndentResult calculate_indent(FILE *input, int *spaces);
+static TokenType resolve_indent(int spaces);
+
 static TokenType single_operator(FILE *input, int currentChar);
+static Token scan_string(FILE *input);
+static Token scan_identifier(FILE *input, int currentChar);
 
 // States in scanner
 typedef enum {
@@ -166,17 +170,17 @@ Token get_token(FILE *input) {
     case S_START:
 
       if (isalpha(currentChar) || currentChar == '_') {
-        state = S_ID;
-        str[len] = (char)currentChar;
-        len++;
-        break;
+        token = scan_identifier(input, currentChar);
+        if (token.type == TOKEN_ERROR) {
+          goto return_error;
+        }
+        goto return_token;
       }
 
       if (isdigit(currentChar)) {
         state = S_INT;
         str[len] = (char)currentChar;
         len++;
-
         break;
       }
 
@@ -404,53 +408,6 @@ Token get_token(FILE *input) {
 
       break;
 
-    case S_ID:
-      if (isalnum(currentChar) || currentChar == '_') {
-
-        str[len] = (char)currentChar;
-        len++;
-      }
-
-      else {
-        put_back(currentChar, input);
-        str[len] = '\0';
-
-        // its keyword
-        int key = is_keyword(str);
-        if (key != -1) {
-          token.type = TOKEN_KEYWORD;
-          token.value.keyword = keywordTable[key].keyword;
-        }
-
-        // its id
-        else {
-          if (strcmp(str, "_") == 0) {
-            fprintf(stderr, "Scanner error: %d, '_' is not valid identifier\n",
-                    SCANNER_ERROR);
-            goto return_error;
-          }
-
-          if (strcmp(str, "true") == 0) {
-            token.type = TOKEN_BOOL;
-            token.value.boolean = true;
-            goto return_token;
-          }
-
-          if (strcmp(str, "false") == 0) {
-            token.type = TOKEN_BOOL;
-            token.value.boolean = false;
-            goto return_token;
-          }
-
-          token.type = TOKEN_IDENTIFIER;
-          token.value.identifier = strdup(str);
-        }
-
-        goto return_token;
-      }
-
-      break;
-
     default:
       fprintf(stderr, "'%c' Default case triggered\n", currentChar);
       goto return_error;
@@ -471,7 +428,89 @@ return_error:
 }
 
 /**
- * @brief Helper function geos valides single-line and multi-line comments
+ * @brief Helper function that validates idetifiers, keywords, bollean
+ *
+ * @param[in, out] input - input to stream of chars from stdin
+ * @param[out] currentChar currentChar from input (so you don't have to putback
+ * before calling)
+ * @return Token
+ */
+static Token scan_identifier(FILE *input, int currentChar) {
+  Token token = {.type = TOKEN_ERROR};
+
+  // handle malloc
+  char *str = malloc(INITIAL_STR_LEN);
+  size_t capacity = INITIAL_STR_LEN;
+  size_t len = 0;
+  if (str == NULL) {
+    fprintf(stderr, "Lexer error: %d, scan_identifier malloc failed\n",
+            INTERPRET_ERROR);
+    return token;
+  }
+
+  while (isalnum(currentChar) || currentChar == '_') {
+
+    // realloc
+    if (len + REALLOC_CONST >= capacity) {
+      char *tmp = realloc(str, capacity * 2);
+      if (tmp == NULL) {
+        fprintf(stderr, "Lexer error: %d, realloc failed\n", INTERPRET_ERROR);
+        free(str);
+        return token;
+      }
+      str = tmp;
+      capacity *= 2;
+    }
+
+    str[len] = (char)currentChar;
+    len++;
+    currentChar = next_char(input);
+  }
+
+  put_back(currentChar, input);
+  str[len] = '\0';
+
+  // its keyword
+  int key = is_keyword(str);
+  if (key != -1) {
+    token.type = TOKEN_KEYWORD;
+    token.value.keyword = keywordTable[key].keyword;
+    free(str);
+    return token;
+  }
+
+  // its id
+  else {
+    if (strcmp(str, "_") == 0) {
+      fprintf(stderr, "Scanner error: %d, '_' is not valid identifier\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+
+    if (strcmp(str, "true") == 0) {
+      token.type = TOKEN_BOOL;
+      token.value.boolean = true;
+      free(str);
+      return token;
+    }
+
+    if (strcmp(str, "false") == 0) {
+      token.type = TOKEN_BOOL;
+      token.value.boolean = false;
+      free(str);
+      return token;
+    }
+
+    token.type = TOKEN_IDENTIFIER;
+    token.value.identifier = strdup(str);
+    free(str);
+    return token;
+  }
+}
+
+/**
+ * @brief Helper function that validates single-line and multi-line comments
  *
  * @param[in, out] input - input to stream of chars from stdin
  * @param[in] currentChar currentChar from input (so you don't have to putback
@@ -724,7 +763,7 @@ static Token scan_string(FILE *input) {
       return token;
     }
 
-    if (len + 2 >= capacity) {
+    if (len + REALLOC_CONST >= capacity) {
       char *tmp = realloc(str, capacity * 2);
       if (tmp == NULL) {
         fprintf(stderr, "Scanner error: %d, realloc failed\n", INTERPRET_ERROR);
@@ -861,7 +900,8 @@ static bool number_token_end(int currentChar) {
 }
 
 /**
- * @brief Compares indentation with stack and decides if its INDENT/DEDENT/ERROR
+ * @brief Compares indentation with stack and decides if its
+ * INDENT/DEDENT/ERROR
  *
  * @param[in] indentation of the current line
  * @returns TOKEN_INDENT, TOKEN_DEDENT, TOKEN_SKIP, TOKEN_ERROR
@@ -939,7 +979,6 @@ static IndentResult calculate_indent(FILE *input, int *spaces) {
           return INDENT_ERROR;
         }
 
-      
         if (next == '/') {
           next_char(input);
         }
