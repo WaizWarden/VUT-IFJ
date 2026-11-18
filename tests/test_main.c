@@ -5,6 +5,7 @@
  */
 
 #include "test_ast.h"
+#include "test_codegen.h"
 #include "test_parser.h"
 #include "test_precedence.h"
 #include "test_scanner.h"
@@ -22,6 +23,7 @@ int main(int argc, char **argv) {
   indentation_flow_tests();
   test_stack();
   test_ast();
+  test_codegen();
   test_precedence();
   test_parser();
   test_semantic();
