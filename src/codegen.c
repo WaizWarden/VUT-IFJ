@@ -30,6 +30,9 @@
  *      readDouble(): Double
  *      ord(s: String, i: Int): Int
  *      substr(s, start, end)
+ * 
+ * AI use - heavy static review with tips for architecture 
+ *          and understanding code generation better.
  */
 
 // defined up to characters that have to be printed as /xyz like ' '
