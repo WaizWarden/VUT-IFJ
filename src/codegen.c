@@ -474,7 +474,8 @@ void cg_gen_program(const AstNode *root) {
   }
 }
 
-/// @author xsirmat00 from here with fixes by xoramst00 ------------------------
+/// @author xsirmat00 from here with fixes and extensions by xoramst00
+/// ------------------------
 
 /**
  * @brief Generates IFJcode26 instructions for an expression and pushes result
@@ -541,6 +542,9 @@ void cg_gen_expr(const AstNode *expr) {
       }
       cg_gen_expr(expr->as.unary.operand);
       puts("SUBS");
+    } else if (expr->as.unary.op == OP_UNARY_NOT) {
+      cg_gen_expr(expr->as.unary.operand);
+      puts("NOTS");
     }
     break;
   }
