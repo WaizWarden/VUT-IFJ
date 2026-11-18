@@ -554,6 +554,37 @@ void cg_gen_expr(const AstNode *expr) {
     const AstNode *right = expr->as.binary.right;
     BinaryOperation operation = expr->as.binary.operation;
 
+    // Generate && and || with imidiate skips
+    if (operation == OP_AND) {
+      uint32_t labelId = cg_next_label_id();
+      cg_gen_expr(left);
+      printf("PUSHS bool@false\n"
+             "JUMPIFEQS $and_false_%u\n",
+             labelId);
+      cg_gen_expr(right);
+      printf("JUMP $and_end_%u\n"
+             "LABEL $and_false_%u\n"
+             "PUSHS bool@false\n"
+             "LABEL $and_end_%u\n",
+             labelId, labelId, labelId);
+      break;
+    }
+
+    if (operation == OP_OR) {
+      uint32_t labelId = cg_next_label_id();
+      cg_gen_expr(left);
+      printf("PUSHS bool@true\n"
+             "JUMPIFEQS $or_true_%u\n",
+             labelId);
+      cg_gen_expr(right);
+      printf("JUMP $or_end_%u\n"
+             "LABEL $or_true_%u\n"
+             "PUSHS bool@true\n"
+             "LABEL $or_end_%u\n",
+             labelId, labelId, labelId);
+      break;
+    }
+
     // 1. Evaluate left operand + implicit Int -> Double conversion
     cg_gen_expr(left);
     if (left->evalType == T_INT && right->evalType == T_DOUBLE) {
