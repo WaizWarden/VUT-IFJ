@@ -184,8 +184,8 @@ void cg_gen_head(void) {
        "EXIT int@40\n");
 }
 
-/// @brief Passes through whole tree and generates all DEFVAR instructions needed,
-/// recursive
+/// @brief Passes through whole tree and generates all DEFVAR instructions
+/// needed, recursive
 /// @param node ast of subprogram
 static void cg_gen_vars_prepass(const AstNode *node) {
   if (!node) {
@@ -754,6 +754,109 @@ void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
   printf("JUMP $while_start_%u\n"
          "LABEL $while_end_%u\n",
          labelId, labelId);
+}
+
+// uses predefined variables from prepass
+void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
+  if (!forNode) {
+    return;
+  }
+
+  const uint32_t varUid = forNode->as.forStatement.varUid;
+  const uint32_t labelId = cg_next_label_id();
+  const char* varName = forNode->as.forStatement.varName;
+
+  // eval initial value
+  cg_gen_expr(forNode->as.forStatement.from);
+  printf("POPS ");
+  cg_print_var(varName, varUid);
+  putchar('\n');
+
+  // eval end value
+  cg_gen_expr(forNode->as.forStatement.to);
+  printf("POPS LF@%%end$%u\n", varUid);
+
+  // eval step value if included
+  if (forNode->as.forStatement.step) {
+    cg_gen_expr(forNode->as.forStatement.step);
+  } else {
+    puts("PUSHS int@1");
+  }
+  printf("POPS LF@%%step$%u\n"
+         "LABEL $for_start_%u\n",
+         varUid, labelId);
+
+  printf("JUMPIFEQ $for_zero_%u LF@%%step$%u int@0\n" // 0 step = infinite loop
+         "LT LF@%%cond$%u LF@%%step$%u int@0\n" // determine direction of step
+                                                // to check end value
+         "JUMPIFEQ $for_negative_%u LF@%%cond$%u bool@true\n",
+         labelId, varUid, varUid, varUid, labelId, varUid);
+
+  // compare with end
+  if (forNode->as.forStatement.inclusive) {
+    printf("GT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n", // end of loop
+           varUid, labelId, varUid);
+  } else {
+    printf("GT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n"
+           "EQ LF@%%cond$%u ",
+           varUid, labelId, varUid, varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n"
+           "JUMP $for_body_%u\n",
+           varUid, labelId, varUid, labelId);
+  }
+
+  printf("JUMP $for_body_%u\n"
+         "LABEL $for_negative_%u\n", // negative direction, compare witch
+         labelId, labelId);
+
+  if (forNode->as.forStatement.inclusive) { // compare with inverse conditionals
+    printf("LT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n",
+           varUid, labelId, varUid);
+  } else {
+    printf("LT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n"
+           "EQ LF@%%cond$%u ",
+           varUid, labelId, varUid, varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n",
+           varUid, labelId, varUid);
+  }
+
+  printf("LABEL $for_body_%u\n", labelId);
+  for (size_t i = 0; i < forNode->as.forStatement.guardCount; i++) {
+    cg_gen_expr(forNode->as.forStatement.guards[i]);
+    printf("PUSHS bool@false\n"
+           "JUMPIFEQS $for_next_%u\n",
+           labelId);
+  }
+
+  cg_gen_block(forNode->as.forStatement.body, false, funcRetType);
+
+  printf("LABEL $for_next_%u\n", labelId);
+  printf("ADD LF@");
+  cg_print_var(varName, varUid);
+  printf(" LF@");
+  cg_print_var(varName, varUid);
+  printf(" LF@%%step$%u\n"
+         "JUMP $for_start_%u\n"
+         "LABEL $for_zero_%u\n"
+         "EXIT int@40\n"
+         "LABEL $for_end_%u\n",
+         varUid, labelId, labelId, labelId);
 }
 
 /**
