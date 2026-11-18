@@ -96,6 +96,8 @@ Precedence analysyscan continue without repeated loading of the token.
 
 Arguments of calling parser processes as a list of terms that are divided by commas, not as a general expressions.
 
+Inside call arguments, member access `arg.member` is supported (VALMEM). After every argument, a `while` loop consumes any number of `. identifier` pairs and wraps the argument into  `ast_new_member_call`, which desugars it into a builtin function call.
+
 ## Operator-Precedence Parsing
 
 Expression are processed by independent module `precedence.c` with a method of the precedence syntax analysys. In precedence.c is not used the recursive descent, but the decision is based on precedence table. Precedence table states relation between terminal on stack and actual input token.
@@ -135,7 +137,7 @@ Because the specification requires unary minus (u-), the 6x6 table cannot distin
 
 Relation operators and comparators are non-asociative. Because of this chaining like "a<b<c<d" or "a<b == c" is not permited by the specification.
 
-The result is table containing 9 columns and 9 lines with symbols: +- ,  */ ,  u- ,  rel ,  ==!= ,  ( ,  ) ,  i ,  $
+The result is table containing 9 columns and 9 lines with symbols: +- ,  */ ,  u- , !,  rel ,  ==!= , &&, || , ., ( ,  ) ,  i ,  $
 
 #### The conversion of 6x6 table to 9x9 itself
 
@@ -148,10 +150,14 @@ Reduction rules:
   - E → E ==!= E (covers == and !=)
   - E -> -E(Unary minus)
   - E -> ( ) (unit literal)
+  - E -> E && E
+  - E -> E || E
+  - E -> !E - negation (ast_new_unary(OP_UNARY_NOT))
+  - E → E . i
 
 For every reduction rule exist a sematic rule that creates AST
 
-1) Expansion for unary minus (-u) 6x6 to 7x7
+1) Expansion for unary minus (-u) 6x6 to 13x13
   - I had to add a new symbol into the table `-u`
   - Column for operators `(`, `$`  and the `u-` itself is `<`
     - for `i` and `(` is empty
@@ -162,6 +168,46 @@ For every reduction rule exist a sematic rule that creates AST
 3) Expansion for `==` and `!=`
   - The lowest priority is created like the `rel 
   - Other operators must be `>
+4) Expansion for `!` - unary negation
+  - It is new prefix operator, with the same priority as `u-`
+  - New line and column are identical to the `u-`
+    - The two symbols differ only in the reduction rules
+5) Expansion for `&&` - logical and
+  - A new lowest priority level (so far)
+  - Left-associative: `&&` vs `&&` is `>`, so `a && b && c` reduces left to right
+  - Column: `<` for `(` and `$`, otherwise `>` - when `&&` arrives on the input, the sub-expression on the stack is reduced first
+  - Line: `>` only for `&&`, `||`, `)` and `$`, `<` for all higher-priority symbols - the operator binds weaker than everything before it
+6)
+  - Another level bellow `&&`
+  - Left-associative, same construction as `&&`
+  - Column: `<` for `(` and `$`, otherwise `>`
+  - Line: `>` only for `||`, `)` and `$`. The `&&` column is `<`, so `a && b || c` correctly parses as `(a && b) || c`
+7) Expansion for `.` - extension for Valhem
+  - The highest priority operator in the whole table
+  - Column (`.` on the input): `<` for all operators, `(` and `$` - the dot is shifted as part of the operand being built. `>` for `.`, `)` and `i`, `(` is empty
+  - Line (`.` on top of the stack): `<` only for `i`, which is shifted as the member name. `>` for everything else, `(` is empty - a method call with arguments `a.f(x)` is not handled by precedence, the parser resolves it
+  - New special reduction rule:
+    - The right operand MUST be a identifier
+    - Identifier is copied and the node is desugared into AST_FUNC_CALL of a builtin function.
+### Precedence table
+
+|      | +- | */ | u- | !  | rel | ==!= | && | \|\| | .  | (  | )  | i  | $  |
+|------|----|----|----|----|-----|------|----|----|----|----|----|----|----|
+| +-   | >  | <  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
+| */   | >  | >  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
+| u-   | >  | >  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
+| !    | >  | >  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
+| rel  | <  | <  | <  | <  |     |      | >  | >  | <  | <  | >  | <  | >  |
+| ==!= | <  | <  | <  | <  |     |      | >  | >  | <  | <  | >  | <  | >  |
+| &&   | <  | <  | <  | <  | <   | <    | >  | >  | <  | <  | >  | <  | >  |
+| \|\| | <  | <  | <  | <  | <   | <    | <  | >  | <  | <  | >  | <  | >  |
+| .    | >  | >  | >  | >  | >   | >    | >  | >  | >  |    | >  | <  | >  |
+| (    | <  | <  | <  | <  | <   | <    | <  | <  | <  | <  | =  | <  |    |
+| )    | >  | >  | >  | >  | >   | >    | >  | >  | >  |    | >  |    | >  |
+| i    | >  | >  | >  | >  | >   | >    | >  | >  | >  |    | >  |    | >  |
+| $    | <  | <  | <  | <  | <   | <    | <  | <  | <  | <  |    | <  |    |
+
+Row = the topmost terminal on the stack, column = input terminal. An empty cell means a syntax error.
 
 ### How does the expression end
 
@@ -174,6 +220,9 @@ Upon conversion of tokens to precedence symbols are on $ mapped like:
   - EOF - Expression at the end of the input
   - `then` - End of an `if` condition
   - `do` - End of a `while` condition
+  - `else` - End of a expression followed by an else branch
+  - `if` - Guard condition that functions for `for` header
+  - `for` - End of expression before `for`
 
 The ending symbol is not consumed and is instead given back to the parser itself and stays stored in `currentToken`
 
@@ -182,3 +231,80 @@ Two requirements for sucessfull ending of expression:
   - The stack contains exactly `$` and one non-terminal (`E`)
 
 If `$` arrives in the middle of construction process, it ends with an error.
+
+### Stop identifiers
+
+The issue is, that `to`, `until` and `by` are not a keywords (for example expression: `for i <- 0 to 10 by 2 do`) and scanner returns them as a plain identifiers, but the headers have a important function.
+
+Precedence parser can distinguish terminals of expressions only with the context of token type (NEWLINE, `then`, `do`). Upon parsing "0 to 10", precedence reads `0` and then identifier `to`, normally it would result in two operators being behind themselves (`i i`), this would be a syntax error.
+
+Solution to the problem:
+To solve this issue, `precedence_parse` accepts an additional parameter stopIdents`, a NULL-terminated array of identifier names.
+
+During the conversion of a token into the precedence symbol, every TOKEN_IDENTIFIER is first compared with these names (strcmp).
+
+If a name matches, the token is converted to symbol `$` instead of identifier `i`, so the expression ends  like with any other terminator. The token is not consumed and stays in `currentToken` for the parser.
+
+The parser defines two such lists inside `parse_for`:
+  - `{"to", "until", NULL}` - terminates the lower bound expression 
+  - `{"by", NULL}` - terminates the upper bound expression
+Upon the end of the parser expression, parser inspects the identifier left in `currentToken`: `to` marks the inclusive bound, `until` the exclusive one, and `by` introduces the optional step.
+
+Why not use keywords?
+Making `to`, `until` and `by` reserved keywords was not an option, because they remain valid identifier names outside of a `for` header.
+
+### The `for` loop
+- The loop variable `id` and the arrow `<-` are handled by the parser.
+- Bounds and step are parsed by `precedence_parse` using the `stopIdents` (See the section above - Stop identifiers)
+- `to` = inclusive bound, `until` = exclusive bound
+  - `by` sets the needed step
+- Zero or more guards `if expression` follow. Each guard is a boolean expression stored in the `guards` array of the AST_FOR. 
+- The header also exists in a multi-line form. After `for` a NEWLINE + INDENT may follow, the generator and each guard stays on their own line and the header closes with closing DEDENT before `do`.
+
+### The `if` statement (expression and statemend - BOOLTHEN)
+
+`parse_if` takes a flag `elseRequired`
+  -  As a statement, `else` is optional.
+  - As an expression (right side of symbol `=`, `return`, ...)
+    - `else` is mandatory 
+    - `else if` is desugared into a nested `if` inside the else branch.
+      - No additional AST node is created
+
+### Loop and branches bodies
+
+The parse body `parse_body` is shared by `if`/`else` branches and the `for` body.
+
+Accepted forms
+  - NEWLINE INDENT block DEDENT
+  - A single-line statement on the same line (example: (`if x then y = 1`))
+
+## Abstract Syntax Tree (AST)
+
+In the ast.c and ast.h a single struct is defined with the name `AstNode`. This is used by the entire compiler, not just the parser. All 19 node kinds (AST_PROGRAM, AST_FUNC_DEF,AST_BLOCK, AST_VAR_DECL, AST_ASSIGN, AST_IF, AST_WHILE, AST_FOR, AST_RETURN, AST_FUNC_CALL, AST_EXPR_STATEMENT, AST_BINARY, AST_UNARY, AST_IDENTIFIER and the five literals) share one tagged union `as`, so any subtree is passed around as a plain `AstNode *`.
+
+Every node kind has its own constructor `ast_new_*`. Constructors take ownership of their arguments. Child nodes and heap strings are copied, so a single `ast_free` call on the root frees the entire tree using recursion.
+
+What is also caried by each node
+  - `line` - the source line number, used for error reporting
+  - `uid` and `evalType` - initialized to `0`/`T_UNIT` by the arser and filled in later by semantic analysis. (uid is not changed by parser in any way.)
+
+`ast_print` provides a debug helper of the tree to stderr.
+
+A special constructor is `ast_new_member_call`. It does not create a new node kind but creates desugars `receiver.member` into an AST_FUNC_CALL of a builtin function (VALMEM), with the receiver as the first argument.
+
+## Stack (precedence)
+
+The stack is a dynamic array that is used primarily by the precedence anylysis.
+The array contains of:
+  - `StackItem`
+    - `symbol` - the precedence symbol
+    - `token` - the original token type
+    - `node` - Pointer to the Ast subtree
+
+Stack supports operations like push/pop/top plus two created for the precedence use:
+  - `stack_top_terminal` - returns the topmost terminal, skipping nonterminals and handle markers
+  - `stack_insert_handle_start` - inserts the `<` marker after the topmost terminal
+
+The array starts at capacity 8 and doubles on every realloc. Allocation failures and pops from an empty stack end with `exit(99)`.
+
+TODO:  LL gramatika + LL tabulka
