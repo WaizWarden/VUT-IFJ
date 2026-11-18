@@ -30,8 +30,8 @@
  *      readDouble(): Double
  *      ord(s: String, i: Int): Int
  *      substr(s, start, end)
- * 
- * AI use - heavy static review with tips for architecture 
+ *
+ * AI use - heavy static review with tips for architecture
  *          and understanding code generation better.
  */
 
@@ -184,7 +184,7 @@ void cg_gen_head(void) {
        "EXIT int@40\n");
 }
 
-/// @brief Passes through whole tree and generates all var declarations,
+/// @brief Passes through whole tree and generates all DEFVAR instructions needed,
 /// recursive
 /// @param node ast of subprogram
 static void cg_gen_vars_prepass(const AstNode *node) {
@@ -242,6 +242,24 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
       cg_gen_vars_prepass(node->as.funcCall.args[i]);
     }
+    break;
+
+  case AST_FOR:
+    fputs("DEFVAR ", stdout);
+    cg_print_var(node->as.forStatement.varName, node->as.forStatement.varUid);
+    putchar('\n');
+    printf("DEFVAR LF@%%end$%u\n"   // value to end on
+           "DEFVAR LF@%%step$%u\n"  // value to step by
+           "DEFVAR LF@%%cond$%u\n", // current value to check condition with
+           node->as.forStatement.varUid, node->as.forStatement.varUid,
+           node->as.forStatement.varUid);
+    cg_gen_vars_prepass(node->as.forStatement.from);
+    cg_gen_vars_prepass(node->as.forStatement.to);
+    cg_gen_vars_prepass(node->as.forStatement.step);
+    for (size_t i = 0; i < node->as.forStatement.guardCount; i++) {
+      cg_gen_vars_prepass(node->as.forStatement.guards[i]);
+    }
+    cg_gen_vars_prepass(node->as.forStatement.body);
     break;
 
   default: // literals and identifiers do not require a pass
@@ -382,6 +400,10 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
     puts("POPS GF@$tmp1"); // not needed
     break;
 
+  case AST_FOR:
+    cg_gen_for(stmt, funcRetType);
+    break;
+
   default: // parser puts expression as a command
     cg_gen_expr(stmt);
     puts("POPS GF@$tmp1"); // not needed
@@ -410,6 +432,7 @@ static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   case AST_VAR_DECL:
   case AST_ASSIGN:
   case AST_WHILE:
+  case AST_FOR:
     cg_gen_statement(node, funcRetType);
     puts("PUSHS nil@nil");
     break;
@@ -477,7 +500,7 @@ void cg_gen_program(const AstNode *root) {
   }
 }
 
-/// @author xsirmat00 from here with fixes and extensions by xoramst00
+/// @author xsirmat00 and fixes and extensions by xoramst00
 /// ------------------------
 
 /**
