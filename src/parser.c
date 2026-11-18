@@ -138,6 +138,9 @@ static DataType check_type(void) {
   case KW_UNIT:
     advance();
     return T_UNIT;
+  case KW_BOOLEAN:
+    advance();
+    return T_BOOLEAN;
   default:
     exit(2);
   }
@@ -217,6 +220,8 @@ static Parameter *parse_params(uint16_t *outCount) {
 }
 
 static AstNode *parse_block(void);
+static AstNode *parse_statement(void);
+static AstNode *parse_body(void);
 
 /**
  * @brief Parses the while loop
@@ -230,7 +235,7 @@ static AstNode *parse_while(void) {
   // Checking if the keyword is "while"
   expect_keyword(KW_WHILE);
 
-  AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+  AstNode *condition = precedence_parse(pInput, &pToken, NULL, NULL);
   if (condition == NULL) {
     exit(2);
   }
@@ -246,34 +251,169 @@ static AstNode *parse_while(void) {
 }
 
 /**
- * @brief Parser of the if block
+ * @brief Parses the for loop (CONTROL extension)
+ *
+ * @details Grammar:
+ *   for id <- expr (to|until) expr [by expr] [if expr]* do body
+ *   or the multi-line header form where the generator and each guard
+ *   sit on their own line inside an indented section and 'do' shares
+ *   the indentation of 'for'. 'to' is inclusive, 'until' exclusive,
+ *   'by' sets the step. to/until/by arrive as plain identifiers.
  *
  * @return AstNode*
  */
-static AstNode *parse_if(void) {
+static AstNode *parse_for(void) {
+  static const char *const stopBounds[] = {"to", "until", NULL};
+  static const char *const stopStep[] = {"by", NULL};
+
+  int line = pToken.line;
+  expect_keyword(KW_FOR);
+
+  // Multi-line header: generator and guards on their own indented lines
+  bool multiline = false;
+  if (pToken.type == TOKEN_NEWLINE) {
+    multiline = true;
+    advance();
+    expect_type(TOKEN_INDENT);
+  }
+
+  if (pToken.type != TOKEN_IDENTIFIER) {
+    exit(2);
+  }
+  char *varName = strdup(pToken.value.identifier);
+  if (varName == NULL) {
+    exit(99);
+  }
+  advance();
+
+  expect_type(TOKEN_LARROW);
+
+  AstNode *from = precedence_parse(pInput, &pToken, NULL, stopBounds);
+  if (from == NULL) {
+    exit(2);
+  }
+
+  // to (inclusive) or until (exclusive), both plain identifiers
+  if (pToken.type != TOKEN_IDENTIFIER) {
+    exit(2);
+  }
+  bool inclusive;
+  if (strcmp(pToken.value.identifier, "to") == 0) {
+    inclusive = true;
+  } else if (strcmp(pToken.value.identifier, "until") == 0) {
+    inclusive = false;
+  } else {
+    exit(2);
+  }
+  advance();
+
+  AstNode *toExpr = precedence_parse(pInput, &pToken, NULL, stopStep);
+  if (toExpr == NULL) {
+    exit(2);
+  }
+
+  AstNode *step = NULL;
+  if (pToken.type == TOKEN_IDENTIFIER &&
+      strcmp(pToken.value.identifier, "by") == 0) {
+    advance();
+    step = precedence_parse(pInput, &pToken, NULL, NULL);
+    if (step == NULL) {
+      exit(2);
+    }
+  }
+
+  if (multiline) {
+    expect_type(TOKEN_NEWLINE);
+  }
+
+  // Guards: each starts with the 'if' keyword, Boolean expression follows
+  size_t guardCount = 0;
+  size_t guardCapacity = 0;
+  AstNode **guards = NULL;
+  while (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_IF) {
+    advance();
+    AstNode *guard = precedence_parse(pInput, &pToken, NULL, NULL);
+    if (guard == NULL) {
+      exit(2);
+    }
+
+    if (guardCount == guardCapacity) {
+      guardCapacity = guardCapacity == 0 ? 4 : guardCapacity * 2;
+      AstNode **tmp =
+          (AstNode **)realloc((void *)guards, guardCapacity * sizeof(*guards));
+      if (tmp == NULL) {
+        exit(99);
+      }
+      guards = tmp;
+    }
+    guards[guardCount++] = guard;
+
+    if (multiline) {
+      expect_type(TOKEN_NEWLINE);
+    }
+  }
+
+  if (multiline) {
+    expect_type(TOKEN_DEDENT);
+  }
+  expect_keyword(KW_DO);
+
+  AstNode *body = parse_body();
+
+  return ast_new_for(varName, from, toExpr, step, inclusive, guards, guardCount,
+                     body, line);
+}
+
+/**
+ * @brief Parses one body: an indented block
+ *        (NEWLINE INDENT block DEDENT) or a single-line statement.
+ *        Used for if/else branches and for the do body.
+ *
+ * @return AstNode* block or single statement node
+ */
+static AstNode *parse_body(void) {
+  if (pToken.type == TOKEN_NEWLINE) {
+    advance();
+    expect_type(TOKEN_INDENT);
+    AstNode *block = parse_block();
+    expect_type(TOKEN_DEDENT);
+    return block;
+  }
+  return parse_statement();
+}
+
+/**
+ * @brief Parser of the if statement / if expression
+ *
+ * @param elseRequired true when used as an expression (else is mandatory)
+ * @return AstNode*
+ */
+static AstNode *parse_if(bool elseRequired) {
   int line = pToken.line;
   expect_keyword(KW_IF);
 
-  AstNode *condition = precedence_parse(pInput, &pToken, NULL);
+  AstNode *condition = precedence_parse(pInput, &pToken, NULL, NULL);
   if (condition == NULL) {
     exit(2);
   }
 
   expect_keyword(KW_THEN);
-  expect_type(TOKEN_NEWLINE);
-  expect_type(TOKEN_INDENT);
+  AstNode *thenBlock = parse_body();
 
-  AstNode *block = parse_block();
+  AstNode *elseBlock = NULL;
+  if (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_ELSE) {
+    advance();
+    if (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_IF) {
+      // else if -> desugared to a nested if in the else branch
+      elseBlock = parse_if(elseRequired);
+    } else {
+      elseBlock = parse_body();
+    }
+  } else if (elseRequired) {
+    exit(2);
+  }
 
-  expect_type(TOKEN_DEDENT);
-  expect_keyword(KW_ELSE);
-
-  expect_type(TOKEN_NEWLINE);
-  expect_type(TOKEN_INDENT);
-  AstNode *elseBlock = parse_block();
-  expect_type(TOKEN_DEDENT);
-
-  return ast_new_if(condition, block, elseBlock, line);
+  return ast_new_if(condition, thenBlock, elseBlock, line);
 }
 static AstNode *parse_expr_or_call(void);
 static AstNode **parse_call_arguments(size_t *outCount);
@@ -315,7 +455,7 @@ static AstNode *parse_id_stmt(void) {
 
   // Expression statement starting with identifier: x - 8
   AstNode *first = ast_new_identifier(name, line);
-  AstNode *expr = precedence_parse(pInput, &pToken, first);
+  AstNode *expr = precedence_parse(pInput, &pToken, first, NULL);
   if (expr == NULL) {
     exit(2);
   }
@@ -414,6 +554,9 @@ static AstNode **parse_call_arguments(size_t *outCount) {
     case TOKEN_STRING:
       argument = ast_new_string(strdup(pToken.value.string), pToken.line);
       break;
+    case TOKEN_BOOL:
+      argument = ast_new_bool(pToken.value.boolean, pToken.line);
+      break;
     default:
       exit(2);
     }
@@ -422,11 +565,23 @@ static AstNode **parse_call_arguments(size_t *outCount) {
       exit(99);
     }
 
+    // Moving on next token
+    advance();
+
+    // VALMEM: member access chain `arg.id` desugars to a builtin call
+    while (pToken.type == TOKEN_DOT) {
+      advance();
+      if (pToken.type != TOKEN_IDENTIFIER) {
+        exit(2);
+      }
+      argument = ast_new_member_call(argument, strdup(pToken.value.identifier),
+                                     pToken.line);
+      advance();
+    }
+
     // Assigning the argument to the arguments array
     arguments[count] = argument;
     count++;
-    // Moving on next token
-    advance();
 
     // Reallocating if the arguments array is full
     if (accept_type(TOKEN_COMMA)) {
@@ -456,9 +611,14 @@ static AstNode **parse_call_arguments(size_t *outCount) {
  * @return AstNode*
  */
 static AstNode *parse_expr_or_call(void) {
+  // CONTROL: if used as an expression (else branch is mandatory)
+  if (pToken.type == TOKEN_KEYWORD && pToken.value.keyword == KW_IF) {
+    return parse_if(true);
+  }
+
   if (pToken.type != TOKEN_IDENTIFIER) {
     // If the token is not a identifier, then just call the precedence parser
-    AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+    AstNode *expression = precedence_parse(pInput, &pToken, NULL, NULL);
 
     if (expression == NULL) {
       exit(2);
@@ -478,7 +638,7 @@ static AstNode *parse_expr_or_call(void) {
   if (pToken.type != TOKEN_OPENING_BRACKET) {
     // Expression is in format of = x-1...
     AstNode *first = ast_new_identifier(name, line);
-    AstNode *expr = precedence_parse(pInput, &pToken, first);
+    AstNode *expr = precedence_parse(pInput, &pToken, first, NULL);
     if (expr == NULL) {
       exit(2);
     }
@@ -509,9 +669,11 @@ static AstNode *parse_statement(void) {
     case KW_VAR:
       return parse_var_decl();
     case KW_IF:
-      return parse_if();
+      return parse_if(false);
     case KW_WHILE:
       return parse_while();
+    case KW_FOR:
+      return parse_for();
     case KW_RETURN:
       return parse_return();
     default:
@@ -522,7 +684,7 @@ static AstNode *parse_statement(void) {
     return parse_id_stmt();
   default: {
     int line = pToken.line;
-    AstNode *expression = precedence_parse(pInput, &pToken, NULL);
+    AstNode *expression = precedence_parse(pInput, &pToken, NULL, NULL);
     if (expression == NULL) {
       exit(2);
     }
@@ -568,8 +730,8 @@ static AstNode *parse_block(void) {
     AstNode *statement = parse_statement();
     stmts[count++] = statement;
     if (statement->type != AST_IF && statement->type != AST_WHILE &&
-        pToken.type != TOKEN_NEWLINE && pToken.type != TOKEN_SEMICOLON &&
-        pToken.type != TOKEN_DEDENT) {
+        statement->type != AST_FOR && pToken.type != TOKEN_NEWLINE &&
+        pToken.type != TOKEN_SEMICOLON && pToken.type != TOKEN_DEDENT) {
       exit(2);
     }
   }

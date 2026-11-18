@@ -3,19 +3,21 @@
  * @author  xoramst00
  * @brief   Generator implementation of final code IFJcode26
  *
- * @important Code generator passes through the tree twice:
- *      1. pre-pass: finds all possible DEFVAR
- *      2. print-pass: instructions are automatically written to stdout
- *      (this helps to avoid using dynamic buffer for adding DEFVAR mid pass)
+ * @important Code generation uses two passes:
+ *      1. The prepass discovers every DEFVAR in a function.
+ *      2. The generation pass prints executable instructions to stdout.
+ * This avoids allocating a dynamic buffer merely to insert declarations.
  *
- * @important All helper variables and identifiers start with '$' or '%' to
- * solve collisions with user code global variables: GF@$tmp user functions:
- * $func_... built-in functions: $builtin_... control identifiers: $if_else_...
- *      local variables: LF@jmeno$[uid]
+ * @important Compiler names are kept separate from source-level names:
+ *      - GF@$tmp1 ... GF@$tmp3 are temporary global values.
+ *      - $func_... and $builtin_... identify functions.
+ *      - $if_..., $while_..., and $for_... identify control-flow labels.
+ *      - LF@name$uid stores a local variable with its semantic UID.
  *
- * @important Calling convencion: RETURN VALUE IS LEFT ON STACK TOP (even
- * nil@nil) and arguments are read from stack in reverse order. (last arg on
- * top)
+ * @important Calling convention:
+ *      - Arguments are pushed onto the stack before CALL.
+ *      - A function pops them in reverse order, with the last argument topmost.
+ *      - A return value remains on the stack, including nil@nil for Unit.
  *
  * @important Built-in function handling:
  *  inline:
@@ -30,9 +32,15 @@
  *      readDouble(): Double
  *      ord(s: String, i: Int): Int
  *      substr(s, start, end)
+ * 
+ * @note AI use: static code analysis, semantic comment fixes and standardization, structuring code
+ *      prompt: "standardize comment format and describe any semantic comment inacuracies"
+ *      workflow: If I understand the issue, I implement what I can, and when I don't understand,
+ *      I ask gemini or other model to explain the issue and help me with implementation.
+ * 
  */
 
-// defined up to characters that have to be printed as /xyz like ' '
+// Characters at or below this ASCII value must be escaped in string literals.
 #define SPECIAL_CHAR_IN_STRING_MAX 32
 
 #include "codegen.h"
@@ -40,10 +48,10 @@
 #include <stdio.h>
 #include <string.h>
 
-// recomended by ai to make counter global to simplify architecture
+// Labels receive a module-wide sequence number so each generated jump is unique.
 static uint32_t label_counter = 0;
 
-// use for fast jumps in if/else/<=...
+// Return the next label ID.
 uint32_t cg_next_label_id(void) { return label_counter++; }
 
 void cg_print_int(int64_t val) { printf("int@%" PRId64, val); }
@@ -83,7 +91,7 @@ void cg_print_var(const char *name, uint32_t uid) {
 void cg_gen_head(void) {
   label_counter = 0;
 
-  // print unified start of code ---
+  // Start the IFJcode26 program and make $main the initial entry point.
   puts(".IFJcode26\n"
        "DEFVAR GF@$tmp1\n"
        "DEFVAR GF@$tmp2\n"
@@ -91,9 +99,9 @@ void cg_gen_head(void) {
        "CALL $main\n"
        "EXIT int@0\n");
 
-  // print all built-in functions ---
+  // Read operations are implemented as reusable built-in labels.
 
-  // $builtin_readInt and $builtin_readDouble
+  // Built-in reads convert EOF/nil into the language-defined default values.
   puts("LABEL $builtin_readInt\n"
        "READ GF@$tmp1 int\n"
        "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
@@ -111,8 +119,8 @@ void cg_gen_head(void) {
        "PUSHS GF@$tmp1\n"
        "RETURN\n");
 
-  // $builtin_ord (value string, index int) - int on stack top (revised by
-  // gemini)
+  // ord(s, i) pops the arguments and leaves the character code on the stack.
+  // An invalid index reports -1.
   puts("LABEL $builtin_ord\n"
        "POPS GF@$tmp2\n"
        "POPS GF@$tmp1\n"
@@ -132,10 +140,10 @@ void cg_gen_head(void) {
        "PUSHS int@-1\n"
        "RETURN\n");
 
-  // $builtin_substr (value string, start int, end int) (architecture by gemini)
+  // subStr(s, start, end) builds the selected substring in a local frame.
   puts("LABEL $builtin_substr\n"
 
-       // create new local frame and define all helper vars
+       // Create a fresh frame so helper variables do not collide with callers.
        "CREATEFRAME\n"
        "PUSHFRAME\n"
        "DEFVAR LF@str\n"
@@ -151,7 +159,7 @@ void cg_gen_head(void) {
 
        "STRLEN LF@len LF@str\n"
 
-       // checks parameter validity
+       // Reject negative or backwards indexes and indexes outside the string.
        "LT LF@cond LF@start int@0\n"
        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start < 0
        "LT LF@cond LF@end int@0\n"
@@ -163,7 +171,7 @@ void cg_gen_head(void) {
        "GT LF@cond LF@end LF@len\n"
        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < len
 
-       // loop over string, concat to @res ultil reaching 'end'
+       // Append characters until the start index reaches the end index.
        "MOVE LF@res string@\n"
        "LABEL $substr_loop\n"
        "JUMPIFEQ $substr_done LF@start LF@end\n"
@@ -172,7 +180,7 @@ void cg_gen_head(void) {
        "ADD LF@start LF@start int@1\n"
        "JUMP $substr_loop\n"
 
-       // clean frame and return value
+       // Restore the caller frame and leave the resulting string on the stack.
        "LABEL $substr_done\n"
        "PUSHS LF@res\n"
        "POPFRAME\n"
@@ -181,9 +189,15 @@ void cg_gen_head(void) {
        "EXIT int@40\n");
 }
 
-/// @brief Passes through whole tree and generates all var declarations,
-/// recursive
-/// @param node ast of subprogram
+/**
+ * @brief Discovers and emits every local variable declaration in an AST subtree.
+ *
+ * This recursive pass runs before executable instructions are generated. It
+ * makes declarations visible throughout a function, including variables located
+ * in nested blocks.
+ *
+ * @param node AST subtree to scan.
+ */
 static void cg_gen_vars_prepass(const AstNode *node) {
   if (!node) {
     return;
@@ -222,13 +236,52 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     cg_gen_vars_prepass(node->as.ret.expr);
     break;
 
-  default: // literals, function calls and othes do not require a pass
+  case AST_EXPR_STATEMENT:
+    cg_gen_vars_prepass(node->as.exprStatement.expr);
+    break;
+
+  case AST_BINARY:
+    cg_gen_vars_prepass(node->as.binary.left);
+    cg_gen_vars_prepass(node->as.binary.right);
+    break;
+
+  case AST_UNARY:
+    cg_gen_vars_prepass(node->as.unary.operand);
+    break;
+
+  case AST_FUNC_CALL:
+    for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
+      cg_gen_vars_prepass(node->as.funcCall.args[i]);
+    }
+    break;
+
+  case AST_FOR:
+    fputs("DEFVAR ", stdout);
+    cg_print_var(node->as.forStatement.varName, node->as.forStatement.varUid);
+    putchar('\n');
+    printf("DEFVAR LF@%%end$%u\n"   // value to end on
+           "DEFVAR LF@%%step$%u\n"  // value to step by
+           "DEFVAR LF@%%cond$%u\n", // current value to check condition with
+           node->as.forStatement.varUid, node->as.forStatement.varUid,
+           node->as.forStatement.varUid);
+    cg_gen_vars_prepass(node->as.forStatement.from);
+    cg_gen_vars_prepass(node->as.forStatement.to);
+    cg_gen_vars_prepass(node->as.forStatement.step);
+    for (size_t i = 0; i < node->as.forStatement.guardCount; i++) {
+      cg_gen_vars_prepass(node->as.forStatement.guards[i]);
+    }
+    cg_gen_vars_prepass(node->as.forStatement.body);
+    break;
+
+  default: // literals and identifiers do not require a pass
     break;
   }
 }
 
-/// @brief Prints a function definition
-/// @param node ast tree of function
+/**
+ * @brief Generates a function label, frame setup, parameters, and function body.
+ * @param node AST node of type AST_FUNC_DEF.
+ */
 static void cg_gen_func_def(const AstNode *node) {
   if (!node) {
     return;
@@ -243,7 +296,7 @@ static void cg_gen_func_def(const AstNode *node) {
   puts("CREATEFRAME\n"
        "PUSHFRAME\n");
 
-  // declare internal parameters
+  // Parameters are local variables in the function frame.
   for (uint16_t i = 0; i < node->as.funcDef.paramCount; i++) {
     fputs("DEFVAR ", stdout);
     cg_print_var(node->as.funcDef.params[i].name,
@@ -251,7 +304,7 @@ static void cg_gen_func_def(const AstNode *node) {
     putchar('\n');
   }
 
-  // load parameter values from stack from right to left
+  // Arguments arrive on the stack in reverse order, so pop them in reverse.
   for (int i = (int)node->as.funcDef.paramCount - 1; i >= 0; i--) {
     fputs("POPS ", stdout);
     cg_print_var(node->as.funcDef.params[i].name,
@@ -259,7 +312,7 @@ static void cg_gen_func_def(const AstNode *node) {
     putchar('\n');
   }
 
-  // declare internal variables
+  // Discover declarations throughout the body before emitting its instructions.
   cg_gen_vars_prepass(node->as.funcDef.body);
 
   // generate function body
@@ -269,14 +322,15 @@ static void cg_gen_func_def(const AstNode *node) {
        "RETURN");
 }
 
-/// @brief Helper function to get correct return type (implicit conversions and
-/// unit)
-/// @param exprType expresion type
-/// @param funcRetType return type
+/**
+ * @brief Applies implicit return conversions and the Unit return convention.
+ * @param exprType Type of the expression being returned.
+ * @param funcRetType Declared return type of the enclosing function.
+ */
 static void cg_adjust_return_value(DataType exprType, DataType funcRetType) {
 
   if (funcRetType == T_UNIT) {
-    // no matter the value, return nil@nil
+    // Unit must return nil@nil, even when the expression merely has Unit type.
     puts("POPS GF@$tmp1\n"
          "PUSHS nil@nil");
   }
@@ -293,37 +347,42 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
 
   switch (stmt->type) {
 
-  case AST_VAR_DECL: // var / val ...
-    cg_gen_expr(stmt->as.varDecl.initExpr);
+  case AST_VAR_DECL:
+    if (stmt->as.varDecl.initExpr) {
+      cg_gen_expr(stmt->as.varDecl.initExpr);
 
-    if (stmt->as.varDecl.hasDeclaredType &&
-        stmt->as.varDecl.declaredType == T_DOUBLE &&
-        stmt->as.varDecl.initExpr->evalType == T_INT) {
-      puts("INT2FLOATS");
+      if (stmt->as.varDecl.hasDeclaredType &&
+          stmt->as.varDecl.declaredType == T_DOUBLE &&
+          stmt->as.varDecl.initExpr->evalType == T_INT) {
+        puts("INT2FLOATS");
+      }
+    } else {
+      // An omitted initializer is represented by nil.
+      puts("PUSHS nil@nil");
     }
 
-    // save stack top to var (declared by prepass of var declarations)
+    // The prepass has already emitted DEFVAR for this variable.
     fputs("POPS ", stdout);
     cg_print_var(stmt->as.varDecl.name, stmt->uid);
     putchar('\n');
     break;
 
-  case AST_ASSIGN: // thing = expression
+  case AST_ASSIGN:
     cg_gen_expr(stmt->as.assign.value);
 
-    // check type
+    // Assignment from Int to Double is the one allowed implicit conversion.
     if (stmt->evalType == T_DOUBLE &&
         stmt->as.assign.value->evalType == T_INT) {
       puts("INT2FLOATS");
     }
 
-    // save return val to var
+    // Store the expression result in the UID-qualified variable.
     fputs("POPS ", stdout);
     cg_print_var(stmt->as.assign.name, stmt->uid);
     putchar('\n');
     break;
 
-  case AST_RETURN: // retunr expression
+  case AST_RETURN:
 
     if (stmt->as.ret.expr == NULL) {
       puts("PUSHS nil@nil");
@@ -336,28 +395,74 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
          "RETURN");
     break;
 
-  case AST_IF: // if(horsingAround)
+  case AST_IF:
     cg_gen_if(stmt, false, funcRetType);
     break;
 
-  case AST_WHILE: // while(horsingAround)
+  case AST_WHILE:
     cg_gen_while(stmt, funcRetType);
     break;
 
-  case AST_EXPR_STATEMENT: // isHorsingAround(horse)
+  case AST_EXPR_STATEMENT:
     cg_gen_expr(stmt->as.exprStatement.expr);
     puts("POPS GF@$tmp1"); // not at end of block: return not needed
     break;
 
-  case AST_FUNC_CALL: // parser puts fuction into block instead of as statement
-                      // type
+  case AST_FUNC_CALL:
     cg_gen_call(stmt);
     puts("POPS GF@$tmp1"); // not needed
     break;
 
-  default: // parser puts expression as a command
+  case AST_FOR:
+    cg_gen_for(stmt, funcRetType);
+    break;
+
+  default:
     cg_gen_expr(stmt);
     puts("POPS GF@$tmp1"); // not needed
+    break;
+  }
+}
+
+/**
+ * @brief Generates the final statement or expression of a function body.
+ *
+ * The final item is special because it must leave a correctly typed result
+ * on the stack instead of merely discarding the result of a statement.
+ *
+ * @param node AST node that occupies the tail position.
+ * @param funcRetType Declared return type of the enclosing function.
+ */
+static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
+  if (!node) {
+    return;
+  }
+
+  switch (node->type) {
+  case AST_EXPR_STATEMENT:
+    cg_gen_expr(node->as.exprStatement.expr);
+    cg_adjust_return_value(node->as.exprStatement.expr->evalType, funcRetType);
+    break;
+
+  case AST_IF:
+    cg_gen_if(node, true, funcRetType);
+    break;
+
+  case AST_VAR_DECL:
+  case AST_ASSIGN:
+  case AST_WHILE:
+  case AST_FOR:
+    cg_gen_statement(node, funcRetType);
+    puts("PUSHS nil@nil");
+    break;
+
+  case AST_RETURN:
+    cg_gen_statement(node, funcRetType);
+    break;
+
+  default:
+    cg_gen_expr(node);
+    cg_adjust_return_value(node->evalType, funcRetType);
     break;
   }
 }
@@ -369,27 +474,22 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
   }
 
   if (block->type != AST_BLOCK) {
-    const AstNode *expr =
-        (block->type == AST_EXPR_STATEMENT)
-            ? block->as.exprStatement.expr // get internal expression
-            : block;
     if (isLastInFunc) {
-      cg_gen_expr(expr);
-      cg_adjust_return_value(expr->evalType, funcRetType);
+      cg_gen_tail(block, funcRetType);
     } else {
       cg_gen_statement(block, funcRetType);
     }
     return;
   }
 
-  if (block->as.block.count == 0) { // do nothing if not last
+  if (block->as.block.count == 0) {
     if (isLastInFunc) {
       puts("PUSHS nil@nil");
     }
     return;
   }
 
-  // go through all commands except last
+  // Statements before the tail execute normally and discard no visible result.
   for (size_t i = 0; i < block->as.block.count - 1; i++) {
     cg_gen_statement(block->as.block.stmts[i], funcRetType);
   }
@@ -401,33 +501,8 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
     return;
   }
 
-  // end of a function body
-  switch (last->type) {
-  case AST_EXPR_STATEMENT:
-    cg_gen_expr(last->as.exprStatement.expr);
-    cg_adjust_return_value(last->as.exprStatement.expr->evalType, funcRetType);
-    break;
-
-  case AST_IF:
-    cg_gen_if(last, true, funcRetType);
-    break;
-
-  case AST_VAR_DECL:
-  case AST_ASSIGN:
-  case AST_WHILE: // retunr nil@nil
-    cg_gen_statement(last, funcRetType);
-    puts("PUSHS nil@nil");
-    break;
-
-  case AST_RETURN:
-    cg_gen_statement(last, funcRetType);
-    break;
-
-  default:
-    cg_gen_expr(last);
-    cg_adjust_return_value(last->evalType, funcRetType);
-    break;
-  }
+  // The last item must follow the function's return-value convention.
+  cg_gen_tail(last, funcRetType);
 }
 
 void cg_gen_program(const AstNode *root) {
@@ -444,21 +519,521 @@ void cg_gen_program(const AstNode *root) {
   }
 }
 
-/// @author xsirmat00 from here
-/// -----------------------------------------------
+/**
+ * @brief Generates IFJcode26 instructions for an expression and pushes result
+ * onto data stack
+ *
+ * @param expr AST node representing the expression
+ */
+void cg_gen_expr(const AstNode *expr) {
+  if (!expr) {
+    return;
+  }
 
-void cg_gen_expr(const AstNode *expr) { (void)expr; }
+  switch (expr->type) {
+  case AST_LITERAL_INT:
+    fputs("PUSHS ", stdout);
+    cg_print_int((int64_t)expr->as.intValue);
+    putchar('\n');
+    break;
 
+  case AST_LITERAL_DOUBLE:
+    fputs("PUSHS ", stdout);
+    cg_print_double(expr->as.doubleValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_STRING:
+    fputs("PUSHS ", stdout);
+    cg_print_string(expr->as.stringValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_BOOL:
+    fputs("PUSHS ", stdout);
+    cg_print_bool(expr->as.boolValue);
+    putchar('\n');
+    break;
+
+  case AST_LITERAL_UNIT:
+    fputs("PUSHS ", stdout);
+    cg_print_unit();
+    putchar('\n');
+    break;
+
+  case AST_IDENTIFIER:
+    fputs("PUSHS ", stdout);
+    cg_print_var(expr->as.identif, expr->uid);
+    putchar('\n');
+    break;
+
+  case AST_FUNC_CALL:
+    cg_gen_call(expr);
+    break;
+
+  case AST_IF:
+    cg_gen_if(expr, true, expr->evalType);
+    break;
+
+  case AST_UNARY: {
+    if (expr->as.unary.op == OP_UNARY_MINUS) {
+      if (expr->evalType == T_INT) {
+        puts("PUSHS int@0");
+      } else {
+        puts("PUSHS float@0x0p+0");
+      }
+      cg_gen_expr(expr->as.unary.operand);
+      puts("SUBS");
+    } else if (expr->as.unary.op == OP_UNARY_NOT) {
+      cg_gen_expr(expr->as.unary.operand);
+      puts("NOTS");
+    }
+    break;
+  }
+
+  case AST_BINARY: {
+    const AstNode *left = expr->as.binary.left;
+    const AstNode *right = expr->as.binary.right;
+    BinaryOperation operation = expr->as.binary.operation;
+
+    // AND and OR are short-circuit operations. Skip the right operand and
+    // synthesize its Boolean result when the left operand already determines
+    // the final value.
+    if (operation == OP_AND) {
+      uint32_t labelId = cg_next_label_id();
+      cg_gen_expr(left);
+      printf("PUSHS bool@false\n"
+             "JUMPIFEQS $and_false_%u\n",
+             labelId);
+      cg_gen_expr(right);
+      printf("JUMP $and_end_%u\n"
+             "LABEL $and_false_%u\n"
+             "PUSHS bool@false\n"
+             "LABEL $and_end_%u\n",
+             labelId, labelId, labelId);
+      break;
+    }
+
+    if (operation == OP_OR) {
+      uint32_t labelId = cg_next_label_id();
+      cg_gen_expr(left);
+      printf("PUSHS bool@true\n"
+             "JUMPIFEQS $or_true_%u\n",
+             labelId);
+      cg_gen_expr(right);
+      printf("JUMP $or_end_%u\n"
+             "LABEL $or_true_%u\n"
+             "PUSHS bool@true\n"
+             "LABEL $or_end_%u\n",
+             labelId, labelId, labelId);
+      break;
+    }
+
+    // 1. Evaluate the left operand and promote Int to Double if needed.
+    cg_gen_expr(left);
+    if (left->evalType == T_INT && right->evalType == T_DOUBLE) {
+      puts("INT2FLOATS");
+    }
+
+    // 2. Evaluate the right operand and promote Int to Double if needed.
+    cg_gen_expr(right);
+    if (right->evalType == T_INT && left->evalType == T_DOUBLE) {
+      puts("INT2FLOATS");
+    }
+
+    // 3. Apply the operation to the values already left on the stack.
+    switch (operation) {
+    case OP_ADD:
+      if (expr->evalType == T_STRING) {
+        puts("POPS GF@$tmp2\n"
+             "POPS GF@$tmp1\n"
+             "CONCAT GF@$tmp1 GF@$tmp1 GF@$tmp2\n"
+             "PUSHS GF@$tmp1");
+      } else {
+        puts("ADDS");
+      }
+      break;
+
+    case OP_SUB:
+      puts("SUBS");
+      break;
+
+    case OP_MUL:
+      puts("MULS");
+      break;
+
+    case OP_DIV:
+      if (expr->evalType == T_INT) {
+        puts("IDIVS");
+      } else {
+        puts("DIVS");
+      }
+      break;
+
+    case OP_LT:
+      puts("LTS");
+      break;
+
+    case OP_GT:
+      puts("GTS");
+      break;
+
+    case OP_EQ:
+      puts("EQS");
+      break;
+
+    case OP_NEQ:
+      puts("EQS\n"
+           "NOTS");
+      break;
+
+    case OP_LE:
+      puts("GTS\n"
+           "NOTS");
+      break;
+
+    case OP_GE:
+      puts("LTS\n"
+           "NOTS");
+      break;
+
+    default:
+      break;
+    }
+    break;
+  }
+
+  default:
+    break;
+  }
+}
+
+/**
+ * @brief Generates IFJcode26 instructions for an if-else statement or
+ * expression
+ *
+ * @param ifNode AST node of type AST_IF
+ * @param isExprOrReturn True if result value must be left on the stack
+ * @param funcRetType Return type of enclosing function
+ */
 void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
                DataType funcRetType) {
-  (void)ifNode;
-  (void)isExprOrReturn;
-  (void)funcRetType;
+  if (!ifNode) {
+    return;
+  }
+
+  uint32_t labelId = cg_next_label_id();
+
+  // False is compared against the condition so the branch is skipped cleanly.
+  cg_gen_expr(ifNode->as.ifStatement.condition);
+  printf("PUSHS bool@false\n"
+         "JUMPIFEQS $if_else_%u\n",
+         labelId);
+
+  // Execute the then branch and jump over the else branch.
+  cg_gen_block(ifNode->as.ifStatement.thenBlock, isExprOrReturn, funcRetType);
+  printf("JUMP $if_end_%u\n", labelId);
+
+  // An expression-style if requires a value even when else is absent.
+  printf("LABEL $if_else_%u\n", labelId);
+  if (ifNode->as.ifStatement.elseBlock) {
+    cg_gen_block(ifNode->as.ifStatement.elseBlock, isExprOrReturn, funcRetType);
+  } else if (isExprOrReturn) {
+    puts("PUSHS nil@nil");
+  }
+
+  printf("LABEL $if_end_%u\n", labelId);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for a while loop
+ *
+ * @param whileNode AST node of type AST_WHILE
+ * @param funcRetType Return type of enclosing function
+ */
 void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
-  (void)whileNode;
-  (void)funcRetType;
+  if (!whileNode) {
+    return;
+  }
+
+  uint32_t labelId = cg_next_label_id();
+
+  printf("LABEL $while_start_%u\n", labelId);
+
+  // A false condition exits the loop.
+  cg_gen_expr(whileNode->as.whileStatement.cond);
+  printf("PUSHS bool@false\n"
+         "JUMPIFEQS $while_end_%u\n",
+         labelId);
+
+  // Loop body
+  cg_gen_block(whileNode->as.whileStatement.bodyBlock, false, funcRetType);
+
+  printf("JUMP $while_start_%u\n"
+         "LABEL $while_end_%u\n",
+         labelId, labelId);
 }
 
-void cg_gen_call(const AstNode *callNode) { (void)callNode; }
+/**
+ * @brief Generates a CONTROL for loop using variables created by the prepass.
+ *
+ * The start, end, and step values are evaluated once. Each iteration compares
+ * the current loop variable with the end, evaluates guards, executes the body,
+ * and advances by the configured step.
+ *
+ * @param forNode AST node of type AST_FOR.
+ * @param funcRetType Return type of the enclosing function.
+ */
+void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
+  if (!forNode) {
+    return;
+  }
+
+  const uint32_t varUid = forNode->as.forStatement.varUid;
+  const uint32_t labelId = cg_next_label_id();
+  const char* varName = forNode->as.forStatement.varName;
+
+  // Initialize the loop variable once.
+  cg_gen_expr(forNode->as.forStatement.from);
+  printf("POPS ");
+  cg_print_var(varName, varUid);
+  putchar('\n');
+
+  // Save the end value so an expression is not re-evaluated for every iteration.
+  cg_gen_expr(forNode->as.forStatement.to);
+  printf("POPS LF@%%end$%u\n", varUid);
+
+  // An omitted step means 1.
+  if (forNode->as.forStatement.step) {
+    cg_gen_expr(forNode->as.forStatement.step);
+  } else {
+    puts("PUSHS int@1");
+  }
+  printf("POPS LF@%%step$%u\n"
+         "LABEL $for_start_%u\n",
+         varUid, labelId);
+
+  printf("JUMPIFEQ $for_zero_%u LF@%%step$%u int@0\n"
+         "LT LF@%%cond$%u LF@%%step$%u int@0\n"
+         "JUMPIFEQ $for_negative_%u LF@%%cond$%u bool@true\n",
+         labelId, varUid, varUid, varUid, labelId, varUid);
+
+  // A positive step requires the opposite boundary checks from a negative step.
+  if (forNode->as.forStatement.inclusive) {
+    printf("GT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n",
+           varUid, labelId, varUid);
+  } else {
+    printf("GT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n"
+           "EQ LF@%%cond$%u ",
+           varUid, labelId, varUid, varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n"
+           "JUMP $for_body_%u\n",
+           varUid, labelId, varUid, labelId);
+  }
+
+  printf("JUMP $for_body_%u\n"
+         "LABEL $for_negative_%u\n",
+         labelId, labelId);
+
+  if (forNode->as.forStatement.inclusive) {
+    printf("LT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n",
+           varUid, labelId, varUid);
+  } else {
+    printf("LT LF@%%cond$%u ", varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n"
+           "EQ LF@%%cond$%u ",
+           varUid, labelId, varUid, varUid);
+    cg_print_var(varName, varUid);
+    printf(" LF@%%end$%u\n"
+           "JUMPIFEQ $for_end_%u LF@%%cond$%u bool@true\n",
+           varUid, labelId, varUid);
+  }
+
+  // Guards are AND-like: the first false guard skips both the remaining guards
+  // and the loop body for this iteration.
+  printf("LABEL $for_body_%u\n", labelId);
+  for (size_t i = 0; i < forNode->as.forStatement.guardCount; i++) {
+    cg_gen_expr(forNode->as.forStatement.guards[i]);
+    printf("PUSHS bool@false\n"
+           "JUMPIFEQS $for_next_%u\n",
+           labelId);
+  }
+
+  cg_gen_block(forNode->as.forStatement.body, false, funcRetType);
+
+  // Advance the loop variable and return to the boundary check.
+  printf("LABEL $for_next_%u\n", labelId);
+  printf("ADD LF@");
+  cg_print_var(varName, varUid);
+  printf(" LF@");
+  cg_print_var(varName, varUid);
+  printf(" LF@%%step$%u\n"
+         "JUMP $for_start_%u\n"
+         "LABEL $for_zero_%u\n"
+         "EXIT int@40\n"
+         "LABEL $for_end_%u\n",
+         varUid, labelId, labelId, labelId);
+}
+
+/**
+ * @brief Generates IFJcode26 instructions for built-in and user function calls
+ *
+ * @param callNode AST node of type AST_FUNC_CALL
+ */
+void cg_gen_call(const AstNode *callNode) {
+  if (!callNode) {
+    return;
+  }
+
+  const char *name = callNode->as.funcCall.funcName;
+  size_t argCount = callNode->as.funcCall.argCount;
+  AstNode **args = callNode->as.funcCall.args;
+
+  // --- INLINE BUILT-IN FUNCTIONS ---
+
+  if (strcmp(name, "readLine") == 0) {
+    uint32_t labelId = cg_next_label_id();
+    printf("READ GF@$tmp1 string\n"
+           "JUMPIFNEQ $readLine_ok_%u GF@$tmp1 nil@nil\n"
+           "MOVE GF@$tmp1 string@\n"
+           "LABEL $readLine_ok_%u\n"
+           "PUSHS GF@$tmp1\n",
+           labelId, labelId);
+    return;
+  }
+
+  if (strcmp(name, "readBoolean") == 0) {
+    uint32_t labelId = cg_next_label_id();
+    printf("READ GF@$tmp1 bool\n"
+           "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
+           "MOVE GF@$tmp1 bool@false\n"
+           "LABEL $readBool_ok_%u\n"
+           "PUSHS GF@$tmp1\n",
+           labelId, labelId);
+    return;
+  }
+
+  if (strcmp(name, "toInt") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      if (args[0]->evalType == T_DOUBLE) {
+        puts("FLOAT2INTS");
+      }
+    }
+    return;
+  }
+
+  if (strcmp(name, "strLength") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      puts("POPS GF@$tmp1\n"
+           "STRLEN GF@$tmp1 GF@$tmp1\n"
+           "PUSHS GF@$tmp1");
+    }
+    return;
+  }
+
+  if (strcmp(name, "chr") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      puts("INT2CHARS");
+    }
+    return;
+  }
+
+  if (strcmp(name, "toStr") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      DataType argType = args[0]->evalType;
+
+      if (argType == T_INT) {
+        puts("POPS GF@$tmp1\n"
+             "INT2STR GF@$tmp1 GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
+      } else if (argType == T_DOUBLE) {
+        puts("POPS GF@$tmp1\n"
+             "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
+      } else if (argType == T_BOOLEAN) {
+        uint32_t labelId = cg_next_label_id();
+        printf("PUSHS bool@true\n"
+               "JUMPIFNEQS $tostr_false_%u\n"
+               "PUSHS string@true\n"
+               "JUMP $tostr_end_%u\n"
+               "LABEL $tostr_false_%u\n"
+               "PUSHS string@false\n"
+               "LABEL $tostr_end_%u\n",
+               labelId, labelId, labelId, labelId);
+      } else if (argType == T_UNIT) {
+        puts("POPS GF@$tmp1\n"
+             "PUSHS string@()");
+      }
+    }
+    return;
+  }
+
+  if (strcmp(name, "print") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      if (args[0]->evalType == T_UNIT) {
+        puts("POPS GF@$tmp1\n"
+             "WRITE string@()\n"
+             "PUSHS nil@nil");
+      } else {
+        puts("POPS GF@$tmp1\n"
+             "WRITE GF@$tmp1\n"
+             "PUSHS nil@nil");
+      }
+    } else {
+      puts("PUSHS nil@nil");
+    }
+    return;
+  }
+
+  // --- EXTRA BUILT-IN FUNCTIONS ($builtin_...) ---
+
+  if (strcmp(name, "readInt") == 0) {
+    puts("CALL $builtin_readInt");
+    return;
+  }
+
+  if (strcmp(name, "readDouble") == 0) {
+    puts("CALL $builtin_readDouble");
+    return;
+  }
+
+  if (strcmp(name, "ord") == 0) {
+    for (size_t idx = 0; idx < argCount; idx++) {
+      cg_gen_expr(args[idx]);
+    }
+    puts("CALL $builtin_ord");
+    return;
+  }
+
+  if (strcmp(name, "subStr") == 0) {
+    for (size_t i = 0; i < argCount; i++) {
+      cg_gen_expr(args[i]);
+    }
+    puts("CALL $builtin_substr");
+    return;
+  }
+
+  // --- USER-DEFINED FUNCTIONS ($func_...) ---
+  for (size_t idx = 0; idx < argCount; idx++) {
+    cg_gen_expr(args[idx]);
+  }
+  printf("CALL $func_%s\n", name);
+}

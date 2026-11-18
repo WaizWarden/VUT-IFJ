@@ -32,8 +32,13 @@ PrecedenceRelation precedence_get_relation(PrecSymbol stackSymbol,
  * @param firstOperand Already parsed leading operand (identifier read by
  *                     the parser during lookahead), or NULL. Ownership
  *                     is transferred to this function.
+ * @param stopIdents   NULL-terminated array of identifier names that act
+ *                     as expression terminators (e.g. {"to","until"} in a
+ *                     for header), or NULL. A matching identifier is left
+ *                     unconsumed in currentToken.
  * @returns AST of the expression, or NULL on syntax error.
  */
 AstNode *precedence_parse(FILE *input, Token *currentToken,
-                          AstNode *firstOperand);
+                          AstNode *firstOperand,
+                          const char *const stopIdents[]);
 #endif

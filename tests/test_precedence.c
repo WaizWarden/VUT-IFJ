@@ -26,7 +26,7 @@ static AstNode *parse_str(const char *src, Token *stop) {
   assert(input != NULL);
 
   Token token = get_token(input);
-  AstNode *expr = precedence_parse(input, &token, NULL);
+  AstNode *expr = precedence_parse(input, &token, NULL, NULL);
 
   if (stop != NULL) {
     *stop = token;
@@ -313,7 +313,7 @@ static void test_first_operand(void) {
   AstNode *ident = ast_new_identifier(token.value.identifier, 0);
 
   token = get_token(input); // -
-  AstNode *expr = precedence_parse(input, &token, ident);
+  AstNode *expr = precedence_parse(input, &token, ident, NULL);
 
   // the minus must be binary and the handed over node must be reused
   assert(is_binary(expr, OP_SUB));
@@ -337,7 +337,7 @@ static void test_first_operand_alone(void) {
   AstNode *ident = ast_new_identifier(token.value.identifier, 0);
 
   token = get_token(input); // NEWLINE
-  AstNode *expr = precedence_parse(input, &token, ident);
+  AstNode *expr = precedence_parse(input, &token, ident, NULL);
 
   assert(expr == ident);
   assert(token.type == TOKEN_NEWLINE);

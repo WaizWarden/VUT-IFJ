@@ -20,6 +20,7 @@ typedef enum {
   AST_ASSIGN,
   AST_IF,
   AST_WHILE,
+  AST_FOR,
   AST_RETURN,
   AST_FUNC_CALL,
   AST_EXPR_STATEMENT,
@@ -43,10 +44,12 @@ typedef enum {
   OP_LT,
   OP_LE,
   OP_GT,
-  OP_GE
+  OP_GE,
+  OP_AND,
+  OP_OR
 } BinaryOperation;
 
-typedef enum { OP_UNARY_MINUS } UnaryOperation;
+typedef enum { OP_UNARY_MINUS, OP_UNARY_NOT } UnaryOperation;
 
 typedef struct AstNode {
   AstNodeType type;
@@ -115,6 +118,18 @@ typedef struct AstNode {
     } whileStatement;
 
     struct {
+      char *varName;
+      uint32_t varUid;
+      struct AstNode *from;
+      struct AstNode *to;
+      struct AstNode *step; // NULL = 1
+      bool inclusive;       // true = to, false = until
+      struct AstNode **guards;
+      size_t guardCount;
+      struct AstNode *body;
+    } forStatement;
+
+    struct {
       struct AstNode *expr;
     } ret;
 
@@ -133,10 +148,10 @@ typedef struct AstNode {
 /**
  * @brief Creates a binary operation node (takes ownership of children)
  */
-AstNode *ast_new_binary(BinaryOperation op, AstNode *left, AstNode *right,
-                        int line);
+AstNode *ast_new_binary(BinaryOperation operation, AstNode *left,
+                        AstNode *right, int line);
 
-AstNode *ast_new_unary(UnaryOperation op, AstNode *operand, int line);
+AstNode *ast_new_unary(UnaryOperation operation, AstNode *operand, int line);
 AstNode *ast_new_int(int value, int line);
 AstNode *ast_new_double(double value, int line);
 AstNode *ast_new_identifier(char *name, int line); // steals `name`
@@ -152,9 +167,14 @@ AstNode *ast_new_var_decl(char *name, bool isModifiable, DataType declaredType,
 AstNode *ast_new_if(AstNode *cond, AstNode *thenBlock, AstNode *elseBlock,
                     int line);
 AstNode *ast_new_while(AstNode *cond, AstNode *bodyBlock, int line);
+AstNode *ast_new_for(char *varName, AstNode *from, AstNode *toExpr,
+                     AstNode *step, bool inclusive, AstNode **guards,
+                     size_t guardCount, AstNode *body, int line);
 AstNode *ast_new_return(AstNode *expr, int line);
 AstNode *ast_new_func_call(char *funcName, AstNode **args, size_t argCount,
                            int line);
+
+AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line);
 AstNode *ast_new_expr_statement(AstNode *expr, int line);
 AstNode *ast_new_string(char *value, int line); // steals `value`
 AstNode *ast_new_bool(bool value, int line);
