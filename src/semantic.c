@@ -33,8 +33,12 @@ typedef struct {
 static SemanticError analyze_node(SemanticContext *ctx, AstNode *node);
 static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
                                   DataType *outType);
-static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
-                                        bool isFuncBody, DataType expectedRet);
+static SemanticError analyze_block_body(SemanticContext *ctx,
+                                        AstNode **bodySlot, bool isFuncBody,
+                                        DataType expectedRet);
+static SemanticError analyze_if(SemanticContext *ctx, AstNode *node,
+                                bool asValue);
+static SemanticError analyze_for(SemanticContext *ctx, AstNode *node);
 static bool always_returns(AstNode *node);
 
 /**
@@ -50,6 +54,112 @@ static AstNode *promote_int_to_double(AstNode *expr) {
   AstNode *promoted = ast_new_binary(OP_ADD, expr, zeroDouble, expr->line);
   promoted->evalType = T_DOUBLE;
   return promoted;
+}
+
+/**
+ * @brief Returns the type a statement yields when used as the last value of a
+ * block or branch (declarations, assignments and loops yield Unit)
+ *
+ * @param node Statement or expression AST node
+ * @return Value type of the node
+ */
+static DataType stmt_value_type(const AstNode *node) {
+  switch (node->type) {
+  case AST_VAR_DECL:
+  case AST_ASSIGN:
+  case AST_WHILE:
+  case AST_FOR:
+  case AST_RETURN:
+    return T_UNIT;
+  default:
+    return node->evalType;
+  }
+}
+
+/**
+ * @brief Converts the Int value produced by a statement/branch to Double in
+ * place (recurses through blocks and if branches) and updates evalType
+ *
+ * @param node Statement, block or if node whose value type is Int
+ */
+static void coerce_to_double(AstNode *node) {
+  if (!node || stmt_value_type(node) != T_INT) {
+    return;
+  }
+
+  switch (node->type) {
+  case AST_EXPR_STATEMENT:
+    node->as.exprStatement.expr =
+        promote_int_to_double(node->as.exprStatement.expr);
+    break;
+  case AST_BLOCK:
+    if (node->as.block.count > 0) {
+      coerce_to_double(node->as.block.stmts[node->as.block.count - 1]);
+    }
+    break;
+  case AST_IF:
+    coerce_to_double(node->as.ifStatement.thenBlock);
+    coerce_to_double(node->as.ifStatement.elseBlock);
+    break;
+  default:
+    return;
+  }
+  node->evalType = T_DOUBLE;
+}
+
+/**
+ * @brief Checks whether an expression is a literal zero (also `-0`, `0.0`)
+ *
+ * @param node Expression AST node (may be NULL)
+ * @return True if the node is a zero literal
+ */
+static bool is_zero_literal(const AstNode *node) {
+  if (!node) {
+    return false;
+  }
+  if (node->type == AST_LITERAL_INT) {
+    return node->as.intValue == 0;
+  }
+  if (node->type == AST_LITERAL_DOUBLE) {
+    return node->as.doubleValue == 0.0;
+  }
+  if (node->type == AST_UNARY && node->as.unary.op == OP_UNARY_MINUS) {
+    return is_zero_literal(node->as.unary.operand);
+  }
+  return false;
+}
+
+/**
+ * @brief Checks that the last value of a function body matches the return type
+ * (Int is promoted to Double where the node can be rewritten in place)
+ *
+ * @param lastSlot Pointer to the last statement of the body (or to the
+ * one-line body itself), so a raw expression can be replaced by its promotion
+ * @param expectedRet Declared return type of the function
+ * @return SemanticError status code
+ */
+static SemanticError check_tail_value(AstNode **lastSlot, DataType expectedRet) {
+  AstNode *last = *lastSlot;
+  if (last->type == AST_RETURN || always_returns(last)) {
+    return ERR_SEM_OK;
+  }
+
+  DataType actualRet = stmt_value_type(last);
+  if (actualRet == expectedRet) {
+    return ERR_SEM_OK;
+  }
+
+  if (expectedRet == T_DOUBLE && actualRet == T_INT) {
+    if (last->type == AST_EXPR_STATEMENT || last->type == AST_IF ||
+        last->type == AST_BLOCK) {
+      coerce_to_double(last);
+    } else {
+      // raw expression body, e.g. `def f(x: Int): Double = x`
+      *lastSlot = promote_int_to_double(last);
+    }
+    return ERR_SEM_OK;
+  }
+  return ERR_SEM_WRONG_TYPE;
 }
 
 /**
@@ -204,6 +314,13 @@ static SemanticError register_builtins(Symtable *symtable) {
     return ERR_INTERNAL;
   }
 
+  // floor(value: Double): Double (target of the `.floor` member desugar)
+  Parameter *floorParams = create_builtin_params(1, T_DOUBLE);
+  if (!st_insert_func(symtable, "floor", T_DOUBLE, floorParams, 1, false,
+                      true)) {
+    return ERR_INTERNAL;
+  }
+
   // Extensions
 
   // readBoolean(): Boolean
@@ -278,13 +395,23 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
     }
 
     BinaryOperation operation = node->as.binary.operation;
-    if (operation == OP_LT || operation == OP_LE || operation == OP_GT ||
-        operation == OP_GE || operation == OP_EQ || operation == OP_NEQ) {
-      if (leftT != rightT) {
-        if (!((leftT == T_INT && rightT == T_DOUBLE) ||
-              (leftT == T_DOUBLE && rightT == T_INT))) {
-          return ERR_SEM_WRONG_TYPE;
-        }
+    if (operation == OP_AND || operation == OP_OR) {
+      // BOOTHEN: logical operators take and produce Boolean
+      if (leftT != T_BOOLEAN || rightT != T_BOOLEAN) {
+        return ERR_SEM_WRONG_TYPE;
+      }
+      node->evalType = T_BOOLEAN;
+    } else if (operation == OP_LT || operation == OP_LE || operation == OP_GT ||
+               operation == OP_GE || operation == OP_EQ ||
+               operation == OP_NEQ) {
+      // Booleans can only be compared for (in)equality
+      if ((leftT == T_BOOLEAN || rightT == T_BOOLEAN) && operation != OP_EQ &&
+          operation != OP_NEQ) {
+        return ERR_SEM_WRONG_TYPE;
+      }
+      if (leftT != rightT && !((leftT == T_INT && rightT == T_DOUBLE) ||
+                               (leftT == T_DOUBLE && rightT == T_INT))) {
+        return ERR_SEM_WRONG_TYPE;
       }
       node->evalType = T_BOOLEAN;
     } else {
@@ -313,9 +440,23 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
         return ERR_SEM_WRONG_TYPE;
       }
       node->evalType = operandT;
+    } else {
+      // BOOTHEN: logical negation needs a Boolean operand
+      if (operandT != T_BOOLEAN) {
+        return ERR_SEM_WRONG_TYPE;
+      }
+      node->evalType = T_BOOLEAN;
     }
     break;
   }
+
+  case AST_IF:
+    // BOOTHEN: if used as an expression, branches must unify
+    err = analyze_if(ctx, node, true);
+    if (err != ERR_SEM_OK) {
+      return err;
+    }
+    break;
 
   case AST_FUNC_CALL: {
 
@@ -364,13 +505,16 @@ static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
  * @brief Analyzes a block or single statement and checks return value if needed
  *
  * @param ctx Semantic context
- * @param body Block or statement AST node
+ * @param bodySlot Pointer to the block or statement AST node (a raw
+ * expression body may be replaced by its Int->Double promotion)
  * @param isFuncBody True if body belongs directly to a function definition
  * @param expectedRet Expected return type of the enclosing function
  * @return SemanticError status code
  */
-static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
-                                        bool isFuncBody, DataType expectedRet) {
+static SemanticError analyze_block_body(SemanticContext *ctx,
+                                        AstNode **bodySlot, bool isFuncBody,
+                                        DataType expectedRet) {
+  AstNode *body = *bodySlot;
 
   // empty function
   if (!body) {
@@ -389,29 +533,8 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
     }
 
     // body ends with value, check its type
-    if (isFuncBody && expectedRet != T_UNIT && body->type != AST_RETURN &&
-        !always_returns(body)) {
-
-      AstNode *exprNode = (body->type == AST_EXPR_STATEMENT)
-                              ? body->as.exprStatement.expr
-                              : body; // def f(): INT = while ...? in one line
-
-      DataType actualRet = exprNode->evalType;
-      if (body->type == AST_VAR_DECL || body->type == AST_ASSIGN ||
-          body->type == AST_WHILE || body->type == AST_IF) {
-        actualRet = T_UNIT;
-      }
-
-      if (actualRet != expectedRet) {
-        if (expectedRet == T_DOUBLE && actualRet == T_INT &&
-            body->type == AST_EXPR_STATEMENT) {
-
-          body->as.exprStatement.expr = promote_int_to_double(exprNode);
-        } else {
-
-          return ERR_SEM_WRONG_TYPE;
-        }
-      }
+    if (isFuncBody && expectedRet != T_UNIT) {
+      return check_tail_value(bodySlot, expectedRet);
     }
     return ERR_SEM_OK;
   }
@@ -437,35 +560,25 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
     }
   }
 
+  // block value: type of the last statement, Unit if empty
+  body->evalType = (body->as.block.count > 0)
+                       ? stmt_value_type(
+                             body->as.block.stmts[body->as.block.count - 1])
+                       : T_UNIT;
+
   if (isFuncBody && expectedRet != T_UNIT) {
     if (body->as.block.count == 0) {
       return ERR_SEM_WRONG_TYPE;
     }
 
     // body ends with value, check its type
-    AstNode *last = body->as.block.stmts[body->as.block.count - 1];
-    if (last->type != AST_RETURN && !always_returns(last)) {
-
-      AstNode *exprNode =
-          (last->type == AST_EXPR_STATEMENT)
-              ? last->as.exprStatement.expr // y*2
-              : last; // for example x = 5, usually ends like T_UNIT
-
-      // from specification: these things should return as T_UNIT
-      DataType actualRet = exprNode->evalType;
-      if (last->type == AST_VAR_DECL || last->type == AST_ASSIGN ||
-          last->type == AST_WHILE || last->type == AST_IF) {
-        actualRet = T_UNIT;
-      }
-
-      if (actualRet != expectedRet) {
-        if (expectedRet == T_DOUBLE && actualRet == T_INT &&
-            last->type == AST_EXPR_STATEMENT) {
-          last->as.exprStatement.expr = promote_int_to_double(exprNode);
-        } else {
-          return ERR_SEM_WRONG_TYPE;
-        }
-      }
+    err = check_tail_value(&body->as.block.stmts[body->as.block.count - 1],
+                           expectedRet);
+    if (err != ERR_SEM_OK) {
+      return err;
+    }
+    if (body->evalType != expectedRet) {
+      body->evalType = expectedRet;
     }
   }
 
@@ -476,6 +589,170 @@ static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
   }
 
   return ERR_SEM_OK;
+}
+
+/**
+ * @brief Analyzes one branch of an if, keeping else-if chains in the same mode
+ *
+ * @param ctx Semantic context
+ * @param branch Branch AST node (may be NULL)
+ * @param asValue True if the whole if is used as an expression
+ * @return SemanticError status code
+ */
+static SemanticError analyze_branch(SemanticContext *ctx, AstNode *branch,
+                                    bool asValue) {
+  if (branch && branch->type == AST_IF) {
+    return analyze_if(ctx, branch, asValue);
+  }
+  return analyze_node(ctx, branch);
+}
+
+/**
+ * @brief Analyzes an if (statement or expression), checks its guard is Boolean
+ * and unifies the branch types into node->evalType
+ *
+ * @param ctx Semantic context
+ * @param node AST_IF node
+ * @param asValue True if the if is used as an expression (types must unify)
+ * @return SemanticError status code
+ */
+static SemanticError analyze_if(SemanticContext *ctx, AstNode *node,
+                                bool asValue) {
+  DataType condT = T_UNIT;
+  SemanticError err =
+      analyze_expr(ctx, node->as.ifStatement.condition, &condT);
+  if (err != ERR_SEM_OK) {
+    return err;
+  }
+
+  if (condT != T_BOOLEAN) {
+    return ERR_SEM_WRONG_TYPE;
+  }
+
+  AstNode *thenB = node->as.ifStatement.thenBlock;
+  AstNode *elseB = node->as.ifStatement.elseBlock;
+
+  err = analyze_branch(ctx, thenB, asValue);
+  if (err != ERR_SEM_OK) {
+    return err;
+  }
+
+  err = analyze_branch(ctx, elseB, asValue);
+  if (err != ERR_SEM_OK) {
+    return err;
+  }
+
+  node->evalType = T_UNIT;
+  if (!thenB || !elseB) {
+    return ERR_SEM_OK;
+  }
+
+  bool thenRet = always_returns(thenB);
+  bool elseRet = always_returns(elseB);
+  DataType thenT = stmt_value_type(thenB);
+  DataType elseT = stmt_value_type(elseB);
+
+  if (thenRet && elseRet) {
+    node->evalType = T_UNIT;
+  } else if (thenRet) {
+    node->evalType = elseT;
+  } else if (elseRet || thenT == elseT) {
+    node->evalType = thenT;
+  } else if ((thenT == T_INT && elseT == T_DOUBLE) ||
+             (thenT == T_DOUBLE && elseT == T_INT)) {
+    coerce_to_double(thenB);
+    coerce_to_double(elseB);
+    node->evalType = T_DOUBLE;
+  } else if (asValue) {
+    return ERR_SEM_WRONG_TYPE;
+  }
+  return ERR_SEM_OK;
+}
+
+/**
+ * @brief Analyzes guards and body of a for loop inside its own scope
+ *
+ * @param ctx Semantic context
+ * @param node AST_FOR node
+ * @return SemanticError status code
+ */
+static SemanticError analyze_for_scoped(SemanticContext *ctx, AstNode *node) {
+  uint32_t loopUid = ++ctx->varUidCounter;
+  node->as.forStatement.varUid = loopUid;
+
+  // CONTROL: loop variable is immutable, so writing to it is error 7
+  if (!st_insert_var(ctx->symtable, node->as.forStatement.varName, T_INT,
+                     false)) {
+    return ERR_SEM_REDEFINITION;
+  }
+  if (!ctx_push_var_uid(ctx, node->as.forStatement.varName, loopUid)) {
+    return ERR_INTERNAL;
+  }
+
+  for (size_t idx = 0; idx < node->as.forStatement.guardCount; idx++) {
+    DataType guardT = T_UNIT;
+    SemanticError err =
+        analyze_expr(ctx, node->as.forStatement.guards[idx], &guardT);
+    if (err != ERR_SEM_OK) {
+      return err;
+    }
+    if (guardT != T_BOOLEAN) {
+      return ERR_SEM_WRONG_TYPE;
+    }
+  }
+
+  return analyze_node(ctx, node->as.forStatement.body);
+}
+
+/**
+ * @brief Analyzes a for loop (bounds and step are Int, a literal zero step is
+ * error 10, guards must be Boolean, the control variable is immutable)
+ *
+ * @param ctx Semantic context
+ * @param node AST_FOR node
+ * @return SemanticError status code
+ */
+static SemanticError analyze_for(SemanticContext *ctx, AstNode *node) {
+  // bounds and step are evaluated outside the scope of the loop variable
+  DataType fromT = T_UNIT;
+  DataType toT = T_UNIT;
+  DataType stepT = T_INT;
+
+  SemanticError err = analyze_expr(ctx, node->as.forStatement.from, &fromT);
+  if (err != ERR_SEM_OK) {
+    return err;
+  }
+  err = analyze_expr(ctx, node->as.forStatement.to, &toT);
+  if (err != ERR_SEM_OK) {
+    return err;
+  }
+  if (node->as.forStatement.step) {
+    err = analyze_expr(ctx, node->as.forStatement.step, &stepT);
+    if (err != ERR_SEM_OK) {
+      return err;
+    }
+  }
+
+  if (fromT != T_INT || toT != T_INT || stepT != T_INT) {
+    return ERR_SEM_WRONG_TYPE;
+  }
+  if (is_zero_literal(node->as.forStatement.step)) {
+    return ERR_SEM_OTHER;
+  }
+
+  if (!st_push_scope(ctx->symtable)) {
+    return ERR_INTERNAL;
+  }
+  ctx->scopeDepth++;
+
+  err = analyze_for_scoped(ctx, node);
+
+  st_pop_scope(ctx->symtable);
+  ctx->scopeDepth--;
+  ctx_pop_scope_uids(ctx);
+
+  node->evalType = T_UNIT;
+  return err;
 }
 
 /**
@@ -494,7 +771,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
 
   switch (node->type) {
   case AST_BLOCK:
-    return analyze_block_body(ctx, node, false, T_UNIT);
+    return analyze_block_body(ctx, &node, false, T_UNIT);
 
   case AST_VAR_DECL: {
     DataType initT = T_UNIT;
@@ -509,18 +786,17 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
                         ? node->as.varDecl.declaredType
                         : initT;
 
-    if (node->as.varDecl.hasDeclaredType && node->as.varDecl.initExpr) {
-      if (varT != initT) {
-        if (varT == T_DOUBLE && initT == T_INT) {
-          node->as.varDecl.initExpr =
-              promote_int_to_double(node->as.varDecl.initExpr);
-        } else {
-          return ERR_SEM_WRONG_TYPE;
-        }
+    if (node->as.varDecl.hasDeclaredType && node->as.varDecl.initExpr &&
+        varT != initT) {
+      if (varT == T_DOUBLE && initT == T_INT) {
+        node->as.varDecl.initExpr =
+            promote_int_to_double(node->as.varDecl.initExpr);
+      } else {
+        return ERR_SEM_WRONG_TYPE;
       }
     }
 
-    uint32_t newUid = ++(ctx->varUidCounter);
+    uint32_t newUid = ++ctx->varUidCounter;
     node->uid = newUid;
 
     if (!st_insert_var(ctx->symtable, node->as.varDecl.name, varT,
@@ -564,43 +840,19 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
     break;
   }
 
-  case AST_IF: {
-    DataType condT = T_UNIT;
-    err = analyze_expr(ctx, node->as.ifStatement.condition, &condT);
+  case AST_IF:
+    err = analyze_if(ctx, node, false);
     if (err != ERR_SEM_OK) {
       return err;
-    }
-
-    if (condT != T_BOOLEAN) {
-      return ERR_SEM_WRONG_TYPE;
-    }
-
-    err = analyze_node(ctx, node->as.ifStatement.thenBlock);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    err = analyze_node(ctx, node->as.ifStatement.elseBlock);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    if (node->as.ifStatement.thenBlock && node->as.ifStatement.elseBlock) {
-      DataType thenT = node->as.ifStatement.thenBlock->evalType;
-      DataType elseT = node->as.ifStatement.elseBlock->evalType;
-      if (thenT == elseT) {
-        node->evalType = thenT;
-      } else if ((thenT == T_INT && elseT == T_DOUBLE) ||
-                 (thenT == T_DOUBLE && elseT == T_INT)) {
-        node->evalType = T_DOUBLE;
-      } else {
-        node->evalType = T_UNIT;
-      }
-    } else {
-      node->evalType = T_UNIT;
     }
     break;
-  }
+
+  case AST_FOR:
+    err = analyze_for(ctx, node);
+    if (err != ERR_SEM_OK) {
+      return err;
+    }
+    break;
 
   case AST_WHILE: {
     DataType condT = T_UNIT;
@@ -660,7 +912,7 @@ static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
   }
 
   default:
-    return analyze_expr(ctx, node, &(node->evalType));
+    return analyze_expr(ctx, node, &node->evalType);
   }
 
   return ERR_SEM_OK;
@@ -735,7 +987,8 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
                          .uidStack = NULL,
                          .uidCount = 0,
                          .uidCapacity = 0,
-                         .inMain = false};
+                         .inMain = false,
+  };
 
   for (size_t idx = 0; idx < root->as.program.count; idx++) {
     AstNode *fnNode = root->as.program.functions[idx];
@@ -750,7 +1003,7 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
 
     for (uint16_t parIdx = 0; parIdx < fnNode->as.funcDef.paramCount;
          parIdx++) {
-      uint32_t paramUid = ++(ctx.varUidCounter);
+      uint32_t paramUid = ++ctx.varUidCounter;
       fnNode->as.funcDef.params[parIdx].uid = paramUid;
 
       if (!st_insert_var(symtable, fnNode->as.funcDef.params[parIdx].name,
@@ -768,7 +1021,7 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
       }
     }
 
-    err = analyze_block_body(&ctx, fnNode->as.funcDef.body, true,
+    err = analyze_block_body(&ctx, &fnNode->as.funcDef.body, true,
                              fnNode->as.funcDef.retType);
     st_pop_scope(symtable);
     ctx.scopeDepth = 0;
@@ -804,9 +1057,10 @@ static bool always_returns(AstNode *node) {
     return always_returns(node->as.block.stmts[node->as.block.count - 1]);
 
   case AST_IF:
-    bool result = always_returns(node->as.ifStatement.thenBlock) &&
-                  always_returns(node->as.ifStatement.elseBlock);
-    return result;
+    if (!always_returns(node->as.ifStatement.thenBlock)) {
+      return false;
+    }
+    return always_returns(node->as.ifStatement.elseBlock);
 
   default:
     return false;
