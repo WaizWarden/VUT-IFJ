@@ -230,7 +230,6 @@ void first_iteration(void) {
   run_test("No number #3", "1e+", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double dots", "1.5.2", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double e", "1e5e3", TOKEN_ERROR, NULL, -1, -1);
-  run_test("Underscore not between numbers", "1._5", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double underscore", "1.5__5", TOKEN_ERROR, NULL, -1, -1);
   run_test("Random suffix", "3.14s", TOKEN_ERROR, NULL, -1, -1);
 
@@ -686,7 +685,41 @@ void indentation_flow_tests(void) {
                             TOKEN_NEWLINE,    TOKEN_EOF};
   run_sequence_test("22. Semicolon separator", code18, expected18,
                     sizeof(expected18) / sizeof(expected18[0]));
-}
 
 // END OF AI USAGE
+
+// Valmem Tests
+  scanner_destroy();
+  char *valmem1 = "15.48.toInt";
+  TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER};
+  run_sequence_test("1. double.toInt", valmem1, expectedValmem1,
+                    sizeof(valmem1) / sizeof(expectedValmem1[0]));
+
+  scanner_destroy();
+  char *valmem2 = "15.toString";
+  TokenType expectedValmem2[] = {TOKEN_INT, TOKEN_DOT, TOKEN_IDENTIFIER};
+  run_sequence_test("2. int.tostring", valmem2, expectedValmem2,
+                    sizeof(valmem2) / sizeof(expectedValmem2[0]));
+
+  scanner_destroy();
+  char *valmem3 = "\"string\".toString";
+  TokenType expectedValmem3[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER};
+  run_sequence_test("3. string.tostring", valmem3, expectedValmem3,
+                    sizeof(valmem3) / sizeof(expectedValmem3[0]));
+
+  scanner_destroy();
+  char *valmem4 = "\"abc\".length";
+  TokenType expectedValmem4[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER};
+  run_sequence_test("4. string.length", valmem4, expectedValmem4,
+                    sizeof(valmem4) / sizeof(expectedValmem4[0]));
+
+  scanner_destroy();
+  char *valmem5 = "15.3.floor.int";
+  TokenType expectedValmem5[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_DOT, TOKEN_IDENTIFIER};
+  run_sequence_test("5. double.floor.int", valmem5, expectedValmem5,
+                    sizeof(valmem5) / sizeof(expectedValmem5[0]));
+
+}
+
+
 // NOLINTEND
