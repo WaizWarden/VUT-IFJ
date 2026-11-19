@@ -691,33 +691,33 @@ void indentation_flow_tests(void) {
 // Valmem Tests
   scanner_destroy();
   char *valmem1 = "15.48.toInt";
-  TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER};
+  TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("1. double.toInt", valmem1, expectedValmem1,
-                    sizeof(valmem1) / sizeof(expectedValmem1[0]));
+                    sizeof(expectedValmem1) / sizeof(expectedValmem1[0]));
 
   scanner_destroy();
   char *valmem2 = "15.toString";
-  TokenType expectedValmem2[] = {TOKEN_INT, TOKEN_DOT, TOKEN_IDENTIFIER};
+  TokenType expectedValmem2[] = {TOKEN_INT, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("2. int.tostring", valmem2, expectedValmem2,
-                    sizeof(valmem2) / sizeof(expectedValmem2[0]));
+                    sizeof(expectedValmem2) / sizeof(expectedValmem2[0]));
 
   scanner_destroy();
   char *valmem3 = "\"string\".toString";
-  TokenType expectedValmem3[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER};
+  TokenType expectedValmem3[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("3. string.tostring", valmem3, expectedValmem3,
-                    sizeof(valmem3) / sizeof(expectedValmem3[0]));
+                    sizeof(expectedValmem3) / sizeof(expectedValmem3[0]));
 
   scanner_destroy();
   char *valmem4 = "\"abc\".length";
-  TokenType expectedValmem4[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER};
+  TokenType expectedValmem4[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("4. string.length", valmem4, expectedValmem4,
-                    sizeof(valmem4) / sizeof(expectedValmem4[0]));
+                    sizeof(expectedValmem4) / sizeof(expectedValmem4[0]));
 
   scanner_destroy();
   char *valmem5 = "15.3.floor.int";
-  TokenType expectedValmem5[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_DOT, TOKEN_IDENTIFIER};
+  TokenType expectedValmem5[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("5. double.floor.int", valmem5, expectedValmem5,
-                    sizeof(valmem5) / sizeof(expectedValmem5[0]));
+                    sizeof(expectedValmem5) / sizeof(expectedValmem5[0]));
 
 }
 
