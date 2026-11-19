@@ -42,7 +42,6 @@ static Token scan_identifier(FILE *input, int currentChar);
 // States in scanner
 typedef enum {
   S_START,
-  S_ID,
   S_INT,
   S_DOUBLE,
 } State;
@@ -246,8 +245,30 @@ Token get_token(FILE *input) {
 
         else if (currentChar == 'e' || currentChar == 'E' ||
                  currentChar == '.') {
-          state = S_DOUBLE;
 
+          // valmem
+          int next = next_char(input);
+          if (currentChar == '.' && (isalpha(next) || next == '_')) {
+          valmemReturnDot = true;
+
+          put_back(next, input);
+          str[len] = '\0';
+          
+          char *end;
+          int val = (int)strtol(str, &end, 10);
+          errno = 0;
+          if (end == str || *end != '\0' || errno == ERANGE) {
+            fprintf(stderr, "Scanner error while converting to integer\n");
+            goto return_error;
+          }
+
+          token.type = TOKEN_INT;
+          token.value.numberInt = val;
+          goto return_token;
+          }
+
+          put_back(next, input);
+          state = S_DOUBLE;
           str[len] = (char)currentChar;
           len++;
 
@@ -290,6 +311,7 @@ Token get_token(FILE *input) {
             convert it to strtol
           */
           char *end;
+          errno = 0;
           int val = (int)strtol(str, &end, 10); // 10 means base ten
 
           if (end == str || *end != '\0' || errno == ERANGE) {
