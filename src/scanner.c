@@ -79,6 +79,7 @@ static bool valmemReturnDot = false;
 static bool interpActive = false;
 static bool interpVariable = false;
 static bool interpStart = false;
+static bool interpExpression = false;
 static bool interpResume = false;
 static bool interpEnd = false;
 
@@ -690,6 +691,16 @@ static TokenType single_operator(FILE *input, int currentChar) {
   case '@':
     return TOKEN_AT;
 
+  case '}':
+    if (interpExpression) {
+      interpExpression = false;
+      interpResume = true;
+      return TOKEN_INTERP_END;
+    }
+    fprintf(stderr, "Scanner error: %d, Invalid interpolate character\n",
+            SCANNER_ERROR);
+    return TOKEN_ERROR;
+
   case EOF:
     return TOKEN_EOF;
 
@@ -926,6 +937,19 @@ static Token scan_string(FILE *input) {
             return token;
           }
 
+          // expression inside ${
+          else if (next == '{') {
+            interpStart = true;
+            interpExpression = true;
+
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
           else {
             fprintf(stderr,
                     "Scanner error: %d, Invalid interpolate character\n",
@@ -1025,7 +1049,7 @@ static bool number_token_end(int currentChar) {
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
        currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
        currentChar == ',' || currentChar == '|' || currentChar == '&' ||
-       currentChar == EOF);
+       currentChar == '}' || currentChar == EOF);
 
   return (bool)result;
 }
@@ -1154,6 +1178,7 @@ void scanner_destroy(void) {
   interpStart = false;
   interpResume = false;
   interpEnd = false;
+  interpExpression = false;
 }
 
 /**

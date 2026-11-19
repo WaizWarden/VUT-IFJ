@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     test_parser_valid();
     return 0;
   }
-  //first_iteration();
+  // first_iteration();
   indentation_flow_tests();
   /*
   test_stack();

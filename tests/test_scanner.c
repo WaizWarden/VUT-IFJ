@@ -691,31 +691,37 @@ void indentation_flow_tests(void) {
   // Valmem Tests
   scanner_destroy();
   char *valmem1 = "15.48.toInt";
-  TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
+  TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
   run_sequence_test("1. double.toInt", valmem1, expectedValmem1,
                     sizeof(expectedValmem1) / sizeof(expectedValmem1[0]));
 
   scanner_destroy();
   char *valmem2 = "15.toString";
-  TokenType expectedValmem2[] = {TOKEN_INT, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
+  TokenType expectedValmem2[] = {TOKEN_INT, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
   run_sequence_test("2. int.tostring", valmem2, expectedValmem2,
                     sizeof(expectedValmem2) / sizeof(expectedValmem2[0]));
 
   scanner_destroy();
   char *valmem3 = "\"string\".toString";
-  TokenType expectedValmem3[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
+  TokenType expectedValmem3[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
   run_sequence_test("3. string.tostring", valmem3, expectedValmem3,
                     sizeof(expectedValmem3) / sizeof(expectedValmem3[0]));
 
   scanner_destroy();
   char *valmem4 = "\"abc\".length";
-  TokenType expectedValmem4[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
+  TokenType expectedValmem4[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
   run_sequence_test("4. string.length", valmem4, expectedValmem4,
                     sizeof(expectedValmem4) / sizeof(expectedValmem4[0]));
 
   scanner_destroy();
   char *valmem5 = "15.3.floor.int";
-  TokenType expectedValmem5[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
+  TokenType expectedValmem5[] = {TOKEN_DOUBLE,     TOKEN_DOT,
+                                 TOKEN_IDENTIFIER, TOKEN_DOT,
+                                 TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("5. double.floor.int", valmem5, expectedValmem5,
                     sizeof(expectedValmem5) / sizeof(expectedValmem5[0]));
 
@@ -734,34 +740,34 @@ void indentation_flow_tests(void) {
 
   scanner_destroy();
   char *interp3 = "s\"a$hello\"";
-  TokenType expectedInterp3[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, TOKEN_STRING, TOKEN_EOF};
+  TokenType expectedInterp3[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
   run_sequence_test("Interp variable", interp3, expectedInterp3,
                     sizeof(expectedInterp3) / sizeof(expectedInterp3[0]));
-  
+
   scanner_destroy();
   char *interp4 = "s\"a$b hello\"";
-  TokenType expectedInterp4[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, TOKEN_STRING, TOKEN_EOF};
+  TokenType expectedInterp4[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
   run_sequence_test("Interp variable, string", interp4, expectedInterp4,
                     sizeof(expectedInterp4) / sizeof(expectedInterp4[0]));
 
-  
   scanner_destroy();
   char *interp5 = "s\"$name${n + 1} costs $$0\"";
   TokenType expectedInterp5[] = {
-    TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, 
-    TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_PLUS, TOKEN_INT, TOKEN_INTERP_END,
-    TOKEN_STRING, TOKEN_EOF};
-    run_sequence_test("Interp variable, string", interp5, expectedInterp5,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_PLUS,
+      TOKEN_INT,    TOKEN_INTERP_END,   TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Interp expression", interp5, expectedInterp5,
                     sizeof(expectedInterp5) / sizeof(expectedInterp5[0]));
-  
 
   scanner_destroy();
   char *interp6 = "s\"$\"";
   TokenType expectedInterp6[] = {TOKEN_ERROR};
-    run_sequence_test("Interp error", interp6, expectedInterp6,
+  run_sequence_test("Interp error", interp6, expectedInterp6,
                     sizeof(expectedInterp6) / sizeof(expectedInterp6[0]));
-    
-               
 }
 
 // NOLINTEND
