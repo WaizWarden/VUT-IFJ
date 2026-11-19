@@ -69,34 +69,34 @@ A block must contain at least one statement.
 
 Supported block constructions:
 
-- Declaration of variables `var` or `val`
-- Assigning value to some declared variable
-- Function call
-- Return call
-- Expression `if` with necceceary block of `else`
-- `while` cycle
-- The commands itself
+- Variable declarations with `var` or `val`
+- Assignments to declared variables
+- Function calls
+- Return statements
+- `if`/`else` statements
+- `while` loops
+- `for` loops
+- Plain expression statements
 
-Nested constructions are processed recursively.
-Example: While processing a block of cycle, parser loads a condition `if` and then processes whole block `if`, but the nested block may contain other nested blocks which are processed earlier than the parent block - recursive principle.
+Nested constructs are processed recursively.
+For example, when parsing a loop body, the parser may encounter an `if` and process its entire block first; that block can itself contain further nested blocks.
 
-#### How are expressions distincted, function calling
+#### Distinguishing expressions and function calls
 
-The standalone expressions are not processed by the `parser.c` itself, but are handled in `precedence.c`
-The call of functions are processed by the `parser.c` itself.
+Standalone expressions are not handled by `parser.c` itself but are passed to `precedence.c`.
+Function calls are parsed by `parser.c` directly.
 
-If the construction starts with identifier, parser stores its name and loads next token. Depending on the next token decides further procedure.
+If a statement starts with an identifier, the parser stores its name and looks at the next token to decide:
 
-- `"="` - simple assign into the variable
-- `"("` - opening bracket indicates call of a function
-- other token - expression that starts with identifier
+- `=` - an assignment to the variable
+- `(` - a function call
+- anything else - an expression starting with that identifier
 
-Upon the handover of expression to the precedence analysis, parser hands over also AST node with lready loaded identifier.
-Precedence analysyscan continue without repeated loading of the token.
+When handing the expression over to precedence analysis, the parser also passes the AST node for the already-read identifier, so the precedence parser can continue without re-reading it.
 
-Arguments of calling parser processes as a list of terms that are divided by commas, not as a general expressions.
+Call arguments are parsed as a comma-separated list of terms, not as general expressions.
 
-Inside call arguments, member access `arg.member` is supported (VALMEM). After every argument, a `while` loop consumes any number of `. identifier` pairs and wraps the argument into  `ast_new_member_call`, which desugars it into a builtin function call.
+Inside call arguments, member access `arg.member` is supported (VALMEM). After every argument, a `while` loop consumes any number of `. identifier` pairs and wraps the argument in `ast_new_member_call`, which desugars it into a builtin function call.
 
 ## Operator-Precedence Parsing
 
