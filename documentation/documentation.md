@@ -488,10 +488,9 @@ The `for` header and function calls:
 #### How to read the table
 
 The LL table acts as a map for the parser: standing on a
-non-terminal (row) and seeing a token on the input (column), the
-parser applies the rule whose number is stored in the cell.
-An empty cell marks a combination that can never occur - reaching
-it means a syntax error.
+non-terminal (row) and seeing a token on the input (column), the parser applies the rule that number is stored in the cell.
+An empty cell marks a combination that can never occur.
+If it is reached, it means a syntax error.
 
 Example walkthrough for `def f(): Int = 5`: `<program>` on
 `import` applies rule 1, `<funcList>` on `def` applies rule 3,
@@ -501,8 +500,7 @@ Example walkthrough for `def f(): Int = 5`: `<program>` on
 hands the expression over to the precedence parser. After the last
 function `<funcList>` on `EOF` applies rule 4 and parsing ends.
 
-Cells with multiple rule numbers and `*` mark places where the
-grammar is not strictly LL(1) - the parser resolves them by
+Cells with multiple rule numbers and `*` mark places where the grammar is not strictly LL(1) - the parser resolves them by
 looking one token further ahead:
 
   - rule 29: after `id` the next token decides
