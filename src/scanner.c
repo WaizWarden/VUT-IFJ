@@ -75,6 +75,13 @@ static bool EndOfFileDetected = false;
 // valmem
 static bool valmemReturnDot = false;
 
+// interpolades
+static bool interpActive = false;
+static bool interpVariable = false;
+static bool interpStart = false;
+static bool interpResume = false;
+static bool interpEnd = false;
+
 /**
  * @brief Parses stdin and creates token
  *
@@ -118,6 +125,24 @@ Token get_token(FILE *input) {
   if (valmemReturnDot) {
     valmemReturnDot = false;
     token.type = TOKEN_DOT;
+    goto return_token;
+  }
+
+  if (interpStart) {
+    interpStart = false;
+    token.type = TOKEN_INTERP_START;
+    goto return_token;
+  }
+
+  if (interpEnd) {
+    interpEnd = false;
+    token.type = TOKEN_INTERP_END;
+    goto return_token;
+  }
+
+  if (interpResume) {
+    interpResume = false;
+    token = scan_string(input);
     goto return_token;
   }
 
@@ -249,22 +274,22 @@ Token get_token(FILE *input) {
           // valmem
           int next = next_char(input);
           if (currentChar == '.' && (isalpha(next) || next == '_')) {
-          valmemReturnDot = true;
+            valmemReturnDot = true;
 
-          put_back(next, input);
-          str[len] = '\0';
-          
-          char *end;
-          int val = (int)strtol(str, &end, 10);
-          errno = 0;
-          if (end == str || *end != '\0' || errno == ERANGE) {
-            fprintf(stderr, "Scanner error while converting to integer\n");
-            goto return_error;
-          }
+            put_back(next, input);
+            str[len] = '\0';
 
-          token.type = TOKEN_INT;
-          token.value.numberInt = val;
-          goto return_token;
+            char *end;
+            int val = (int)strtol(str, &end, 10);
+            errno = 0;
+            if (end == str || *end != '\0' || errno == ERANGE) {
+              fprintf(stderr, "Scanner error while converting to integer\n");
+              goto return_error;
+            }
+
+            token.type = TOKEN_INT;
+            token.value.numberInt = val;
+            goto return_token;
           }
 
           put_back(next, input);
@@ -300,7 +325,7 @@ Token get_token(FILE *input) {
           // len > 1 because we want to pass "0" not "01"
           if (str[0] == '0' && len > 1) {
             fprintf(stderr,
-                    "Scanner error: %d, Int cant start with leading zero\n",
+                    "Scanner error: %d, Int canqt start with leading zero\n",
                     SCANNER_ERROR);
             goto return_error;
           }
@@ -363,7 +388,7 @@ Token get_token(FILE *input) {
                     SCANNER_ERROR);
             goto return_error;
           }
-          
+
           for (size_t i = 0; i < len; i++) {
             if (str[i] == 'e' || str[i] == 'E' ||
                 (currentChar == '.' && str[i] == '.')) {
@@ -499,6 +524,16 @@ static Token scan_identifier(FILE *input, int currentChar) {
     return token;
   }
 
+  // interpolades
+  int next = next_char(input);
+  if (currentChar == 's' && next == '"') {
+    interpActive = true;
+    free(str);
+    return scan_string(input);
+  }
+
+  put_back(next, input);
+
   while (isalnum(currentChar) || currentChar == '_') {
 
     // realloc
@@ -551,6 +586,12 @@ static Token scan_identifier(FILE *input, int currentChar) {
       token.value.boolean = false;
       free(str);
       return token;
+    }
+
+    if (interpVariable) {
+      interpVariable = false;
+      interpResume = true;
+      interpEnd = true;
     }
 
     token.type = TOKEN_IDENTIFIER;
@@ -847,6 +888,8 @@ static Token scan_string(FILE *input) {
         str[len] = (char)currentChar;
         len++;
       }
+
+      // single-line string
     } else {
 
       if (currentChar == '\n') {
@@ -856,6 +899,43 @@ static Token scan_string(FILE *input) {
 
         free(str);
         return token;
+      }
+
+      if (interpActive) {
+        if (currentChar == '$') {
+          int next = next_char(input);
+
+          if (next == '$') {
+            str[len] = '$';
+            len++;
+            currentChar = next_char(input);
+            continue;
+          }
+
+          // $variable
+          else if (isalpha(next) || next == '_') {
+            interpVariable = true;
+            interpStart = true;
+
+            put_back(next, input);
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          else {
+            fprintf(stderr,
+                    "Scanner error: %d, Invalid interpolate character\n",
+                    SCANNER_ERROR);
+
+            free(str);
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+        }
       }
 
       // Single-line string can contain escape characters as two chars
@@ -889,7 +969,6 @@ static Token scan_string(FILE *input) {
           free(str);
           return token;
         }
-
         len++;
       }
 
@@ -900,6 +979,7 @@ static Token scan_string(FILE *input) {
         token.value.string = strdup(str);
 
         free(str);
+        interpActive = false;
         return token;
       }
 
@@ -1068,6 +1148,12 @@ void scanner_destroy(void) {
   EndOfFileDetected = false;
 
   valmemReturnDot = false;
+
+  interpActive = false;
+  interpVariable = false;
+  interpStart = false;
+  interpResume = false;
+  interpEnd = false;
 }
 
 /**

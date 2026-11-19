@@ -686,9 +686,9 @@ void indentation_flow_tests(void) {
   run_sequence_test("22. Semicolon separator", code18, expected18,
                     sizeof(expected18) / sizeof(expected18[0]));
 
-// END OF AI USAGE
+  // END OF AI USAGE
 
-// Valmem Tests
+  // Valmem Tests
   scanner_destroy();
   char *valmem1 = "15.48.toInt";
   TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER, TOKEN_EOF};
@@ -719,7 +719,31 @@ void indentation_flow_tests(void) {
   run_sequence_test("5. double.floor.int", valmem5, expectedValmem5,
                     sizeof(expectedValmem5) / sizeof(expectedValmem5[0]));
 
-}
+  // interpolades
+  scanner_destroy();
+  char *interp1 = "s\"asb\"";
+  TokenType expectedInterp1[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("No interp", interp1, expectedInterp1,
+                    sizeof(expectedInterp1) / sizeof(expectedInterp1[0]));
 
+  scanner_destroy();
+  char *interp2 = "s\"a$$b\"";
+  TokenType expectedInterp2[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("No interp $ dollar string", interp2, expectedInterp2,
+                    sizeof(expectedInterp2) / sizeof(expectedInterp2[0]));
+
+  scanner_destroy();
+  char *interp3 = "s\"a$hello\"";
+  TokenType expectedInterp3[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Interp variable", interp3, expectedInterp3,
+                    sizeof(expectedInterp3) / sizeof(expectedInterp3[0]));
+  
+  scanner_destroy();
+  char *interp4 = "s\"a$b hello\"";
+  TokenType expectedInterp4[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Interp variable, string", interp4, expectedInterp4,
+                    sizeof(expectedInterp4) / sizeof(expectedInterp4[0]));
+               
+}
 
 // NOLINTEND

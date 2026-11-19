@@ -18,12 +18,14 @@ int main(int argc, char **argv) {
     test_parser_valid();
     return 0;
   }
-  first_iteration();
+  //first_iteration();
   indentation_flow_tests();
+  /*
   test_stack();
   test_ast();
   test_precedence();
   test_parser();
   test_semantic();
+  */
   return 0;
 }

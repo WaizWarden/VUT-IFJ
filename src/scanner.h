@@ -50,6 +50,9 @@ typedef enum {
   TOKEN_BOOL,
   TOKEN_SKIP, /** Never gets to parser */
 
+  TOKEN_INTERP_START,
+  TOKEN_INTERP_END,
+
 } TokenType;
 
 /**
