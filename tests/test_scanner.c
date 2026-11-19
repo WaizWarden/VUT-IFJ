@@ -743,6 +743,24 @@ void indentation_flow_tests(void) {
   TokenType expectedInterp4[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, TOKEN_STRING, TOKEN_EOF};
   run_sequence_test("Interp variable, string", interp4, expectedInterp4,
                     sizeof(expectedInterp4) / sizeof(expectedInterp4[0]));
+
+  
+  scanner_destroy();
+  char *interp5 = "s\"$name${n + 1} costs $$0\"";
+  TokenType expectedInterp5[] = {
+    TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END, 
+    TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_PLUS, TOKEN_INT, TOKEN_INTERP_END,
+    TOKEN_STRING, TOKEN_EOF};
+    run_sequence_test("Interp variable, string", interp5, expectedInterp5,
+                    sizeof(expectedInterp5) / sizeof(expectedInterp5[0]));
+  
+
+  scanner_destroy();
+  char *interp6 = "s\"$\"";
+  TokenType expectedInterp6[] = {TOKEN_ERROR};
+    run_sequence_test("Interp error", interp6, expectedInterp6,
+                    sizeof(expectedInterp6) / sizeof(expectedInterp6[0]));
+    
                
 }
 
