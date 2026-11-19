@@ -73,6 +73,9 @@ static int currentLine = 1;
 static bool lineStart = true;
 static bool EndOfFileDetected = false;
 
+// valmem
+static bool valmemReturnDot = false;
+
 /**
  * @brief Parses stdin and creates token
  *
@@ -110,6 +113,12 @@ Token get_token(FILE *input) {
 
   if (EndOfFileDetected) {
     handle_eof(&token);
+    goto return_token;
+  }
+
+  if (valmemReturnDot) {
+    valmemReturnDot = false;
+    token.type = TOKEN_DOT;
     goto return_token;
   }
 
@@ -313,6 +322,26 @@ Token get_token(FILE *input) {
       // Check for multiple E e . and invalid chars
       if (!isdigit(currentChar)) {
         if (currentChar == 'e' || currentChar == 'E' || currentChar == '.') {
+
+          // valmem
+          if (currentChar == '.') {
+            int next = next_char(input);
+            if (isalpha(next) || next == '_') {
+              valmemReturnDot = true;
+
+              str[len] = '\0';
+              put_back(next, input);
+              token.type = TOKEN_DOUBLE;
+              token.value.numberDouble = strtod(str, NULL);
+              goto return_token;
+            }
+
+            fprintf(stderr,
+                    "Scanner error: %d, multiple exponents in double format\n",
+                    SCANNER_ERROR);
+            goto return_error;
+          }
+          
           for (size_t i = 0; i < len; i++) {
             if (str[i] == 'e' || str[i] == 'E' ||
                 (currentChar == '.' && str[i] == '.')) {
@@ -1015,6 +1044,8 @@ void scanner_destroy(void) {
   lineStart = true;
   currentLine = 1;
   EndOfFileDetected = false;
+
+  valmemReturnDot = false;
 }
 
 /**
