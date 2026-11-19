@@ -100,14 +100,14 @@ Inside call arguments, member access `arg.member` is supported (VALMEM). After e
 
 ## Operator-Precedence Parsing
 
-Expression are processed by independent module `precedence.c` with a method of the precedence syntax analysys. In precedence.c is not used the recursive descent, but the decision is based on precedence table. Precedence table states relation between terminal on stack and actual input token.
-Result of this analysis is a sub-tree that represents the parser expression. Its structure shows the priority of operators, asociativity, and grouping with `"()"`
+Expression are processed by independent module `precedence.c` with a method of the precedence syntax analysis. In precedence.c is not used the recursive descent, but the decision is based on precedence table. Precedence table states relation between terminal on stack and actual input token.
+Result of this analysis is a subtree that represents the parsed expression. Its structure shows the priority of operators, associativity, and grouping with `"()"`
 
 ### Stack and precedence symbols
 
 The analysis uses implemented stack in `stack.c`, in the bottom is symbol `"$"`. During the precedence analysis stack stores: terminals, nonterminals that represents processed sub-part of the expression and the signs of the start.
 
-Tokens from scanner are converted to precedence symbols. operators with similiar priority and its act are grouped together (+ and -), but the exact type of operator is stored to distinguish the difference between the elements in the group (+ and - cant be viewed as same element).
+Tokens from scanner are converted to precedence symbols. operators with similar priority and its act are grouped together (+ and -), but the exact type of operator is stored to distinguish the difference between the elements in the group (+ and - can't be viewed as the same element).
 
 Upon searching the relation in precedence table is used the top terminal on the stack, not only the top element. Nonterminals are skipped in this search.
 
@@ -117,29 +117,29 @@ Precedence table distinguishes 4 types of relations:
 
 | Relation | Action |
    |---|---|
-   | `<` | Marks the start sign and inserts the input symbol on the stack and loads next token  |
+   | `<` | Inserts a handle-start marker `<`, shifts the input symbol and loads the next token |
    | `=` | Inserts input symbol on the stack and loads next token without insertion of start sign|
    | `>` | Does the reduction of the part of stack depending on the correct reduction rule. |
-   | Empty | Expression is denied as syntax error. |
+   | Empty | Syntax error. |
 
 
-Upon reduction of the analysis removes elements to the sign of start. If it matches the relation, replaces them with nonterminals with its assigned AST node. Upon reduction the new input token is not loaded
+On reduction the analysis pops elements up to the `<` marker. If they match a reduction rule, they are replaced by one nonterminal carrying the new AST node. No new input token is loaded during a reduction.
 
 Analysis ends correctly only if the input symbol is the ending `"$"` and on the stack remains only the stack bottom and one nonterminal that represents the whole parsed expression.
 
-### Construction of the precedence table (from 6x6 to 9x9)
+### Construction of the precedence table (from 6x6 to 13x13)
 
 The base of precedence table was created using the lecture`s
 table that featured 6x6 relations. This table contains these 
-operations: `*` and `+`. Because operators with the same asociativity and same priority has identical lines and columns, they are not directly in the table and are grouped into two sections: (+,-) and (*,/)
+operations: `*` and `+`. Because operators with the same associativity and same priority has identical lines and columns, they are not directly in the table and are grouped into two sections: (+,-) and (*,/)
 
 Because the specification requires unary minus (u-), the 6x6 table cannot distinguish between normal and unary minus. Also there were more operations and comparators that required the expansion of the original table (like `<`, `<=`, or `==` and `!=`)
 
-Relation operators and comparators are non-asociative. Because of this chaining like "a<b<c<d" or "a<b == c" is not permited by the specification.
+Relation operators and comparators are non-associative. Because of this chaining like "a<b<c<d" or "a<b == c" is not permited by the specification.
 
-The result is table containing 9 columns and 9 lines with symbols: +- ,  */ ,  u- , !,  rel ,  ==!= , &&, || , ., ( ,  ) ,  i ,  $
+The result is a table containing 13 columns and 13 rows with symbols: +- ,  */ ,  u- , !,  rel ,  ==!= , &&, || , ., ( ,  ) ,  i ,  $
 
-#### The conversion of 6x6 table to 9x9 itself
+#### The conversion from 6x6 to 13x13
 
 Reduction rules:
   - E -> i (term)
@@ -157,16 +157,16 @@ Reduction rules:
 
 For every reduction rule exist a sematic rule that creates AST
 
-1) Expansion for unary minus (-u) 6x6 to 13x13
+1) Expansion for unary minus (-u) 6x6 to 7x7
   - I had to add a new symbol into the table `-u`
   - Column for operators `(`, `$`  and the `u-` itself is `<`
     - for `i` and `(` is empty
   - The line is the same like for */
 2) Expansion for rel
   - Column: for `+-`, `*/` , `u-` and `)`, `$` is the value `<`, otherwise `>`
-  - Line: `+-`, `*/`, `u-` is `>` because of asociativity
+  - Line: `+-`, `*/`, `u-` is `>` because of associativity
 3) Expansion for `==` and `!=`
-  - The lowest priority is created like the `rel 
+  - The lowest priority level, built the same way as `rel`
   - Other operators must be `>
 4) Expansion for `!` - unary negation
   - It is new prefix operator, with the same priority as `u-`
@@ -177,12 +177,12 @@ For every reduction rule exist a sematic rule that creates AST
   - Left-associative: `&&` vs `&&` is `>`, so `a && b && c` reduces left to right
   - Column: `<` for `(` and `$`, otherwise `>` - when `&&` arrives on the input, the sub-expression on the stack is reduced first
   - Line: `>` only for `&&`, `||`, `)` and `$`, `<` for all higher-priority symbols - the operator binds weaker than everything before it
-6)
-  - Another level bellow `&&`
+6) Expansion for `||` - logical or
+  - Another level below `&&`
   - Left-associative, same construction as `&&`
   - Column: `<` for `(` and `$`, otherwise `>`
   - Line: `>` only for `||`, `)` and `$`. The `&&` column is `<`, so `a && b || c` correctly parses as `(a && b) || c`
-7) Expansion for `.` - extension for Valhem
+7) Expansion for `.` - extension for VALMEM
   - The highest priority operator in the whole table
   - Column (`.` on the input): `<` for all operators, `(` and `$` - the dot is shifted as part of the operand being built. `>` for `.`, `)` and `i`, `(` is empty
   - Line (`.` on top of the stack): `<` only for `i`, which is shifted as the member name. `>` for everything else, `(` is empty - a method call with arguments `a.f(x)` is not handled by precedence, the parser resolves it
@@ -211,7 +211,7 @@ Row = the topmost terminal on the stack, column = input terminal. An empty cell 
 
 ### How does the expression end
 
-The IFJ26 does not have a special ending symbol, precedence cannot determine the end until the input symbol is `$
+The IFJ26 does not have a special ending symbol, precedence cannot determine the end until the input symbol is `$`
 
 Upon conversion of tokens to precedence symbols are on $ mapped like:
   - NEWLINE - End of an expression statement or initializer
@@ -221,12 +221,12 @@ Upon conversion of tokens to precedence symbols are on $ mapped like:
   - `then` - End of an `if` condition
   - `do` - End of a `while` condition
   - `else` - End of a expression followed by an else branch
-  - `if` - Guard condition that functions for `for` header
+  - `if` - End of a guard expression in a `for` header
   - `for` - End of expression before `for`
 
 The ending symbol is not consumed and is instead given back to the parser itself and stays stored in `currentToken`
 
-Two requirements for sucessfull ending of expression:
+Two requirements for successful ending of expression:
   - Input symbol is `$`
   - The stack contains exactly `$` and one non-terminal (`E`)
 
@@ -236,10 +236,10 @@ If `$` arrives in the middle of construction process, it ends with an error.
 
 The issue is, that `to`, `until` and `by` are not a keywords (for example expression: `for i <- 0 to 10 by 2 do`) and scanner returns them as a plain identifiers, but the headers have a important function.
 
-Precedence parser can distinguish terminals of expressions only with the context of token type (NEWLINE, `then`, `do`). Upon parsing "0 to 10", precedence reads `0` and then identifier `to`, normally it would result in two operators being behind themselves (`i i`), this would be a syntax error.
+Precedence parser can distinguish terminals of expressions only with the context of token type (NEWLINE, `then`, `do`). Upon parsing "0 to 10", precedence reads `0` and then identifier `to`, normally it would result in two operands in a row (`i i`), this would be a syntax error.
 
 Solution to the problem:
-To solve this issue, `precedence_parse` accepts an additional parameter stopIdents`, a NULL-terminated array of identifier names.
+To solve this issue, `precedence_parse` accepts an an additional parameter `stopIdents`, a NULL-terminated array of identifier names.
 
 During the conversion of a token into the precedence symbol, every TOKEN_IDENTIFIER is first compared with these names (strcmp).
 
@@ -261,7 +261,7 @@ Making `to`, `until` and `by` reserved keywords was not an option, because they 
 - Zero or more guards `if expression` follow. Each guard is a boolean expression stored in the `guards` array of the AST_FOR. 
 - The header also exists in a multi-line form. After `for` a NEWLINE + INDENT may follow, the generator and each guard stays on their own line and the header closes with closing DEDENT before `do`.
 
-### The `if` statement (expression and statemend - BOOLTHEN)
+### The `if` statement (expression and statement - BOOLTHEN)
 
 `parse_if` takes a flag `elseRequired`
   -  As a statement, `else` is optional.
@@ -282,19 +282,19 @@ Accepted forms
 
 In the ast.c and ast.h a single struct is defined with the name `AstNode`. This is used by the entire compiler, not just the parser. All 19 node kinds (AST_PROGRAM, AST_FUNC_DEF,AST_BLOCK, AST_VAR_DECL, AST_ASSIGN, AST_IF, AST_WHILE, AST_FOR, AST_RETURN, AST_FUNC_CALL, AST_EXPR_STATEMENT, AST_BINARY, AST_UNARY, AST_IDENTIFIER and the five literals) share one tagged union `as`, so any subtree is passed around as a plain `AstNode *`.
 
-Every node kind has its own constructor `ast_new_*`. Constructors take ownership of their arguments. Child nodes and heap strings are copied, so a single `ast_free` call on the root frees the entire tree using recursion.
+Every node kind has its own constructor `ast_new_*`. Constructors take ownership of their arguments. Ownership of child nodes and heap strings is transferred, so a single `ast_free` call on the root frees the entire tree using recursion.
 
-What is also caried by each node
+What is also carried by each node
   - `line` - the source line number, used for error reporting
-  - `uid` and `evalType` - initialized to `0`/`T_UNIT` by the arser and filled in later by semantic analysis. (uid is not changed by parser in any way.)
+  - `uid` and `evalType` - initialized to `0`/`T_UNIT` by the parser and filled in later by semantic analysis
 
 `ast_print` provides a debug helper of the tree to stderr.
 
-A special constructor is `ast_new_member_call`. It does not create a new node kind but creates desugars `receiver.member` into an AST_FUNC_CALL of a builtin function (VALMEM), with the receiver as the first argument.
+A special constructor is `ast_new_member_call`. It does not create a new node kind but desugars `receiver.member` into an AST_FUNC_CALL of a builtin function (VALMEM), with the receiver as the first argument.
 
 ## Stack (precedence)
 
-The stack is a dynamic array that is used primarily by the precedence anylysis.
+The stack is a dynamic array that is used primarily by the precedence analysis.
 The array contains of:
   - `StackItem`
     - `symbol` - the precedence symbol
@@ -318,7 +318,7 @@ conventions:
 
 The parser is implemented using a recursive descent that uses an LL grammar covering the program structure.
 Non terminals are written using brackets `<>`. Terminals are written as tokens (`NEWLINE, INDENT, DEDENT,..`)
-Expressions themselves are handled by the preedence parser and appear as a single terminal `<expr>`.
+Expressions themselves are handled by the precedence parser and appear as a single terminal `<expr>`.
 
 ```
 <program>      → <prolog> NEWLINE <funcList>
@@ -488,7 +488,7 @@ The `for` header and function calls:
 #### How to read the table
 
 The LL table acts as a map for the parser: standing on a
-non-terminal (row) and seeing a token on the input (column), the parser applies the rule that number is stored in the cell.
+non-terminal (row) and seeing a token on the input (column), the parser applies the rule whose number is stored in the cell.
 An empty cell marks a combination that can never occur.
 If it is reached, it means a syntax error.
 
