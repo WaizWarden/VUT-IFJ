@@ -159,15 +159,20 @@ For every reduction rule exist a sematic rule that creates AST
 
 1) Expansion for unary minus (-u) 6x6 to 7x7
   - I had to add a new symbol into the table `-u`
-  - Column for operators `(`, `$`  and the `u-` itself is `<`
-    - for `i` and `(` is empty
+  - Column (`u-` on the input): `<` for all operators, `(`
+    and `$`, `>` for `)`, `i` and `.` - the operand of a
+    unary operator is shifted from the right
   - The line is the same like for */
 2) Expansion for rel
-  - Column: for `+-`, `*/` , `u-` and `)`, `$` is the value `<`, otherwise `>`
-  - Line: `+-`, `*/`, `u-` is `>` because of associativity
+  - Column (`rel` on the input): `<` for `(` and `$`,
+    `>` otherwise. Empty for `rel` and `==!=` - relational
+    operators cannot chain (`a < b < c` is a syntax error)
+  - Line (`rel` on the stack): `<` for all higher-priority
+    symbols and `i`, `(`, `.`; `>` for `&&`, `||`, `)`, `$`;
+    empty for `rel` and `==!=`
 3) Expansion for `==` and `!=`
   - The lowest priority level, built the same way as `rel`
-  - Other operators must be `>
+    (identical line and column)
 4) Expansion for `!` - unary negation
   - It is new prefix operator, with the same priority as `u-`
   - New line and column are identical to the `u-`
@@ -258,7 +263,7 @@ Making `to`, `until` and `by` reserved keywords was not an option, because they 
 - Bounds and step are parsed by `precedence_parse` using the `stopIdents` (See the section above - Stop identifiers)
 - `to` = inclusive bound, `until` = exclusive bound
   - `by` sets the needed step
-- Zero or more guards `if expression` follow. Each guard is a boolean expression stored in the `guards` array of the AST_FOR. 
+- Zero or more guards `if <expr>` follow. Each guard is a boolean expression stored in the `guards` array of the AST_FOR. 
 - The header also exists in a multi-line form. After `for` a NEWLINE + INDENT may follow, the generator and each guard stays on their own line and the header closes with closing DEDENT before `do`.
 
 ### The `if` statement (expression and statement - BOOLTHEN)
@@ -276,7 +281,7 @@ The parse body `parse_body` is shared by `if`/`else` branches and the `for` body
 
 Accepted forms
   - NEWLINE INDENT block DEDENT
-  - A single-line statement on the same line (example: (`if x then y = 1`))
+  - A single-line statement on the same line (example: `if x then y = 1`)
 
 ## Abstract Syntax Tree (AST)
 
@@ -295,7 +300,7 @@ A special constructor is `ast_new_member_call`. It does not create a new node ki
 ## Stack (precedence)
 
 The stack is a dynamic array that is used primarily by the precedence analysis.
-The array contains of:
+The array consists of:
   - `StackItem`
     - `symbol` - the precedence symbol
     - `token` - the original token type
