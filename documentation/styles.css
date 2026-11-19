@@ -3,3 +3,11 @@
   padding-top: 25%;
   page-break-after: always;
 }
+
+table {
+  font-size: 0.72em;
+}
+
+th, td {
+  padding: 2px 6px;
+}

@@ -307,4 +307,212 @@ Stack supports operations like push/pop/top plus two created for the precedence 
 
 The array starts at capacity 8 and doubles on every realloc. Allocation failures and pops from an empty stack end with `exit(99)`.
 
-TODO:  LL gramatika + LL tabulka
+## LL Grammar
+
+An LL grammar is a context-free grammar that can be parsed top-down by scanning input from Left to right and constructing a Leftmost derivation.
+
+conventions: 
+  - Parameters `id`, `type` and `expr` are a non-terminal lists. 
+  - `expr` (expression) is parsed to the SA precedence 
+  - Terminals are written in lowercase, nonterminal using `<>`
+
+The parser is implemented using a recursive descent that uses an LL grammar covering the program structure.
+Non terminals are written using brackets `<>`. Terminals are written as tokens (`NEWLINE, INDENT, DEDENT,..`)
+Expressions themselves are handled by the preedence parser and appear as a single terminal `<expr>`.
+
+```
+<program>      → <prolog> NEWLINE <funcList>
+<prolog>       → import ifj26 . *
+<funcList>     → <funcDef> <funcList> | ε
+<funcDef>      → [ @ main ] def id ( <paramList> ) [ : <type> ] = <funcBody>
+<funcBody>     → NEWLINE INDENT <block> DEDENT | <exprOrCall>
+<paramList>    → <param> <paramRest> | ε
+<paramRest>    → , <param> <paramRest> | ε
+<param>        → id : <type>
+<type>         → Int | Double | String | Unit | Boolean
+
+<block>        → <stmtSeq>
+<stmtSeq>      → <statement> <stmtTail>
+<stmtTail>     → <sep> <stmtSeq> | <sep>
+<sep>          → NEWLINE | ;
+
+<statement>    → <varDecl> | <ifStmt> | <while> | <for> | <return>
+               | <idStmt> | <exprStmt>
+<varDecl>      → ( var | val ) id [ : <type> ] = <exprOrCall>
+<idStmt>       → id = <exprOrCall>
+               | id ( <argList> )
+               | id <exprTail>
+<return>       → return [ <exprOrCall> ]
+<exprStmt>     → <expr>
+
+<ifStmt>       → if <expr> then <body> [ else <elsePart> ]
+<elsePart>     → <ifStmt> | <body>
+<ifExpr>       → if <expr> then <body> else <elsePart>
+<while>        → while <expr> do NEWLINE INDENT <block> DEDENT
+<for>          → for <forHeader> do <body>
+<forHeader>    → id <- <expr> ( to | until ) <expr> [ by <expr> ] <guards>
+               | NEWLINE INDENT id <- <expr> ( to | until ) <expr>
+                 [ by <expr> ] <mlGuards> DEDENT
+<guards>       → if <expr> <guards> | ε
+<mlGuards>     → NEWLINE if <expr> <mlGuards> | NEWLINE
+<body>         → NEWLINE INDENT <block> DEDENT | <statement>
+
+<exprOrCall>   → <ifExpr> | id ( <argList> ) | <expr>
+<argList>      → <arg> <argRest> | ε
+<argRest>      → , <arg> <argRest> | ε
+<arg>          → <term> ( . id )*
+```
+
+Precedence grammar for `<expr>` (not part of the LL grammar):
+
+```
+E → i | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
+  | E && E | E || E | E . i | ( E ) | ( )
+```
+
+### Numbered rules
+
+```
+1  <program>    → <prolog> NEWLINE <funcList>
+2  <prolog>     → import ifj26 . *
+3  <funcList>   → <funcDef> <funcList>
+4  <funcList>   → ε
+5  <funcDef>    → [@ main] def id ( <paramList> ) [: <type>] = <funcBody>
+6  <funcBody>   → NEWLINE INDENT <block> DEDENT
+7  <funcBody>   → <exprOrCall>
+8  <paramList>  → <param> <paramRest>
+9  <paramList>  → ε
+10 <paramRest>  → , <param> <paramRest>
+11 <paramRest>  → ε
+12 <param>      → id : <type>
+13 <type>       → Int | Double | String | Unit | Boolean
+14 <block>      → <stmtSeq>
+15 <stmtSeq>    → <statement> <sep> <stmtSeq>
+16 <stmtSeq>    → <statement>
+17 <sep>        → NEWLINE
+18 <sep>        → ;
+19 <statement>  → <varDecl>
+20 <statement>  → <ifStmt>
+21 <statement>  → <while>
+22 <statement>  → <for>
+23 <statement>  → <return>
+24 <statement>  → <idStmt>
+25 <statement>  → <exprStmt>
+26 <varDecl>    → (var|val) id [: <type>] = <exprOrCall>
+27 <idStmt>     → id = <exprOrCall>
+28 <idStmt>     → id ( <argList> )
+29 <idStmt>     → id <exprTail>          *
+30 <return>     → return <exprOrCall>
+31 <return>     → return                  *
+32 <exprStmt>   → <expr>
+33 <ifStmt>     → if <expr> then <body>
+34 <ifStmt>     → if <expr> then <body> else <elsePart>   *
+35 <elsePart>   → <ifStmt>
+36 <elsePart>   → <body>
+37 <ifExpr>     → if <expr> then <body> else <elsePart>
+38 <while>      → while <expr> do NEWLINE INDENT <block> DEDENT
+39 <for>        → for <forHeader> do <body>
+40 <forHeader>  → id <- <expr> (to|until) <expr> [by <expr>] <guards>
+41 <forHeader>  → NEWLINE INDENT id <- <expr> (to|until) <expr>
+                  [by <expr>] <mlGuards> DEDENT
+42 <guards>     → if <expr> <guards>
+43 <guards>     → ε
+44 <mlGuards>   → NEWLINE if <expr> <mlGuards>   *
+45 <mlGuards>   → NEWLINE
+46 <body>       → NEWLINE INDENT <block> DEDENT
+47 <body>       → <statement>
+48 <exprOrCall> → <ifExpr>
+49 <exprOrCall> → id ( <argList> )               *
+50 <exprOrCall> → <expr>
+51 <argList>    → <arg> <argRest>
+52 <argList>    → ε
+53 <argRest>    → , <arg> <argRest>
+54 <argRest>    → ε
+55 <arg>        → <term> (. id)*
+56 <term>       → id | int | double | string | bool
+```
+
+### LL table
+
+For readability the table is split into three parts by non-terminal
+groups. `e` = expr-start tokens (literal, `(`, `!`, unary `-`),
+`T` = type keywords (Int, Double, String, Unit, Boolean),
+`kw` = `var`/`val`. An empty cell means a syntax error.
+
+Top-level rules:
+
+| | import | @ | def | id | ) | , | : | T | if | NL | EOF | e |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **program** | 1 | | | | | | | | | | | |
+| **prolog** | 2 | | | | | | | | | | | |
+| **funcList** | | 3 | 3 | | | | | | | | 4 | |
+| **funcDef** | | 5 | 5 | | | | | | | | | |
+| **funcBody** | | | | 7 | | | | | 7 | 6 | | 7 |
+| **paramList** | | | | 8 | 9 | | | | | | | |
+| **paramRest** | | | | | 11 | 10 | | | | | | |
+| **param** | | | | 12 | | | | | | | | |
+| **type** | | | | | | | | 13 | | | | |
+
+Statements and bodies:
+
+| | id | kw | if | else | while | for | return | NL | ; | DEDENT | e |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **block** | 14 | 14 | 14 | | 14 | 14 | 14 | | | | 14 |
+| **stmtSeq** | 15/16 | 15/16 | 15/16 | | 15/16 | 15/16 | 15/16 | | | | 15/16 |
+| **sep** | | | | | | | | 17 | 18 | | |
+| **statement** | 24 | 19 | 20 | | 21 | 22 | 23 | | | | 25 |
+| **varDecl** | | 26 | | | | | | | | | |
+| **idStmt** | 27/28/29* | | | | | | | | | | |
+| **return** | | | | | | | 30/31* | | | | |
+| **exprStmt** | | | | | | | | | | | 32 |
+| **ifStmt** | | | 33/34* | | | | | | | | |
+| **elsePart** | 36 | 36 | 35 | | 36 | 36 | 36 | 36 | | | 36 |
+| **ifExpr** | | | 37 | | | | | | | | |
+| **while** | | | | | 38 | | | | | | |
+| **for** | | | | | | 39 | | | | | |
+| **body** | 47 | 47 | 47 | | 47 | 47 | 47 | 46 | | | 47 |
+
+The `for` header and function calls:
+
+| | id | ( | ) | , | if | do | NL | e |
+|---|---|---|---|---|---|---|---|---|
+| **forHeader** | 40 | | | | | | 41 | |
+| **guards** | | | | | 42 | 43 | | |
+| **mlGuards** | | | | | | | 44/45* | |
+| **exprOrCall** | 49/50* | 50 | | | 48 | | | 50 |
+| **argList** | 51 | | 52 | | | | | 51 |
+| **argRest** | | | 54 | 53 | | | | |
+| **arg** | 55 | | | | | | | 55 |
+| **term** | 56 | | | | | | | 56 |
+
+#### How to read the table
+
+The LL table acts as a map for the parser: standing on a
+non-terminal (row) and seeing a token on the input (column), the
+parser applies the rule whose number is stored in the cell.
+An empty cell marks a combination that can never occur - reaching
+it means a syntax error.
+
+Example walkthrough for `def f(): Int = 5`: `<program>` on
+`import` applies rule 1, `<funcList>` on `def` applies rule 3,
+`<funcDef>` on `def` applies rule 5. Inside it, `<paramList>` sees
+`)` and applies the empty rule 9, `<type>` on `Int` applies rule
+13, and `<funcBody>` on an expr-start token applies rule 7, which
+hands the expression over to the precedence parser. After the last
+function `<funcList>` on `EOF` applies rule 4 and parsing ends.
+
+Cells with multiple rule numbers and `*` mark places where the
+grammar is not strictly LL(1) - the parser resolves them by
+looking one token further ahead:
+
+  - rule 29: after `id` the next token decides
+    (`=` assign, `(` call, otherwise an expression)
+  - rule 31: `return` decides on NEWLINE/DEDENT
+  - rule 34: the presence of `else` is known only after the
+    `then` body is parsed
+  - rule 44: after NEWLINE the parser checks for `if`
+  - rule 49: `id` plus a lookahead for `(`
+
+Each table row corresponds to the dispatch inside one parser
+function - e.g. the `<statement>` row is the switch in
+`parse_statement`.
