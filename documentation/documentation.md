@@ -7,11 +7,45 @@
 
 <p style="margin-top: 1.3rem; margin-bottom: 0.1rem"><b>Team</b></p>
 <p style="margin: 0; line-height: 1.5;">
-<b> Leader: </b> xjuricl01 (25 %)<br>
-xoramst00 (25 %) - xhorakj01 (25 %) - xsirmat00 (25 %)
+<b> Leader: </b> xjuricl01 (33 %)<br>
+xoramst00 (33 %) - xhorakj01 (34 %) - xsirmat00 (00 %)
+</p>
+
+<p style="margin-top: 1.3rem; margin-bottom: 0.1rem"><b>Extensions</b></p>
+<p style="margin: 0; line-height: 1.5;">
+BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 </p>
 
 </div>
+`
+
+# Team distribution
+- **xjuricl01** – project coordination, lexical analysis, fixes in semantic analysis
+- **xoramst00** – symbol table, code generator (main developer)
+- **xhorakj01** – parser, AST, precedence analysis, stack
+- **xsirmat00** – semantic analysis, code generator (secondary developer)
+
+#### Explanation of percent distribution
+**xsirmat00**
+
+While reviewing his code we found a lot of signs of very high AI usage. When we asked him about the AI, he said we can give him zero percent and he will retake the course next year.
+
+Other issues contributed to this decision as well. Such as little commit count with high line count, not following git conventions we set as team.
+
+# Colaboration in team
+- Each module has its own unit tests
+- Whole compiler is tested by e2e tests
+- Before merging to main we used valgrind to check for memory leaks
+- We used `clang-tidy` for extra warnings detection
+- For formating we used `clang-format`
+- We didn't use PR requests
+
+
+# Block diagram
+# TBA
+
+# FSM of lexical analysis
+# TBA
 
 # Syntax Analysis
 
@@ -519,3 +553,21 @@ looking one token further ahead:
 Each table row corresponds to the dispatch inside one parser
 function - e.g. the `<statement>` row is the switch in
 `parse_statement`.
+
+
+
+
+
+
+
+
+# Modules description
+# TBA
+
+# References
+# TBA
+
+
+# AI usage
+- We agreed at a team meeting to document every use of AI (including the model) and to briefly describe what it was used for, as required by the assignment.
+

@@ -1,3 +1,7 @@
+* {
+  font-family: 'Noto Sans';
+}
+
 .title-page {
   text-align: center;
   padding-top: 25%;
@@ -10,4 +14,10 @@ table {
 
 th, td {
   padding: 2px 6px;
+}
+
+@page :first {
+  @bottom-left {
+    content: "https://github.com/WaizWarden/VUT-IFJ";
+  }
 }
