@@ -768,6 +768,82 @@ void indentation_flow_tests(void) {
   TokenType expectedInterp6[] = {TOKEN_ERROR};
   run_sequence_test("Interp error", interp6, expectedInterp6,
                     sizeof(expectedInterp6) / sizeof(expectedInterp6[0]));
+
+  /* AI USAGE - claude
+  AI wrote tests for me
+  'Write me tests for interpolades for multi-line strings
+  */
+  // multi-line interpolation
+  scanner_destroy();
+  char *interp7 = "s\"\"\"a$x b\"\"\"";
+  TokenType expectedInterp7[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp variable", interp7, expectedInterp7,
+                    sizeof(expectedInterp7) / sizeof(expectedInterp7[0]));
+
+  scanner_destroy();
+  char *interp8 = "s\"\"\"He said \"hello\", $name.\nSecond line.\"\"\"";
+  TokenType expectedInterp8[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp spec example", interp8, expectedInterp8,
+                    sizeof(expectedInterp8) / sizeof(expectedInterp8[0]));
+
+  scanner_destroy();
+  char *interp9 = "s\"\"\"a${x}\nb\"\"\"";
+  TokenType expectedInterp9[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp newline after }", interp9, expectedInterp9,
+                    sizeof(expectedInterp9) / sizeof(expectedInterp9[0]));
+
+  scanner_destroy();
+  char *interp10 = "s\"\"\"${x}\"\"\"";
+  TokenType expectedInterp10[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp ends after }", interp10, expectedInterp10,
+                    sizeof(expectedInterp10) / sizeof(expectedInterp10[0]));
+
+  scanner_destroy();
+  char *interp11 = "s\"\"\"$x\"\"\"\ny";
+  TokenType expectedInterp11[] = {
+      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING,     TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
+  run_sequence_test("Multi interp ends after $x", interp11, expectedInterp11,
+                    sizeof(expectedInterp11) / sizeof(expectedInterp11[0]));
+
+  scanner_destroy();
+  char *interp12 = "s\"\"\"a$$b\"\"\"";
+  TokenType expectedInterp12[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Multi interp $$", interp12, expectedInterp12,
+                    sizeof(expectedInterp12) / sizeof(expectedInterp12[0]));
+
+  scanner_destroy();
+  char *interp13 = "s\"\"\"a\"\"\" \"$y\"";
+  TokenType expectedInterp13[] = {TOKEN_STRING, TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Multi interp then plain string", interp13,
+                    expectedInterp13,
+                    sizeof(expectedInterp13) / sizeof(expectedInterp13[0]));
+
+  scanner_destroy();
+  char *interp14 = "\"\"\"a$x\"\"\"";
+  TokenType expectedInterp14[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Plain multi-line with $", interp14, expectedInterp14,
+                    sizeof(expectedInterp14) / sizeof(expectedInterp14[0]));
+
+  scanner_destroy();
+  char *interp15 = "s\"\"\"a$x";
+  TokenType expectedInterp15[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_ERROR};
+  run_sequence_test("Multi interp unclosed", interp15, expectedInterp15,
+                    sizeof(expectedInterp15) / sizeof(expectedInterp15[0]));
+
+  run_test("Multi interp $$ value", "s\"\"\"a$$b\"\"\"", TOKEN_STRING, "a$b",
+           -1, -1);
+  // END OF AI USAGE
 }
 
 // NOLINTEND

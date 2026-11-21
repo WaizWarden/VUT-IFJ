@@ -82,6 +82,7 @@ static bool interpStart = false;
 static bool interpExpression = false;
 static bool interpResume = false;
 static bool interpEnd = false;
+static bool interpMultiLine = false;
 
 /**
  * @brief Parses stdin and creates token
@@ -142,8 +143,10 @@ Token get_token(FILE *input) {
   }
 
   if (interpResume) {
-    interpResume = false;
     token = scan_string(input);
+    if (token.type == TOKEN_ERROR) {
+      goto return_error;
+    }
     goto return_token;
   }
 
@@ -843,19 +846,27 @@ static Token scan_string(FILE *input) {
     return token;
   }
 
+  // interpolades
+  bool resume = interpResume; 
+  interpResume = false;
+
   bool multiLineString = false;
   int currentChar = next_char(input);
 
   // check multi-line string
   // multi-line string can start only at start not in middle
+  if (!resume) {
   int next = next_char(input);
-
   if (currentChar == '"' && next == '"') {
     multiLineString = true;
+    if (interpActive) {
+      interpMultiLine = true;
+    }
     currentChar = next_char(input);
   } else {
     put_back(next, input);
-  }
+  }}
+
 
   while (true) {
 
@@ -877,13 +888,66 @@ static Token scan_string(FILE *input) {
       capacity *= 2;
     }
 
-    if (multiLineString) {
+    if (multiLineString || interpMultiLine) {
+
+      if (interpActive) {
+        if (currentChar == '$') {
+          int next = next_char(input);
+
+          if (next == '$') {
+            str[len] = '$';
+            len++;
+            currentChar = next_char(input);
+            continue;
+          }
+
+          // $variable
+          else if (isalpha(next) || next == '_') {
+            interpVariable = true;
+            interpStart = true;
+
+            put_back(next, input);
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          // expression inside ${
+          else if (next == '{') {
+            interpStart = true;
+            interpExpression = true;
+
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          else {
+            fprintf(stderr,
+                    "Scanner error: %d, Invalid interpolate character\n",
+                    SCANNER_ERROR);
+
+            free(str);
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+        }
+      }
+
       if (currentChar == '"') {
         int next1 = next_char(input);
         int next2 = next_char(input);
 
         if (next1 == '"' && next2 == '"') {
           str[len] = '\0';
+          interpMultiLine = false;
+          interpActive = false;
           token.type = TOKEN_STRING;
           token.value.string = strdup(str);
 
@@ -1179,6 +1243,7 @@ void scanner_destroy(void) {
   interpResume = false;
   interpEnd = false;
   interpExpression = false;
+  interpMultiLine = false;
 }
 
 /**
