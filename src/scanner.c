@@ -18,21 +18,32 @@
 #define SCANNER_ERROR 1
 #define INTERPRET_ERROR 99
 
-static int is_keyword(char *str);
-static bool number_token_end(int currentChar);
-static int calculateIndent(FILE *input, int *error);
+typedef enum {
+  INDENT_OK,
+  INDENT_NEW_LINE,
+  INDENT_EOF,
+  INDENT_ERROR,
+} IndentResult;
+
 static int next_char(FILE *input);
 static void put_back(int currentChar, FILE *input);
+
+static int is_keyword(char *str);
 static void handle_eof(Token *token);
+static bool number_token_end(int currentChar);
+
+static IndentResult calculate_indent(FILE *input, int *spaces);
+static TokenType resolve_indent(int spaces);
+
+static TokenType single_operator(FILE *input, int currentChar);
+static Token scan_string(FILE *input);
+static Token scan_identifier(FILE *input, int currentChar);
 
 // States in scanner
 typedef enum {
   S_START,
-  S_STRING,
-  S_ID,
   S_INT,
   S_DOUBLE,
-  S_MULTI_LINE_STRING,
 } State;
 
 /* AI usage - Gemini
@@ -45,12 +56,12 @@ typedef struct {
 } KeywordEntry;
 
 KeywordEntry keywordTable[] = {
-    {"Double", KW_DOUBLE}, {"Int", KW_INT},       {"String", KW_STRING},
-    {"val", KW_VAL},       {"var", KW_VAR},       {"if", KW_IF},
-    {"else", KW_ELSE},     {"then", KW_THEN},     {"while", KW_WHILE},
-    {"do", KW_DO},         {"import", KW_IMPORT}, {"Unit", KW_UNIT},
-    {"def", KW_DEF},       {"return", KW_RETURN},
-
+    {"Double", KW_DOUBLE},   {"Int", KW_INT},       {"String", KW_STRING},
+    {"val", KW_VAL},         {"var", KW_VAR},       {"if", KW_IF},
+    {"else", KW_ELSE},       {"then", KW_THEN},     {"while", KW_WHILE},
+    {"do", KW_DO},           {"import", KW_IMPORT}, {"Unit", KW_UNIT},
+    {"def", KW_DEF},         {"return", KW_RETURN}, {"for", KW_FOR},
+    {"Boolean", KW_BOOLEAN},
 };
 //  End of AI usage
 
@@ -60,6 +71,18 @@ static int pendingDedents = 0;
 static int currentLine = 1;
 static bool lineStart = true;
 static bool EndOfFileDetected = false;
+
+// valmem
+static bool valmemReturnDot = false;
+
+// interpolades
+static bool interpActive = false;
+static bool interpVariable = false;
+static bool interpStart = false;
+static bool interpExpression = false;
+static bool interpResume = false;
+static bool interpEnd = false;
+static bool interpMultiLine = false;
 
 /**
  * @brief Parses stdin and creates token
@@ -74,10 +97,10 @@ Token get_token(FILE *input) {
   int tokenLine = currentLine;
   int currentChar;
 
+  // malloc logic
   char *str = malloc(INITIAL_STR_LEN);
   size_t capcaity = INITIAL_STR_LEN;
   size_t len = 0;
-
   if (str == NULL) {
     token.type = TOKEN_ERROR;
     fprintf(stderr, "Lexer error: %d, str malloc failed\n", INTERPRET_ERROR);
@@ -101,65 +124,68 @@ Token get_token(FILE *input) {
     goto return_token;
   }
 
-  // indent calculation
-  int error = 0;
-  bool atLineStart = lineStart && bracketDepth == 0; // NOLINT
-  int spaces = calculateIndent(input, &error);
-  tokenLine = currentLine;
+  if (valmemReturnDot) {
+    valmemReturnDot = false;
+    token.type = TOKEN_DOT;
+    goto return_token;
+  }
 
-  if (spaces == -1) {
-    if (error == -1) {
+  if (interpStart) {
+    interpStart = false;
+    token.type = TOKEN_INTERP_START;
+    goto return_token;
+  }
+
+  if (interpEnd) {
+    interpEnd = false;
+    token.type = TOKEN_INTERP_END;
+    goto return_token;
+  }
+
+  if (interpResume) {
+    token = scan_string(input);
+    if (token.type == TOKEN_ERROR) {
       goto return_error;
-    } else if (error == 2) {
+    }
+    goto return_token;
+  }
 
+  // line start
+  if (lineStart && bracketDepth == 0) {
+    int spaces = 0;
+    IndentResult result = calculate_indent(input, &spaces);
+
+    switch (result) {
+    case INDENT_ERROR:
+      goto return_error;
+
+    case INDENT_EOF:
       handle_eof(&token);
       goto return_token;
-    } else if (error == 1) {
 
+    case INDENT_NEW_LINE:
       tokenLine = currentLine - 1; // calculateIndent() is one ahead
       token.type = TOKEN_NEWLINE;
       goto return_token;
-    } else {
-      fprintf(stderr,
-              "Scanner error: %d, Unknown error in indent calculation\n",
-              SCANNER_ERROR);
-      goto return_error;
-    }
-  } else if (atLineStart) {
-    int currentTop = *scanner_stack_top();
-    int topIndex = scanner_stack_size() - 1;
 
-    if (spaces > currentTop) {
-      scanner_stack_push(spaces);
-      token.type = TOKEN_INDENT;
-      goto return_token;
-    } else if (spaces < currentTop) {
-      int index = find_number_in_stack(spaces);
-
-      if (index == -1) {
-        fprintf(stderr, "Scanner error: %d, Indentation error \n",
-                SCANNER_ERROR);
+    case INDENT_OK:
+      TokenType type = resolve_indent(spaces);
+      if (type == TOKEN_ERROR) {
         goto return_error;
       }
 
-      int levels_to_pop = topIndex - index;
-
-      for (int i = 0; i < levels_to_pop; i++) {
-        scanner_stack_pop();
+      if (type != TOKEN_SKIP) {
+        tokenLine = currentLine;
+        token.type = type;
+        goto return_token;
       }
-
-      if (levels_to_pop > 1) {
-        pendingDedents = levels_to_pop - 1;
-      }
-
-      token.type = TOKEN_DEDENT;
-      goto return_token;
+      break;
     }
   }
 
   while (true) {
 
-    // realloc test
+    // realloc logic
     if (len + REALLOC_CONST >= capcaity) {
       char *tmp = realloc(str, capcaity * 2);
       if (tmp == NULL) {
@@ -176,330 +202,56 @@ Token get_token(FILE *input) {
     }
 
     currentChar = next_char(input);
-
     switch (state) {
 
     case S_START:
-      if (currentChar == EOF) {
-
-        handle_eof(&token);
-        goto return_token;
-      }
-
-      if (currentChar == '\n') {
-        if (bracketDepth == 0) {
-          lineStart = true;
-          token.type = TOKEN_NEWLINE;
-          goto return_token;
-        }
-
-        break;
-      }
-
-      if (isspace(currentChar)) {
-        break;
-      }
-
-      if (currentChar == '+') {
-        token.type = TOKEN_PLUS;
-        goto return_token;
-      }
-
-      if (currentChar == '@') {
-        token.type = TOKEN_AT;
-        goto return_token;
-      }
-
-      if (currentChar == '-') {
-        token.type = TOKEN_MINUS;
-        goto return_token;
-      }
-
-      if (currentChar == '*') {
-        token.type = TOKEN_MULTIPLY;
-        goto return_token;
-      }
-
-      if (currentChar == '/') {
-        int next = next_char(input);
-
-        // One-line comment, not new line
-        if (next == '/') {
-          while (next != '\n' && next != EOF) {
-            next = next_char(input);
-          }
-          put_back(next, input);
-          break;
-        }
-
-        // Multi-line comment
-        if (next == '*') {
-          int depth = 1;
-          int prev = 0;
-
-          while (depth > 0) {
-            next = next_char(input);
-            if (next == EOF) {
-              fprintf(stderr, "Scanner error: %d, Never ending block comment\n",
-                      SCANNER_ERROR);
-              goto return_error;
-            }
-
-            if (prev == '/' && next == '*') {
-              depth++;
-              prev = 0;
-            }
-
-            else if (prev == '*' && next == '/') {
-              depth--;
-              prev = 0;
-            }
-
-            else {
-              prev = next;
-            }
-          }
-          break;
-        }
-
-        // not a comment
-        put_back(next, input);
-        token.type = TOKEN_DIVIDE;
-        goto return_token;
-      }
-
-      if (currentChar == '=') {
-        int next = next_char(input);
-
-        if (next == '=') {
-          token.type = TOKEN_EQ;
-          goto return_token;
-        }
-        put_back(next, input);
-        token.type = TOKEN_ASSIGN;
-        goto return_token;
-      }
-
-      if (currentChar == '>') {
-        int next = next_char(input);
-
-        if (next == '=') {
-          token.type = TOKEN_GREATER_EQ;
-          goto return_token;
-        }
-        put_back(next, input);
-        token.type = TOKEN_GREAER;
-        goto return_token;
-      }
-
-      if (currentChar == '<') {
-        int next = next_char(input);
-
-        if (next == '=') {
-          token.type = TOKEN_LOWER_EQ;
-          goto return_token;
-        }
-        put_back(next, input);
-        token.type = TOKEN_LOWER;
-        goto return_token;
-      }
-
-      if (currentChar == '!') {
-        int next = next_char(input);
-
-        if (next == '=') {
-          token.type = TOKEN_NOT_EQ;
-          goto return_token;
-        }
-        put_back(next, input);
-        token.type = TOKEN_NOT;
-        goto return_token;
-      }
-
-      if (currentChar == ':') {
-        token.type = TOKEN_COLON;
-        goto return_token;
-      }
-
-      if (currentChar == ';') {
-        token.type = TOKEN_SEMICOLON;
-        goto return_token;
-      }
-
-      if (currentChar == ',') {
-        token.type = TOKEN_COMMA;
-        goto return_token;
-      }
-
-      if (currentChar == '(') {
-        bracketDepth++;
-        token.type = TOKEN_OPENING_BRACKET;
-        goto return_token;
-      }
-
-      if (currentChar == ')') {
-        if (bracketDepth == 0) {
-          fprintf(stderr, "Scanner error %d, Invalid closing bracket\n",
-                  SCANNER_ERROR);
-          goto return_error;
-        }
-        bracketDepth--;
-        token.type = TOKEN_CLOSING_BRACKET;
-        goto return_token;
-      }
-
-      if (currentChar == '.') {
-        int next = next_char(input);
-
-        if (next == '.') {
-          fprintf(stderr, "Scanner error: %d, invalid double dot\n",
-                  SCANNER_ERROR);
-          goto return_error;
-        }
-
-        else if (isdigit(next)) {
-          str[len] = '.';
-          len++;
-          str[len] = (char)next;
-          len++;
-
-          state = S_DOUBLE;
-        }
-
-        else {
-          put_back(next, input);
-          token.type = TOKEN_DOT;
-          goto return_token;
-        }
-
-        break;
-      }
 
       if (isalpha(currentChar) || currentChar == '_') {
-        state = S_ID;
-        str[len] = (char)currentChar;
-        len++;
-        break;
+        token = scan_identifier(input, currentChar);
+        if (token.type == TOKEN_ERROR) {
+          goto return_error;
+        }
+        goto return_token;
       }
 
       if (isdigit(currentChar)) {
         state = S_INT;
         str[len] = (char)currentChar;
         len++;
-
         break;
       }
 
-      if (currentChar == '"') {
-        state = S_STRING;
+      TokenType type = single_operator(input, currentChar);
+      switch (type) {
+
+      case TOKEN_ERROR:
+        goto return_error;
+
+      case TOKEN_EOF:
+        handle_eof(&token);
+        goto return_token;
+
+      // internal state
+      // whitespace or comment
+      case TOKEN_SKIP:
         break;
-      }
 
-      fprintf(stderr, "Unknown character '%c' \n", currentChar);
-      goto return_error;
-
-    case S_STRING:
-
-      if (currentChar == '\n') {
-        fprintf(stderr,
-                "Scanner error: %d, \\n detected in single line string\n",
-                SCANNER_ERROR);
-
-        goto return_error;
-      }
-
-      else if (currentChar == EOF) {
-        fprintf(stderr, "Scanner error: %d, Invalid EOF single line string\n",
-                SCANNER_ERROR);
-        goto return_error;
-      }
-
-      // escape chars
-      else if (currentChar == '\\') {
-        // put_back not needed
-        int next = next_char(input);
-
-        if (next == 'n') {
-          str[len] = '\n';
-        }
-
-        else if (next == '\\') {
-          str[len] = '\\';
-        }
-
-        else if (next == '"') {
-          str[len] = '\"';
-        }
-
-        else if (next == 't') {
-          str[len] = '\t';
-        }
-
-        else if (next == 'r') {
-          str[len] = '\r';
-        }
-
-        else {
-          fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
-                  SCANNER_ERROR);
+      // '"' already consumed, not needed to add it back
+      case TOKEN_STRING:
+        token = scan_string(input);
+        if (token.type == TOKEN_ERROR) {
           goto return_error;
         }
+        goto return_token;
 
-        len++;
-        continue;
-      }
+      case TOKEN_DOUBLE:
+        str[len++] = '.'; // '.' already consumed, add it again
+        state = S_DOUBLE;
+        break;
 
-      // string end / move to multi-line string
-      else if (currentChar == '"') {
-
-        // third "
-        int next = next_char(input);
-        if (next == '"') {
-          state = S_MULTI_LINE_STRING;
-        } else {
-
-          put_back(next, input);
-          token.type = TOKEN_STRING;
-          str[len] = '\0';
-          token.value.string = strdup(str);
-          goto return_token;
-        }
-      }
-
-      // Write string to arr
-      else {
-        str[len] = (char)currentChar;
-        len++;
-      }
-
-      break;
-
-    case S_MULTI_LINE_STRING:
-      if (currentChar == EOF) {
-        fprintf(stderr, "Scanner error: %d, Invalid EOF in multi-line string\n",
-                SCANNER_ERROR);
-        goto return_error;
-      }
-
-      else if (currentChar == '"') {
-        int next1 = next_char(input);
-        int next2 = next_char(input);
-
-        if (next1 == '"' && next2 == '"') {
-          str[len] = '\0';
-          token.type = TOKEN_STRING;
-          token.value.string = strdup(str);
-          goto return_token;
-        }
-        put_back(next2, input);
-        put_back(next1, input);
-
-        str[len] = (char)currentChar;
-        len++;
-      } else {
-
-        str[len] = (char)currentChar;
-        len++;
+      default:
+        token.type = type;
+        goto return_token;
       }
 
       break;
@@ -522,8 +274,30 @@ Token get_token(FILE *input) {
 
         else if (currentChar == 'e' || currentChar == 'E' ||
                  currentChar == '.') {
-          state = S_DOUBLE;
 
+          // valmem
+          int next = next_char(input);
+          if (currentChar == '.' && (isalpha(next) || next == '_')) {
+            valmemReturnDot = true;
+
+            put_back(next, input);
+            str[len] = '\0';
+
+            char *end;
+            int val = (int)strtol(str, &end, 10);
+            errno = 0;
+            if (end == str || *end != '\0' || errno == ERANGE) {
+              fprintf(stderr, "Scanner error while converting to integer\n");
+              goto return_error;
+            }
+
+            token.type = TOKEN_INT;
+            token.value.numberInt = val;
+            goto return_token;
+          }
+
+          put_back(next, input);
+          state = S_DOUBLE;
           str[len] = (char)currentChar;
           len++;
 
@@ -555,7 +329,7 @@ Token get_token(FILE *input) {
           // len > 1 because we want to pass "0" not "01"
           if (str[0] == '0' && len > 1) {
             fprintf(stderr,
-                    "Scanner error: %d, Int cant start with leading zero\n",
+                    "Scanner error: %d, Int canqt start with leading zero\n",
                     SCANNER_ERROR);
             goto return_error;
           }
@@ -566,6 +340,7 @@ Token get_token(FILE *input) {
             convert it to strtol
           */
           char *end;
+          errno = 0;
           int val = (int)strtol(str, &end, 10); // 10 means base ten
 
           if (end == str || *end != '\0' || errno == ERANGE) {
@@ -598,6 +373,26 @@ Token get_token(FILE *input) {
       // Check for multiple E e . and invalid chars
       if (!isdigit(currentChar)) {
         if (currentChar == 'e' || currentChar == 'E' || currentChar == '.') {
+
+          // valmem
+          if (currentChar == '.') {
+            int next = next_char(input);
+            if (isalpha(next) || next == '_') {
+              valmemReturnDot = true;
+
+              str[len] = '\0';
+              put_back(next, input);
+              token.type = TOKEN_DOUBLE;
+              token.value.numberDouble = strtod(str, NULL);
+              goto return_token;
+            }
+
+            fprintf(stderr,
+                    "Scanner error: %d, multiple exponents in double format\n",
+                    SCANNER_ERROR);
+            goto return_error;
+          }
+
           for (size_t i = 0; i < len; i++) {
             if (str[i] == 'e' || str[i] == 'E' ||
                 (currentChar == '.' && str[i] == '.')) {
@@ -693,45 +488,12 @@ Token get_token(FILE *input) {
 
       break;
 
-    case S_ID:
-      if (isalnum(currentChar) || currentChar == '_') {
-
-        str[len] = (char)currentChar;
-        len++;
-      }
-
-      else {
-        put_back(currentChar, input);
-        str[len] = '\0';
-
-        // its keyword
-        int key = is_keyword(str);
-        if (key != -1) {
-          token.type = TOKEN_KEYWORD;
-          token.value.keyword = keywordTable[key].keyword;
-        }
-
-        // its id
-        else {
-          if (strcmp(str, "_") == 0) {
-            fprintf(stderr, "Scanner error: %d, '_' is not valid identifier\n",
-                    SCANNER_ERROR);
-            goto return_error;
-          }
-          token.type = TOKEN_IDENTIFIER;
-          token.value.identifier = strdup(str);
-        }
-
-        goto return_token;
-      }
-
-      break;
-
     default:
       fprintf(stderr, "'%c' Default case triggered\n", currentChar);
       goto return_error;
     }
   }
+
 return_token:
   free(str);
   token.line = tokenLine;
@@ -743,6 +505,580 @@ return_error:
   token.type = TOKEN_ERROR;
   token.line = tokenLine;
   return token;
+}
+
+/**
+ * @brief Helper function that validates idetifiers, keywords, bollean
+ *
+ * @param[in, out] input - input to stream of chars from stdin
+ * @param[out] currentChar currentChar from input (so you don't have to putback
+ * before calling)
+ * @return Token
+ */
+static Token scan_identifier(FILE *input, int currentChar) {
+  Token token = {.type = TOKEN_ERROR};
+
+  // handle malloc
+  char *str = malloc(INITIAL_STR_LEN);
+  size_t capacity = INITIAL_STR_LEN;
+  size_t len = 0;
+  if (str == NULL) {
+    fprintf(stderr, "Lexer error: %d, scan_identifier malloc failed\n",
+            INTERPRET_ERROR);
+    return token;
+  }
+
+  // interpolades
+  int next = next_char(input);
+  if (currentChar == 's' && next == '"') {
+    interpActive = true;
+    free(str);
+    return scan_string(input);
+  }
+
+  put_back(next, input);
+
+  while (isalnum(currentChar) || currentChar == '_') {
+
+    // realloc
+    if (len + REALLOC_CONST >= capacity) {
+      char *tmp = realloc(str, capacity * 2);
+      if (tmp == NULL) {
+        fprintf(stderr, "Lexer error: %d, realloc failed\n", INTERPRET_ERROR);
+        free(str);
+        return token;
+      }
+      str = tmp;
+      capacity *= 2;
+    }
+
+    str[len] = (char)currentChar;
+    len++;
+    currentChar = next_char(input);
+  }
+
+  put_back(currentChar, input);
+  str[len] = '\0';
+
+  // its keyword
+  int key = is_keyword(str);
+  if (key != -1) {
+    token.type = TOKEN_KEYWORD;
+    token.value.keyword = keywordTable[key].keyword;
+    free(str);
+    return token;
+  }
+
+  // its id
+  else {
+    if (strcmp(str, "_") == 0) {
+      fprintf(stderr, "Scanner error: %d, '_' is not valid identifier\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+
+    if (strcmp(str, "true") == 0) {
+      token.type = TOKEN_BOOL;
+      token.value.boolean = true;
+      free(str);
+      return token;
+    }
+
+    if (strcmp(str, "false") == 0) {
+      token.type = TOKEN_BOOL;
+      token.value.boolean = false;
+      free(str);
+      return token;
+    }
+
+    if (interpVariable) {
+      interpVariable = false;
+      interpResume = true;
+      interpEnd = true;
+    }
+
+    token.type = TOKEN_IDENTIFIER;
+    token.value.identifier = strdup(str);
+    free(str);
+    return token;
+  }
+}
+
+/**
+ * @brief Helper function that validates single-line and multi-line comments
+ *
+ * @param[in, out] input - input to stream of chars from stdin
+ * @param[in] currentChar currentChar from input (so you don't have to putback
+ * before calling)
+ * @return True - comment is valid, else otherwise
+ */
+static bool valid_comment(FILE *input, int currentChar) {
+  int next;
+
+  // One-line comment
+  if (currentChar == '/') {
+    next = next_char(input);
+    while (next != '\n' && next != EOF) {
+      next = next_char(input);
+    }
+    put_back(next, input);
+    return true;
+  }
+
+  // Multi-line comment
+  if (currentChar == '*') {
+    int depth = 1;
+    int prev = 0;
+
+    while (depth > 0) {
+      next = next_char(input);
+      if (next == EOF) {
+        fprintf(stderr, "Scanner error: %d, Never ending block comment\n",
+                SCANNER_ERROR);
+        return false;
+      }
+
+      if (prev == '/' && next == '*') {
+        depth++;
+        prev = 0;
+      }
+
+      else if (prev == '*' && next == '/') {
+        depth--;
+        prev = 0;
+      }
+
+      else {
+        prev = next;
+      }
+    }
+    return true;
+  }
+  return true;
+}
+
+/**
+ * @brief Helper function geos through single lines and picks TOKEN_TYPE
+ * @brief Its used at start and determines if token is more complex (like
+ * string)
+ *
+ * @param[in, out] input - input to stream of chars from stdin
+ * @param[in] currentChar currentChar from input (so you don't have to putback
+ * before calling)
+ * @return TokenType
+ */
+static TokenType single_operator(FILE *input, int currentChar) {
+  int next;
+
+  switch (currentChar) {
+
+  case '+':
+    return TOKEN_PLUS;
+
+  case '-':
+    return TOKEN_MINUS;
+
+  case '*':
+    return TOKEN_MULTIPLY;
+
+  case ':':
+    return TOKEN_COLON;
+
+  case ';':
+    return TOKEN_SEMICOLON;
+
+  case ',':
+    return TOKEN_COMMA;
+
+  case '@':
+    return TOKEN_AT;
+
+  case '}':
+    if (interpExpression) {
+      interpExpression = false;
+      interpResume = true;
+      return TOKEN_INTERP_END;
+    }
+    fprintf(stderr, "Scanner error: %d, Invalid interpolate character\n",
+            SCANNER_ERROR);
+    return TOKEN_ERROR;
+
+  case EOF:
+    return TOKEN_EOF;
+
+  case '/':
+    next = next_char(input);
+    if (next == '/' || next == '*') {
+      if (valid_comment(input, next)) {
+        return TOKEN_SKIP;
+      }
+      return TOKEN_ERROR;
+    }
+    put_back(next, input);
+    return TOKEN_DIVIDE;
+
+  case '&':
+    next = next_char(input);
+
+    if (next == '&') {
+      return TOKEN_AND;
+    }
+
+    fprintf(stderr, "Scanner error: %d, invalid char &\n", SCANNER_ERROR);
+    return TOKEN_ERROR;
+
+  case '|':
+    next = next_char(input);
+
+    if (next == '|') {
+      return TOKEN_OR;
+    }
+    fprintf(stderr, "Scanner error: %d, invalid char |\n", SCANNER_ERROR);
+    return TOKEN_ERROR;
+
+  case '=':
+    next = next_char(input);
+
+    if (next == '=') {
+      return TOKEN_EQ;
+    }
+    put_back(next, input);
+    return TOKEN_ASSIGN;
+
+  case '!':
+    next = next_char(input);
+
+    if (next == '=') {
+      return TOKEN_NOT_EQ;
+    }
+    put_back(next, input);
+    return TOKEN_NOT;
+
+  case '\n':
+    if (bracketDepth == 0) {
+      lineStart = true;
+      return TOKEN_NEWLINE;
+    }
+    return TOKEN_SKIP;
+
+  case ' ':
+  case '\t':
+  case '\r':
+    return TOKEN_SKIP;
+
+  case '>':
+    next = next_char(input);
+
+    if (next == '=') {
+      return TOKEN_GREATER_EQ;
+    }
+    put_back(next, input);
+    return TOKEN_GREAER;
+
+  case '<':
+    next = next_char(input);
+
+    if (next == '=') {
+      return TOKEN_LOWER_EQ;
+    }
+    if (next == '-') {
+      return TOKEN_LARROW;
+    }
+    put_back(next, input);
+    return TOKEN_LOWER;
+
+  case '(':
+    bracketDepth++;
+    return TOKEN_OPENING_BRACKET;
+
+  case ')':
+    if (bracketDepth == 0) {
+      fprintf(stderr, "Scanner error %d, Invalid closing bracket\n",
+              SCANNER_ERROR);
+      return TOKEN_ERROR;
+    }
+    bracketDepth--;
+    return TOKEN_CLOSING_BRACKET;
+
+  // Special - requires you to handle it later
+  case '.':
+    next = next_char(input);
+
+    if (next == '.') {
+      fprintf(stderr, "Scanner error: %d, invalid double dot\n", SCANNER_ERROR);
+      return TOKEN_ERROR;
+    }
+
+    if (isdigit(next)) {
+      put_back(next, input);
+      return TOKEN_DOUBLE;
+    }
+    put_back(next, input);
+    return TOKEN_DOT;
+
+  case '"':
+    return TOKEN_STRING;
+
+  default:
+    fprintf(stderr, "Scanner error: %d, Unknown character '%c'\n",
+            SCANNER_ERROR, currentChar);
+    return TOKEN_ERROR;
+  }
+}
+
+/**
+ * @brief Helper function that scans through single and multi line strings
+ *
+ * @param[in, out] input - input to stream of chars from stdin
+ * @return String token ready to be sent to parser
+ */
+static Token scan_string(FILE *input) {
+  Token token = {.type = TOKEN_ERROR};
+
+  // handle malloc
+  char *str = malloc(INITIAL_STR_LEN);
+  size_t capacity = INITIAL_STR_LEN;
+  size_t len = 0;
+  if (str == NULL) {
+    fprintf(stderr, "Lexer error: %d, scan_string malloc failed\n",
+            INTERPRET_ERROR);
+    return token;
+  }
+
+  // interpolades
+  bool resume = interpResume; 
+  interpResume = false;
+
+  bool multiLineString = false;
+  int currentChar = next_char(input);
+
+  // check multi-line string
+  // multi-line string can start only at start not in middle
+  if (!resume) {
+  int next = next_char(input);
+  if (currentChar == '"' && next == '"') {
+    multiLineString = true;
+    if (interpActive) {
+      interpMultiLine = true;
+    }
+    currentChar = next_char(input);
+  } else {
+    put_back(next, input);
+  }}
+
+
+  while (true) {
+
+    if (currentChar == EOF) {
+      fprintf(stderr, "Scanner error: %d, Invalid EOF in string_scan()\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+
+    if (len + REALLOC_CONST >= capacity) {
+      char *tmp = realloc(str, capacity * 2);
+      if (tmp == NULL) {
+        fprintf(stderr, "Scanner error: %d, realloc failed\n", INTERPRET_ERROR);
+        free(str);
+        return token;
+      }
+      str = tmp;
+      capacity *= 2;
+    }
+
+    if (multiLineString || interpMultiLine) {
+
+      if (interpActive) {
+        if (currentChar == '$') {
+          int next = next_char(input);
+
+          if (next == '$') {
+            str[len] = '$';
+            len++;
+            currentChar = next_char(input);
+            continue;
+          }
+
+          // $variable
+          else if (isalpha(next) || next == '_') {
+            interpVariable = true;
+            interpStart = true;
+
+            put_back(next, input);
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          // expression inside ${
+          else if (next == '{') {
+            interpStart = true;
+            interpExpression = true;
+
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          else {
+            fprintf(stderr,
+                    "Scanner error: %d, Invalid interpolate character\n",
+                    SCANNER_ERROR);
+
+            free(str);
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+        }
+      }
+
+      if (currentChar == '"') {
+        int next1 = next_char(input);
+        int next2 = next_char(input);
+
+        if (next1 == '"' && next2 == '"') {
+          str[len] = '\0';
+          interpMultiLine = false;
+          interpActive = false;
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+
+          free(str);
+          return token;
+        }
+        put_back(next2, input);
+        put_back(next1, input);
+
+        str[len] = (char)currentChar;
+        len++;
+      } else {
+        str[len] = (char)currentChar;
+        len++;
+      }
+
+      // single-line string
+    } else {
+
+      if (currentChar == '\n') {
+        fprintf(stderr,
+                "Scanner error: %d, \\n detected in single line string\n",
+                SCANNER_ERROR);
+
+        free(str);
+        return token;
+      }
+
+      if (interpActive) {
+        if (currentChar == '$') {
+          int next = next_char(input);
+
+          if (next == '$') {
+            str[len] = '$';
+            len++;
+            currentChar = next_char(input);
+            continue;
+          }
+
+          // $variable
+          else if (isalpha(next) || next == '_') {
+            interpVariable = true;
+            interpStart = true;
+
+            put_back(next, input);
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          // expression inside ${
+          else if (next == '{') {
+            interpStart = true;
+            interpExpression = true;
+
+            str[len] = '\0';
+            token.type = TOKEN_STRING;
+            token.value.string = strdup(str);
+
+            free(str);
+            return token;
+          }
+
+          else {
+            fprintf(stderr,
+                    "Scanner error: %d, Invalid interpolate character\n",
+                    SCANNER_ERROR);
+
+            free(str);
+            token.type = TOKEN_ERROR;
+            return token;
+          }
+        }
+      }
+
+      // Single-line string can contain escape characters as two chars
+      if (currentChar == '\\') {
+        // put_back not needed
+        int next = next_char(input);
+
+        if (next == 'n') {
+          str[len] = '\n';
+        }
+
+        else if (next == '\\') {
+          str[len] = '\\';
+        }
+
+        else if (next == '"') {
+          str[len] = '\"';
+        }
+
+        else if (next == 't') {
+          str[len] = '\t';
+        }
+
+        else if (next == 'r') {
+          str[len] = '\r';
+        }
+
+        else {
+          fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
+                  SCANNER_ERROR);
+          free(str);
+          return token;
+        }
+        len++;
+      }
+
+      // end of string
+      else if (currentChar == '"') {
+        str[len] = '\0';
+        token.type = TOKEN_STRING;
+        token.value.string = strdup(str);
+
+        free(str);
+        interpActive = false;
+        return token;
+      }
+
+      // Add char to array
+      else {
+        str[len] = (char)currentChar;
+        len++;
+      }
+    }
+    currentChar = next_char(input);
+  }
 }
 
 /**
@@ -776,111 +1112,112 @@ static bool number_token_end(int currentChar) {
        currentChar == '/' || currentChar == '=' || currentChar == '<' ||
        currentChar == '>' || currentChar == '!' || currentChar == ')' ||
        currentChar == '(' || currentChar == ';' || isspace(currentChar) ||
-       currentChar == ',' || currentChar == EOF);
+       currentChar == ',' || currentChar == '|' || currentChar == '&' ||
+       currentChar == '}' || currentChar == EOF);
 
   return (bool)result;
+}
+
+/**
+ * @brief Compares indentation with stack and decides if its
+ * INDENT/DEDENT/ERROR
+ *
+ * @param[in] indentation of the current line
+ * @returns TOKEN_INDENT, TOKEN_DEDENT, TOKEN_SKIP, TOKEN_ERROR
+ */
+static TokenType resolve_indent(int spaces) {
+  int currentTop = *scanner_stack_top();
+  int topIndex = scanner_stack_size() - 1;
+
+  if (spaces > currentTop) {
+    scanner_stack_push(spaces);
+    return TOKEN_INDENT;
+  } else if (spaces < currentTop) {
+    int index = find_number_in_stack(spaces);
+
+    if (index == -1) {
+      fprintf(stderr, "Scanner error: %d, Indentation error \n", SCANNER_ERROR);
+      return TOKEN_ERROR;
+    }
+
+    int levels_to_pop = topIndex - index;
+
+    for (int i = 0; i < levels_to_pop; i++) {
+      scanner_stack_pop();
+    }
+
+    if (levels_to_pop > 1) {
+      pendingDedents = levels_to_pop - 1;
+    }
+
+    return TOKEN_DEDENT;
+  } else {
+    // Same level
+    return TOKEN_SKIP;
+  }
 }
 
 /**
  * @brief Calculates indent for control flow, functions, etc.
  *
  * @param[in, out] input stream
- * @param[out] Possible error states: 0 = No error, -1 = Error, 1 = New line, 2
- * = EOF
- * @returns space count, if value is -1, error happened
+ * @param[out] spaces
+ * @returns IndentResult
  */
-static int calculateIndent(FILE *input, int *error) {
-  *error = 0;
-  if (lineStart && bracketDepth == 0) {
-    int spaces = 0;
-    int indentChar;
+static IndentResult calculate_indent(FILE *input, int *spaces) {
+  *spaces = 0;
+  int indentChar;
 
-    while (true) {
-      indentChar = next_char(input);
+  while (true) {
+    indentChar = next_char(input);
 
-      if (indentChar == ' ') {
-        spaces++;
-      }
+    if (indentChar == ' ') {
+      *spaces += 1;
+    }
 
-      else if (indentChar == '\t') {
-        fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
-                SCANNER_ERROR);
+    else if (indentChar == '\t') {
+      fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
+              SCANNER_ERROR);
 
-        *error = -1;
-        return -1;
-      }
+      return INDENT_ERROR;
+    }
 
-      else if (indentChar == '\n') {
-        *error = 1;
-        return -1;
-      }
+    else if (indentChar == '\n') {
+      return INDENT_NEW_LINE;
+    }
 
-      else if (indentChar == EOF) {
-        *error = 2;
-        return -1;
-      }
+    else if (indentChar == EOF) {
+      return INDENT_EOF;
+    }
 
-      else if (indentChar == '/') {
-        int next = next_char(input);
+    else if (indentChar == '/') {
+      int next = next_char(input);
 
-        // One-line comment from start of the line
+      if (next == '/' || next == '*') {
+        if (!valid_comment(input, next)) {
+          return INDENT_ERROR;
+        }
+
         if (next == '/') {
-          while (next != '\n' && next != EOF) {
-            next = next_char(input);
-          }
-
-          spaces = 0;
-          continue;
+          next_char(input);
         }
 
-        // Multi-line comment
-        if (next == '*') {
-          int depth = 1;
-          int prev = 0;
-
-          while (depth > 0) {
-            next = next_char(input);
-            if (next == EOF) {
-              fprintf(stderr, "Scanner error: %d, Never ending block comment\n",
-                      SCANNER_ERROR);
-              *error = -1;
-              return -1;
-            }
-
-            if (prev == '/' && next == '*') {
-              depth++;
-              prev = 0;
-            }
-
-            else if (prev == '*' && next == '/') {
-              depth--;
-              prev = 0;
-            }
-
-            else {
-              prev = next;
-            }
-          }
-
-          spaces = 0;
-          continue;
-        }
-
-        // not a comment
-        put_back(next, input);
-        put_back(indentChar, input);
-        lineStart = false;
-        return spaces;
+        *spaces = 0;
+        continue;
       }
 
-      else {
-        put_back(indentChar, input);
-        lineStart = false;
-        return spaces;
-      }
+      put_back(next, input);
+      put_back(indentChar, input);
+      lineStart = false;
+      return INDENT_OK;
+    }
+
+    else {
+      put_back(indentChar, input);
+      lineStart = false;
+      return INDENT_OK;
     }
   }
-  return 0;
 }
 
 /**
@@ -897,6 +1234,16 @@ void scanner_destroy(void) {
   lineStart = true;
   currentLine = 1;
   EndOfFileDetected = false;
+
+  valmemReturnDot = false;
+
+  interpActive = false;
+  interpVariable = false;
+  interpStart = false;
+  interpResume = false;
+  interpEnd = false;
+  interpExpression = false;
+  interpMultiLine = false;
 }
 
 /**

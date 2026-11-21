@@ -230,7 +230,6 @@ void first_iteration(void) {
   run_test("No number #3", "1e+", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double dots", "1.5.2", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double e", "1e5e3", TOKEN_ERROR, NULL, -1, -1);
-  run_test("Underscore not between numbers", "1._5", TOKEN_ERROR, NULL, -1, -1);
   run_test("Double underscore", "1.5__5", TOKEN_ERROR, NULL, -1, -1);
   run_test("Random suffix", "3.14s", TOKEN_ERROR, NULL, -1, -1);
 
@@ -686,7 +685,165 @@ void indentation_flow_tests(void) {
                             TOKEN_NEWLINE,    TOKEN_EOF};
   run_sequence_test("22. Semicolon separator", code18, expected18,
                     sizeof(expected18) / sizeof(expected18[0]));
+
+  // END OF AI USAGE
+
+  // Valmem Tests
+  scanner_destroy();
+  char *valmem1 = "15.48.toInt";
+  TokenType expectedValmem1[] = {TOKEN_DOUBLE, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
+  run_sequence_test("1. double.toInt", valmem1, expectedValmem1,
+                    sizeof(expectedValmem1) / sizeof(expectedValmem1[0]));
+
+  scanner_destroy();
+  char *valmem2 = "15.toString";
+  TokenType expectedValmem2[] = {TOKEN_INT, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
+  run_sequence_test("2. int.tostring", valmem2, expectedValmem2,
+                    sizeof(expectedValmem2) / sizeof(expectedValmem2[0]));
+
+  scanner_destroy();
+  char *valmem3 = "\"string\".toString";
+  TokenType expectedValmem3[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
+  run_sequence_test("3. string.tostring", valmem3, expectedValmem3,
+                    sizeof(expectedValmem3) / sizeof(expectedValmem3[0]));
+
+  scanner_destroy();
+  char *valmem4 = "\"abc\".length";
+  TokenType expectedValmem4[] = {TOKEN_STRING, TOKEN_DOT, TOKEN_IDENTIFIER,
+                                 TOKEN_EOF};
+  run_sequence_test("4. string.length", valmem4, expectedValmem4,
+                    sizeof(expectedValmem4) / sizeof(expectedValmem4[0]));
+
+  scanner_destroy();
+  char *valmem5 = "15.3.floor.int";
+  TokenType expectedValmem5[] = {TOKEN_DOUBLE,     TOKEN_DOT,
+                                 TOKEN_IDENTIFIER, TOKEN_DOT,
+                                 TOKEN_IDENTIFIER, TOKEN_EOF};
+  run_sequence_test("5. double.floor.int", valmem5, expectedValmem5,
+                    sizeof(expectedValmem5) / sizeof(expectedValmem5[0]));
+
+  // interpolades
+  scanner_destroy();
+  char *interp1 = "s\"asb\"";
+  TokenType expectedInterp1[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("No interp", interp1, expectedInterp1,
+                    sizeof(expectedInterp1) / sizeof(expectedInterp1[0]));
+
+  scanner_destroy();
+  char *interp2 = "s\"a$$b\"";
+  TokenType expectedInterp2[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("No interp $ dollar string", interp2, expectedInterp2,
+                    sizeof(expectedInterp2) / sizeof(expectedInterp2[0]));
+
+  scanner_destroy();
+  char *interp3 = "s\"a$hello\"";
+  TokenType expectedInterp3[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Interp variable", interp3, expectedInterp3,
+                    sizeof(expectedInterp3) / sizeof(expectedInterp3[0]));
+
+  scanner_destroy();
+  char *interp4 = "s\"a$b hello\"";
+  TokenType expectedInterp4[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Interp variable, string", interp4, expectedInterp4,
+                    sizeof(expectedInterp4) / sizeof(expectedInterp4[0]));
+
+  scanner_destroy();
+  char *interp5 = "s\"$name${n + 1} costs $$0\"";
+  TokenType expectedInterp5[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_PLUS,
+      TOKEN_INT,    TOKEN_INTERP_END,   TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Interp expression", interp5, expectedInterp5,
+                    sizeof(expectedInterp5) / sizeof(expectedInterp5[0]));
+
+  scanner_destroy();
+  char *interp6 = "s\"$\"";
+  TokenType expectedInterp6[] = {TOKEN_ERROR};
+  run_sequence_test("Interp error", interp6, expectedInterp6,
+                    sizeof(expectedInterp6) / sizeof(expectedInterp6[0]));
+
+  /* AI USAGE - claude
+  AI wrote tests for me
+  'Write me tests for interpolades for multi-line strings
+  */
+  // multi-line interpolation
+  scanner_destroy();
+  char *interp7 = "s\"\"\"a$x b\"\"\"";
+  TokenType expectedInterp7[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp variable", interp7, expectedInterp7,
+                    sizeof(expectedInterp7) / sizeof(expectedInterp7[0]));
+
+  scanner_destroy();
+  char *interp8 = "s\"\"\"He said \"hello\", $name.\nSecond line.\"\"\"";
+  TokenType expectedInterp8[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp spec example", interp8, expectedInterp8,
+                    sizeof(expectedInterp8) / sizeof(expectedInterp8[0]));
+
+  scanner_destroy();
+  char *interp9 = "s\"\"\"a${x}\nb\"\"\"";
+  TokenType expectedInterp9[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                 TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                 TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp newline after }", interp9, expectedInterp9,
+                    sizeof(expectedInterp9) / sizeof(expectedInterp9[0]));
+
+  scanner_destroy();
+  char *interp10 = "s\"\"\"${x}\"\"\"";
+  TokenType expectedInterp10[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("Multi interp ends after }", interp10, expectedInterp10,
+                    sizeof(expectedInterp10) / sizeof(expectedInterp10[0]));
+
+  scanner_destroy();
+  char *interp11 = "s\"\"\"$x\"\"\"\ny";
+  TokenType expectedInterp11[] = {
+      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING,     TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
+  run_sequence_test("Multi interp ends after $x", interp11, expectedInterp11,
+                    sizeof(expectedInterp11) / sizeof(expectedInterp11[0]));
+
+  scanner_destroy();
+  char *interp12 = "s\"\"\"a$$b\"\"\"";
+  TokenType expectedInterp12[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Multi interp $$", interp12, expectedInterp12,
+                    sizeof(expectedInterp12) / sizeof(expectedInterp12[0]));
+
+  scanner_destroy();
+  char *interp13 = "s\"\"\"a\"\"\" \"$y\"";
+  TokenType expectedInterp13[] = {TOKEN_STRING, TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Multi interp then plain string", interp13,
+                    expectedInterp13,
+                    sizeof(expectedInterp13) / sizeof(expectedInterp13[0]));
+
+  scanner_destroy();
+  char *interp14 = "\"\"\"a$x\"\"\"";
+  TokenType expectedInterp14[] = {TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("Plain multi-line with $", interp14, expectedInterp14,
+                    sizeof(expectedInterp14) / sizeof(expectedInterp14[0]));
+
+  scanner_destroy();
+  char *interp15 = "s\"\"\"a$x";
+  TokenType expectedInterp15[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_ERROR};
+  run_sequence_test("Multi interp unclosed", interp15, expectedInterp15,
+                    sizeof(expectedInterp15) / sizeof(expectedInterp15[0]));
+
+  run_test("Multi interp $$ value", "s\"\"\"a$$b\"\"\"", TOKEN_STRING, "a$b",
+           -1, -1);
+  // END OF AI USAGE
 }
 
-// END OF AI USAGE
 // NOLINTEND
