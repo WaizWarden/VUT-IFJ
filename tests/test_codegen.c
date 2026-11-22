@@ -75,9 +75,7 @@ static void generate_while(void) { cg_gen_while(while_node, T_UNIT); }
 
 static void generate_program(void) { cg_gen_program(program_node); }
 
-static void generate_for_default(void) {
-  cg_gen_for(for_default_node, T_UNIT);
-}
+static void generate_for_default(void) { cg_gen_for(for_default_node, T_UNIT); }
 
 static void generate_for_negative_guard(void) {
   cg_gen_for(for_negative_guard_node, T_UNIT);
@@ -215,10 +213,8 @@ static void test_boolean_comparison(void) {
 
 static void test_boolean_while(void) {
   // A while condition is generated the same way as an if condition.
-  while_node = ast_new_while(
-      ast_new_bool(true, 1),
-      ast_new_block(NULL, 0, 1),
-      1);
+  while_node =
+      ast_new_while(ast_new_bool(true, 1), ast_new_block(NULL, 0, 1), 1);
 
   char *output = capture_expression(generate_while);
   assert(strstr(output, "$while_start_") != NULL);
@@ -235,8 +231,8 @@ static void test_control_default_step(void) {
   // iteration. This small program exercises both setup and the loop boundary.
   AstNode *body = ast_new_block(NULL, 0, 1);
   for_default_node =
-      ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(5, 1), NULL,
-                  true, NULL, 0, body, 1);
+      ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(5, 1), NULL, true,
+                  NULL, 0, body, 1);
   for_default_node->as.forStatement.varUid = 42;
 
   char *output = capture_expression(generate_for_default);
@@ -260,9 +256,8 @@ static void test_control_default_step(void) {
 static void test_control_negative_until_guards(void) {
   // A negative step makes the loop run backwards. The guard must skip the
   // body for one iteration while the loop variable is still advanced.
-  AstNode *guard =
-      ast_new_binary(OP_GT, ast_new_identifier(strdup("i"), 1),
-                     ast_new_int(0, 1), 1);
+  AstNode *guard = ast_new_binary(OP_GT, ast_new_identifier(strdup("i"), 1),
+                                  ast_new_int(0, 1), 1);
   guard->evalType = T_BOOLEAN;
   AstNode **guards = malloc(sizeof(*guards));
   assert(guards != NULL);
@@ -313,9 +308,8 @@ static void test_control_zero_step(void) {
 static void test_control_for_prepass(void) {
   // The prepass must declare the loop variable and internal FOR helpers,
   // including declarations found inside the loop body.
-  AstNode *innerDecl =
-      ast_new_var_decl(strdup("value"), true, T_INT, true,
-                       ast_new_int(7, 1), 1);
+  AstNode *innerDecl = ast_new_var_decl(strdup("value"), true, T_INT, true,
+                                        ast_new_int(7, 1), 1);
   innerDecl->uid = 45;
 
   AstNode **bodyStatements = malloc(sizeof(*bodyStatements));
@@ -323,9 +317,8 @@ static void test_control_for_prepass(void) {
   bodyStatements[0] = innerDecl;
   AstNode *body = ast_new_block(bodyStatements, 1, 1);
 
-  AstNode *loop =
-      ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(3, 1), NULL,
-                  true, NULL, 0, body, 1);
+  AstNode *loop = ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(3, 1),
+                              NULL, true, NULL, 0, body, 1);
   loop->as.forStatement.varUid = 46;
 
   AstNode **mainStatements = malloc(sizeof(*mainStatements));
@@ -355,9 +348,8 @@ static void test_control_for_prepass(void) {
 
 static void test_normal_boolean_program(void) {
   // Exercise declaration, assignment, READ, comparison and print in one AST.
-  AstNode *enabledDecl =
-      ast_new_var_decl(strdup("enabled"), true, T_BOOLEAN, true,
-                       ast_new_bool(true, 1), 1);
+  AstNode *enabledDecl = ast_new_var_decl(strdup("enabled"), true, T_BOOLEAN,
+                                          true, ast_new_bool(true, 1), 1);
   enabledDecl->uid = 1;
 
   AstNode *enabledAssign =
@@ -369,8 +361,7 @@ static void test_normal_boolean_program(void) {
   readArgs[0] = ast_new_func_call(strdup("readBoolean"), NULL, 0, 3);
   readArgs[0]->evalType = T_BOOLEAN;
 
-  AstNode *printCall =
-      ast_new_func_call(strdup("print"), readArgs, 1, 3);
+  AstNode *printCall = ast_new_func_call(strdup("print"), readArgs, 1, 3);
   printCall->evalType = T_UNIT;
 
   AstNode **mainStatements = malloc(3 * sizeof(*mainStatements));
@@ -379,8 +370,7 @@ static void test_normal_boolean_program(void) {
   mainStatements[1] = enabledAssign;
   mainStatements[2] = ast_new_expr_statement(printCall, 3);
 
-  AstNode *mainBody =
-      ast_new_block(mainStatements, 3, 1);
+  AstNode *mainBody = ast_new_block(mainStatements, 3, 1);
   AstNode *mainFunction =
       ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, mainBody, 1);
 

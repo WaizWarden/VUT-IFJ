@@ -847,7 +847,7 @@ static Token scan_string(FILE *input) {
   }
 
   // interpolades
-  bool resume = interpResume; 
+  bool resume = interpResume;
   interpResume = false;
 
   bool multiLineString = false;
@@ -856,17 +856,17 @@ static Token scan_string(FILE *input) {
   // check multi-line string
   // multi-line string can start only at start not in middle
   if (!resume) {
-  int next = next_char(input);
-  if (currentChar == '"' && next == '"') {
-    multiLineString = true;
-    if (interpActive) {
-      interpMultiLine = true;
+    int next = next_char(input);
+    if (currentChar == '"' && next == '"') {
+      multiLineString = true;
+      if (interpActive) {
+        interpMultiLine = true;
+      }
+      currentChar = next_char(input);
+    } else {
+      put_back(next, input);
     }
-    currentChar = next_char(input);
-  } else {
-    put_back(next, input);
-  }}
-
+  }
 
   while (true) {
 

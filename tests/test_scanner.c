@@ -809,8 +809,8 @@ void indentation_flow_tests(void) {
   scanner_destroy();
   char *interp11 = "s\"\"\"$x\"\"\"\ny";
   TokenType expectedInterp11[] = {
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("Multi interp ends after $x", interp11, expectedInterp11,
                     sizeof(expectedInterp11) / sizeof(expectedInterp11[0]));
 
