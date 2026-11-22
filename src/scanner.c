@@ -529,14 +529,16 @@ static Token scan_identifier(FILE *input, int currentChar) {
   }
 
   // interpolades
-  int next = next_char(input);
-  if (currentChar == 's' && next == '"') {
-    interpActive = true;
-    free(str);
-    return scan_string(input);
-  }
+  if (!interpVariable) { // edgecase for s"$s"
+    int next = next_char(input);
+    if (currentChar == 's' && next == '"') {
+      interpActive = true;
+      free(str);
+      return scan_string(input);
+    }
 
-  put_back(next, input);
+    put_back(next, input);
+  }
 
   while (isalnum(currentChar) || currentChar == '_') {
 
@@ -563,6 +565,13 @@ static Token scan_identifier(FILE *input, int currentChar) {
   // its keyword
   int key = is_keyword(str);
   if (key != -1) {
+    if (interpVariable) {
+      fprintf(stderr, "Scanner error: %d, keywrod cannot be interpVariable\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+
     token.type = TOKEN_KEYWORD;
     token.value.keyword = keywordTable[key].keyword;
     free(str);
@@ -579,6 +588,12 @@ static Token scan_identifier(FILE *input, int currentChar) {
     }
 
     if (strcmp(str, "true") == 0) {
+      if (interpVariable) {
+        fprintf(stderr, "Scanner error: %d, true in interpVariable\n",
+                SCANNER_ERROR);
+        free(str);
+        return token;
+      }
       token.type = TOKEN_BOOL;
       token.value.boolean = true;
       free(str);
@@ -586,6 +601,12 @@ static Token scan_identifier(FILE *input, int currentChar) {
     }
 
     if (strcmp(str, "false") == 0) {
+      if (interpVariable) {
+        fprintf(stderr, "Scanner error: %d, false interpVariable\n",
+                SCANNER_ERROR);
+        free(str);
+        return token;
+      }
       token.type = TOKEN_BOOL;
       token.value.boolean = false;
       free(str);
@@ -847,7 +868,7 @@ static Token scan_string(FILE *input) {
   }
 
   // interpolades
-  bool resume = interpResume; 
+  bool resume = interpResume;
   interpResume = false;
 
   bool multiLineString = false;
@@ -856,17 +877,17 @@ static Token scan_string(FILE *input) {
   // check multi-line string
   // multi-line string can start only at start not in middle
   if (!resume) {
-  int next = next_char(input);
-  if (currentChar == '"' && next == '"') {
-    multiLineString = true;
-    if (interpActive) {
-      interpMultiLine = true;
+    int next = next_char(input);
+    if (currentChar == '"' && next == '"') {
+      multiLineString = true;
+      if (interpActive) {
+        interpMultiLine = true;
+      }
+      currentChar = next_char(input);
+    } else {
+      put_back(next, input);
     }
-    currentChar = next_char(input);
-  } else {
-    put_back(next, input);
-  }}
-
+  }
 
   while (true) {
 

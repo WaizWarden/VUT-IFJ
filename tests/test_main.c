@@ -14,15 +14,13 @@
 
 #include <string.h>
 
-int main(int argc, char **argv)
-{
-  if (argc == 2 && strcmp(argv[1], "--parser-valid") == 0)
-  {
+int main(int argc, char **argv) {
+  if (argc == 2 && strcmp(argv[1], "--parser-valid") == 0) {
     test_parser_valid();
     return 0;
   }
-  // first_iteration();
-  // indentation_flow_tests();
+  first_iteration();
+  indentation_flow_tests();
   interp_tests();
   /*
   test_stack();

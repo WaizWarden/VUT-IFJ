@@ -809,8 +809,8 @@ void indentation_flow_tests(void) {
   scanner_destroy();
   char *interp11 = "s\"\"\"$x\"\"\"\ny";
   TokenType expectedInterp11[] = {
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
   run_sequence_test("Multi interp ends after $x", interp11, expectedInterp11,
                     sizeof(expectedInterp11) / sizeof(expectedInterp11[0]));
 
@@ -846,20 +846,18 @@ void indentation_flow_tests(void) {
   // END OF AI USAGE
 }
 
-
 void interp_tests(void) {
   /* AI USAGE - claude
   AI wrote tests for me
   'Write me tests for nested interpolation'
   */
 
-
   scanner_destroy();
   char *interp16 = "s\"${\"abc\"}$name\"";
   TokenType expectedInterp16[] = {
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_EOF};
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
   run_sequence_test("A1 plain string in ${}, then $name", interp16,
                     expectedInterp16,
                     sizeof(expectedInterp16) / sizeof(expectedInterp16[0]));
@@ -921,9 +919,9 @@ void interp_tests(void) {
   scanner_destroy();
   char *interp22 = "s\"${\"\"\"x\"\"\"} $b\"";
   TokenType expectedInterp22[] = {
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_EOF};
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
   run_sequence_test("A7 plain multi-line string in ${}", interp22,
                     expectedInterp22,
                     sizeof(expectedInterp22) / sizeof(expectedInterp22[0]));
@@ -939,9 +937,9 @@ void interp_tests(void) {
   scanner_destroy();
   char *interp24 = "s\"$s$s\"";
   TokenType expectedInterp24[] = {
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
-      TOKEN_STRING,     TOKEN_EOF};
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
   run_sequence_test("B2 $s$s", interp24, expectedInterp24,
                     sizeof(expectedInterp24) / sizeof(expectedInterp24[0]));
 
@@ -1007,19 +1005,17 @@ void interp_tests(void) {
 
   scanner_destroy();
   char *interp33 = "s\"\"\"${1 +\n  2} tail\"\"\"";
-  TokenType expectedInterp33[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_INT,
-                                  TOKEN_PLUS,   TOKEN_INT,          TOKEN_INTERP_END,
-                                  TOKEN_STRING, TOKEN_EOF};
-  run_sequence_test("N1 newline in multi-line ${}", interp33,
-                    expectedInterp33,
+  TokenType expectedInterp33[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_INT,    TOKEN_PLUS,
+      TOKEN_INT,    TOKEN_INTERP_END,   TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("N1 newline in multi-line ${}", interp33, expectedInterp33,
                     sizeof(expectedInterp33) / sizeof(expectedInterp33[0]));
 
   scanner_destroy();
   char *interp34 = "s\"${1 +\n2}\"";
   TokenType expectedInterp34[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_INT,
                                   TOKEN_PLUS, TOKEN_ERROR};
-  run_sequence_test("N2 newline in single-line ${}", interp34,
-                    expectedInterp34,
+  run_sequence_test("N2 newline in single-line ${}", interp34, expectedInterp34,
                     sizeof(expectedInterp34) / sizeof(expectedInterp34[0]));
   // END OF AI USAGE
 }
