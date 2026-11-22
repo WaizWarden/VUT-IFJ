@@ -27,17 +27,19 @@
  *      chr(code: Int): String
  *      toStr(value: Any): String
  *      print(value: Any): Unit
+ *      floor(val: Double): Double
  *  extra func:
  *      readInt(): Int
  *      readDouble(): Double
  *      ord(s: String, i: Int): Int
  *      substr(s, start, end)
- * 
- * @note AI use: static code analysis, semantic comment fixes and standardization, structuring code
- *      prompt: "standardize comment format and describe any semantic comment inacuracies"
- *      workflow: If I understand the issue, I implement what I can, and when I don't understand,
- *      I ask gemini or other model to explain the issue and help me with implementation.
- * 
+ *
+ * @note AI use: static code analysis, semantic comment fixes and
+ * standardization, structuring code prompt: "standardize comment format and
+ * describe any semantic comment inacuracies" workflow: If I understand the
+ * issue, I implement what I can, and when I don't understand, I ask gemini or
+ * other model to explain the issue and help me with implementation.
+ *
  */
 
 // Characters at or below this ASCII value must be escaped in string literals.
@@ -48,7 +50,8 @@
 #include <stdio.h>
 #include <string.h>
 
-// Labels receive a module-wide sequence number so each generated jump is unique.
+// Labels receive a module-wide sequence number so each generated jump is
+// unique.
 static uint32_t label_counter = 0;
 
 // Return the next label ID.
@@ -190,7 +193,8 @@ void cg_gen_head(void) {
 }
 
 /**
- * @brief Discovers and emits every local variable declaration in an AST subtree.
+ * @brief Discovers and emits every local variable declaration in an AST
+ * subtree.
  *
  * This recursive pass runs before executable instructions are generated. It
  * makes declarations visible throughout a function, including variables located
@@ -279,7 +283,8 @@ static void cg_gen_vars_prepass(const AstNode *node) {
 }
 
 /**
- * @brief Generates a function label, frame setup, parameters, and function body.
+ * @brief Generates a function label, frame setup, parameters, and function
+ * body.
  * @param node AST node of type AST_FUNC_DEF.
  */
 static void cg_gen_func_def(const AstNode *node) {
@@ -791,7 +796,7 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
 
   const uint32_t varUid = forNode->as.forStatement.varUid;
   const uint32_t labelId = cg_next_label_id();
-  const char* varName = forNode->as.forStatement.varName;
+  const char *varName = forNode->as.forStatement.varName;
 
   // Initialize the loop variable once.
   cg_gen_expr(forNode->as.forStatement.from);
@@ -799,7 +804,8 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
   cg_print_var(varName, varUid);
   putchar('\n');
 
-  // Save the end value so an expression is not re-evaluated for every iteration.
+  // Save the end value so an expression is not re-evaluated for every
+  // iteration.
   cg_gen_expr(forNode->as.forStatement.to);
   printf("POPS LF@%%end$%u\n", varUid);
 
@@ -985,8 +991,29 @@ void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
+  if (strcmp(name, "floor") == 0) {
+    if (argCount > 0) {
+      cg_gen_expr(args[0]);
+      uint32_t labelId = cg_next_label_id();
+
+      // Truncate toward zero, convert back to Double, and subtract one only
+      // when a negative value was actually non-integral.
+      printf("POPS GF@$tmp1\n"
+             "FLOAT2INT GF@$tmp2 GF@$tmp1\n"
+             "INT2FLOAT GF@$tmp3 GF@$tmp2\n"
+             "LT GF@$tmp4 GF@$tmp1 GF@$tmp3\n"
+             "JUMPIFEQ $floor_end_%u GF@$tmp4 bool@false\n"
+             "SUB GF@$tmp3 GF@$tmp3 float@0x1p+0\n"
+             "LABEL $floor_end_%u\n"
+             "PUSHS GF@$tmp3\n",
+             labelId, labelId);
+    }
+    return;
+  }
+
   if (strcmp(name, "print") == 0) {
     if (argCount > 0) {
+
       cg_gen_expr(args[0]);
       if (args[0]->evalType == T_UNIT) {
         puts("POPS GF@$tmp1\n"
