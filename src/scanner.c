@@ -84,6 +84,8 @@ static bool interpResume = false;
 static bool interpEnd = false;
 static bool interpMultiLine = false;
 
+static ScannerStack indentStack;
+
 /**
  * @brief Parses stdin and creates token
  *
@@ -108,8 +110,8 @@ Token get_token(FILE *input) {
   }
 
   if (!stackInitialized) {
-    scanner_stack_init();
-    scanner_stack_push(0);
+    scanner_stack_init(&indentStack);
+    scanner_stack_push(&indentStack, 0);
     stackInitialized = true;
   }
 
@@ -1147,14 +1149,14 @@ static bool number_token_end(int currentChar) {
  * @returns TOKEN_INDENT, TOKEN_DEDENT, TOKEN_SKIP, TOKEN_ERROR
  */
 static TokenType resolve_indent(int spaces) {
-  int currentTop = *scanner_stack_top();
-  int topIndex = scanner_stack_size() - 1;
+  int currentTop = *scanner_stack_top(&indentStack);
+  int topIndex = scanner_stack_size(&indentStack) - 1;
 
   if (spaces > currentTop) {
-    scanner_stack_push(spaces);
+    scanner_stack_push(&indentStack, spaces);
     return TOKEN_INDENT;
   } else if (spaces < currentTop) {
-    int index = find_number_in_stack(spaces);
+    int index = find_number_in_stack(&indentStack, spaces);
 
     if (index == -1) {
       fprintf(stderr, "Scanner error: %d, Indentation error \n", SCANNER_ERROR);
@@ -1164,7 +1166,7 @@ static TokenType resolve_indent(int spaces) {
     int levels_to_pop = topIndex - index;
 
     for (int i = 0; i < levels_to_pop; i++) {
-      scanner_stack_pop();
+      scanner_stack_pop(&indentStack);
     }
 
     if (levels_to_pop > 1) {
@@ -1246,7 +1248,7 @@ static IndentResult calculate_indent(FILE *input, int *spaces) {
  */
 void scanner_destroy(void) {
   if (stackInitialized) {
-    scanner_stack_free();
+    scanner_stack_free(&indentStack);
     stackInitialized = false;
   }
 
@@ -1273,11 +1275,11 @@ void scanner_destroy(void) {
  * @param[out] Token to write the resulting type to
  */
 static void handle_eof(Token *token) {
-  int open_levels = scanner_stack_size() - 1;
+  int open_levels = scanner_stack_size(&indentStack) - 1;
 
   if (open_levels > 0) {
-    while (scanner_stack_size() > 1) {
-      scanner_stack_pop();
+    while (scanner_stack_size(&indentStack) > 1) {
+      scanner_stack_pop(&indentStack);
     }
     pendingDedents = open_levels - 1;
     EndOfFileDetected = true;
