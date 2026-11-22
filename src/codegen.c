@@ -50,7 +50,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// labels receive a module-wide sequence number so each generated jump is unique
+// labels get increasing IDs, so repeated control structures stay unique
 static uint32_t label_counter = 0;
 
 // return the next label ID
@@ -600,8 +600,7 @@ void cg_gen_expr(const AstNode *expr) {
     const AstNode *right = expr->as.binary.right;
     BinaryOperation operation = expr->as.binary.operation;
 
-    // && and || evaluate left to right and skip the right operand when
-    // the left operand already determines the result
+    // && and || skip the right operand when the left result decides it
     if (operation == OP_AND) {
       uint32_t labelId = cg_next_label_id();
       cg_gen_expr(left);
@@ -870,8 +869,7 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
            varUid, labelId, varUid);
   }
 
-  // guards behave like a chain of AND conditions
-  // the first false guard skips the body and also skips later guards here
+  // guards act as AND conditions; false skips the body and remaining guards
   printf("LABEL $for_body_%u\n", labelId);
 
   for (size_t i = 0; i < forNode->as.forStatement.guardCount; i++) {
@@ -918,8 +916,7 @@ void cg_gen_call(const AstNode *callNode) {
   if (strcmp(name, "readLine") == 0) {
     uint32_t labelId = cg_next_label_id();
 
-    // EOF is represented by nil in IFJcode26, which is not a valid String
-    // here, so replace it with an empty String before returning
+    // nil from EOF is converted to an empty String
     printf("READ GF@$tmp1 string\n"
            "JUMPIFNEQ $readLine_ok_%u GF@$tmp1 nil@nil\n"
            "MOVE GF@$tmp1 string@\n"
@@ -933,8 +930,7 @@ void cg_gen_call(const AstNode *callNode) {
   if (strcmp(name, "readBoolean") == 0) {
     uint32_t labelId = cg_next_label_id();
 
-    // readBoolean follows readInt/readDouble and treats nil as false
-    // which keeps an EOF or malformed value from leaking as a nil result
+    // nil reads become false, matching the other read helpers
     printf("READ GF@$tmp1 bool\n"
            "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
            "MOVE GF@$tmp1 bool@false\n"
@@ -947,12 +943,11 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "toInt") == 0) {
     if (argCount > 0) {
-      // eval the argument first so nested VALMEM or function expressions run
-      // before the conversion is applied
+      // evaluate the argument before converting it
       cg_gen_expr(args[0]);
 
       if (args[0]->evalType == T_DOUBLE) {
-        // the stack version truncates Double directly toward zero
+        // stack conversion truncates toward zero
         puts("FLOAT2INTS");
       }
     }
@@ -962,8 +957,7 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "strLength") == 0) {
     if (argCount > 0) {
-      // move the receiver out of the expression stack before STRLEN
-      // because STRLEN writes into a named variable
+      // STRLEN needs a named variable, so save the receiver in $tmp1
       cg_gen_expr(args[0]);
 
       puts("POPS GF@$tmp1\n"
@@ -976,7 +970,7 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "chr") == 0) {
     if (argCount > 0) {
-      // chr needs no temporary variable because INT2CHARS is stack-based
+      // chr can use the stack conversion directly
       cg_gen_expr(args[0]);
 
       puts("INT2CHARS");
@@ -987,27 +981,25 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "toStr") == 0) {
     if (argCount > 0) {
-      // leave the original value on the stack and replace it below with text
-      // using the conversion appropriate for the statically known type
+      // each type replaces the value with its String representation
       cg_gen_expr(args[0]);
 
       DataType argType = args[0]->evalType;
 
       if (argType == T_INT) {
-        // INT2STR is the codegen counterpart of toStr for integers
+        // use INT2STR for integer values
         puts("POPS GF@$tmp1\n"
              "INT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       } else if (argType == T_DOUBLE) {
-        // FLOAT2STR also provides the IFJ26 required two-decimal format
+        // FLOAT2STR uses the required two-decimal format
         puts("POPS GF@$tmp1\n"
              "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       } else if (argType == T_BOOLEAN) {
         uint32_t labelId = cg_next_label_id();
 
-        // IFJcode26 has no direct boolToStr conversion
-        // push the result of a small comparison and choose the matching text
+        // handle Boolean text with a small true/false branch
         printf("PUSHS bool@true\n"
                "JUMPIFNEQS $tostr_false_%u\n"
                "PUSHS string@true\n"
@@ -1017,11 +1009,11 @@ void cg_gen_call(const AstNode *callNode) {
                "LABEL $tostr_end_%u\n",
                labelId, labelId, labelId, labelId);
       } else if (argType == T_UNIT) {
-        // Unit has no payload, so its textual representation is fixed
+        // Unit always has the fixed text "()"
         puts("POPS GF@$tmp1\n"
              "PUSHS string@()");
       } else if (argType == T_STRING) {
-        // String is already text, so pop and push it without conversion
+        // Strings do not need conversion
         puts("POPS GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       }
@@ -1032,8 +1024,7 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "floor") == 0) {
     if (argCount > 0) {
-      // floor is implemented from existing primitive conversions
-      // no dedicated FLOOR instruction is available in IFJcode26
+      // there is no FLOOR instruction, so use existing numeric conversions
       cg_gen_expr(args[0]);
 
       uint32_t labelId = cg_next_label_id();
@@ -1074,8 +1065,6 @@ void cg_gen_call(const AstNode *callNode) {
 
     return;
   }
-
-  // extra built-ins are implemented as reusable labels
 
   if (strcmp(name, "readInt") == 0) {
     puts("CALL $builtin_readInt");
