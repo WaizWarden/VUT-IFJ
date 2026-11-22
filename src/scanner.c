@@ -42,7 +42,6 @@ static Token scan_identifier(FILE *input, int currentChar);
 static bool is_interp_state(int state);
 static bool is_multiline_state(int state);
 
-
 // States in scanner
 typedef enum {
   S_START,
@@ -99,7 +98,6 @@ static bool interpStart = false;
 static bool interpExpression = false;
 static bool interpResume = false;
 static bool interpEnd = false;
-
 
 /**
  * @brief Parses stdin and creates token
@@ -911,11 +909,9 @@ static Token scan_string(FILE *input, bool interp) {
     scanner_stack_push(&interpStack, state);
   }
 
-
   int top = *scanner_stack_top(&interpStack);
   bool isMultiLine = is_multiline_state(top);
   bool isInterp = is_interp_state(top);
-
 
   while (true) {
 
@@ -1299,6 +1295,15 @@ void scanner_destroy(void) {
  * @param[out] Token to write the resulting type to
  */
 static void handle_eof(Token *token) {
+  int interpStackSize = scanner_stack_size(&interpStack);
+  if (interpStackSize != 0) {
+    scanner_destroy();
+    fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
+            SCANNER_ERROR);
+    token->type = TOKEN_ERROR;
+    return;
+  }
+
   int open_levels = scanner_stack_size(&indentStack) - 1;
 
   if (open_levels > 0) {
