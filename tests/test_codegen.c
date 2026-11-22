@@ -1,7 +1,7 @@
 /**
  * @file test_codegen.c
  * @author  xoramst00
- * @brief Checks that BOOLTHEN expressions and control flow become the
+ * @brief Checks that BOOLTHEN, CONTROL, and VALMEM constructs become the
  *        intended IFJcode26 instructions.
  *
  * AI-assisted: I used AI to help create this test suite.
@@ -54,6 +54,7 @@ static AstNode *for_default_node;
 static AstNode *for_negative_guard_node;
 static AstNode *for_zero_step_node;
 static AstNode *for_prepass_node;
+static AstNode *valmem_node;
 
 static void generate_not(void) { cg_gen_expr(bool_not_node); }
 
@@ -86,6 +87,8 @@ static void generate_for_negative_guard(void) {
 static void generate_for_zero_step(void) {
   cg_gen_for(for_zero_step_node, T_UNIT);
 }
+
+static void generate_valmem(void) { cg_gen_expr(valmem_node); }
 
 static AstNode *bool_block(bool value) {
   AstNode **statements = malloc(sizeof(*statements));
@@ -353,6 +356,105 @@ static void test_control_for_prepass(void) {
   printf("Test: CONTROL for-loop prepass declarations Passed\n");
 }
 
+static void test_valmem_to_string(void) {
+  // toString is desugared to toStr, including Double formatting behavior
+  AstNode *receiver = ast_new_double(1.2345, 1);
+  receiver->evalType = T_DOUBLE;
+
+  valmem_node =
+      ast_new_member_call(receiver, strdup("toString"), 1);
+  valmem_node->evalType = T_STRING;
+
+  char *output = capture_expression(generate_valmem);
+  assert(strstr(output, "PUSHS float@") != NULL);
+  assert(strstr(output, "FLOAT2STR") != NULL);
+  assert(strstr(output, "PUSHS GF@$tmp1") != NULL);
+  free(output);
+  ast_free(valmem_node);
+
+  printf("Test: VALMEM toString codegen Passed\n");
+}
+
+static void test_valmem_to_int(void) {
+  // Double.toInt should truncate the receiver toward zero
+  AstNode *receiver = ast_new_double(-3.75, 1);
+  receiver->evalType = T_DOUBLE;
+
+  valmem_node = ast_new_member_call(receiver, strdup("toInt"), 1);
+  valmem_node->evalType = T_INT;
+
+  char *output = capture_expression(generate_valmem);
+  assert(strstr(output, "PUSHS float@") != NULL);
+  assert(strstr(output, "FLOAT2INTS") != NULL);
+  free(output);
+  ast_free(valmem_node);
+
+  printf("Test: VALMEM toInt codegen Passed\n");
+}
+
+static void test_valmem_length(void) {
+  // String.length should reuse strLength and leave an Int on the stack
+  AstNode *receiver = ast_new_string(strdup("IFJ26"), 1);
+  receiver->evalType = T_STRING;
+
+  valmem_node = ast_new_member_call(receiver, strdup("length"), 1);
+  valmem_node->evalType = T_INT;
+
+  char *output = capture_expression(generate_valmem);
+  assert(strstr(output, "STRLEN GF@$tmp1 GF@$tmp1") != NULL);
+  assert(strstr(output, "PUSHS GF@$tmp1") != NULL);
+  free(output);
+  ast_free(valmem_node);
+
+  printf("Test: VALMEM length codegen Passed\n");
+}
+
+static void test_valmem_floor(void) {
+  // Floor must truncate, then lower negative fractional values by one
+  AstNode *negativeReceiver = ast_new_double(-3.75, 1);
+  negativeReceiver->evalType = T_DOUBLE;
+
+  valmem_node =
+      ast_new_member_call(negativeReceiver, strdup("floor"), 1);
+  valmem_node->evalType = T_DOUBLE;
+
+  char *output = capture_expression(generate_valmem);
+  assert(strstr(output, "FLOAT2INT GF@$tmp2 GF@$tmp1") != NULL);
+  assert(strstr(output, "INT2FLOAT GF@$tmp3 GF@$tmp2") != NULL);
+  assert(strstr(output, "LT GF@$tmp4 GF@$tmp1 GF@$tmp3") != NULL);
+  assert(strstr(output, "$floor_end_") != NULL);
+  assert(strstr(output, "SUB GF@$tmp3 GF@$tmp3 float@0x1p+0") != NULL);
+  assert(strstr(output, "PUSHS GF@$tmp3") != NULL);
+  free(output);
+  ast_free(valmem_node);
+
+  printf("Test: VALMEM floor codegen Passed\n");
+}
+
+static void test_valmem_chained_floor_to_int(void) {
+  // Chained members remain nested calls: floor must produce Double first
+  // and toInt can then consume that result
+  AstNode *receiver = ast_new_double(-3.75, 1);
+  receiver->evalType = T_DOUBLE;
+
+  AstNode *floored =
+      ast_new_member_call(receiver, strdup("floor"), 1);
+  floored->evalType = T_DOUBLE;
+
+  valmem_node = ast_new_member_call(floored, strdup("toInt"), 1);
+  valmem_node->evalType = T_INT;
+
+  char *output = capture_expression(generate_valmem);
+  assert(strstr(output, "FLOAT2INT GF@$tmp2 GF@$tmp1") != NULL);
+  assert(strstr(output, "INT2FLOAT GF@$tmp3 GF@$tmp2") != NULL);
+  assert(strstr(output, "$floor_end_") != NULL);
+  assert(strstr(output, "FLOAT2INTS") != NULL);
+  free(output);
+  ast_free(valmem_node);
+
+  printf("Test: VALMEM chained floor.toInt codegen Passed\n");
+}
+
 static void test_normal_boolean_program(void) {
   // Exercise declaration, assignment, READ, comparison and print in one AST.
   AstNode *enabledDecl =
@@ -413,5 +515,10 @@ void test_codegen(void) {
   test_control_negative_until_guards();
   test_control_zero_step();
   test_control_for_prepass();
+  test_valmem_to_string();
+  test_valmem_to_int();
+  test_valmem_length();
+  test_valmem_floor();
+  test_valmem_chained_floor_to_int();
   test_normal_boolean_program();
 }
