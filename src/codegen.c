@@ -918,6 +918,8 @@ void cg_gen_call(const AstNode *callNode) {
   if (strcmp(name, "readLine") == 0) {
     uint32_t labelId = cg_next_label_id();
 
+    // EOF is represented by nil in IFJcode26, which is not a valid String
+    // here, so replace it with an empty String before returning
     printf("READ GF@$tmp1 string\n"
            "JUMPIFNEQ $readLine_ok_%u GF@$tmp1 nil@nil\n"
            "MOVE GF@$tmp1 string@\n"
@@ -931,6 +933,8 @@ void cg_gen_call(const AstNode *callNode) {
   if (strcmp(name, "readBoolean") == 0) {
     uint32_t labelId = cg_next_label_id();
 
+    // readBoolean follows readInt/readDouble and treats nil as false
+    // which keeps an EOF or malformed value from leaking as a nil result
     printf("READ GF@$tmp1 bool\n"
            "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
            "MOVE GF@$tmp1 bool@false\n"
@@ -943,9 +947,12 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "toInt") == 0) {
     if (argCount > 0) {
+      // eval the argument first so nested VALMEM or function expressions run
+      // before the conversion is applied
       cg_gen_expr(args[0]);
 
       if (args[0]->evalType == T_DOUBLE) {
+        // the stack version truncates Double directly toward zero
         puts("FLOAT2INTS");
       }
     }
@@ -955,6 +962,8 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "strLength") == 0) {
     if (argCount > 0) {
+      // move the receiver out of the expression stack before STRLEN
+      // because STRLEN writes into a named variable
       cg_gen_expr(args[0]);
 
       puts("POPS GF@$tmp1\n"
@@ -967,6 +976,7 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "chr") == 0) {
     if (argCount > 0) {
+      // chr needs no temporary variable because INT2CHARS is stack-based
       cg_gen_expr(args[0]);
 
       puts("INT2CHARS");
@@ -977,21 +987,27 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "toStr") == 0) {
     if (argCount > 0) {
+      // leave the original value on the stack and replace it below with text
+      // using the conversion appropriate for the statically known type
       cg_gen_expr(args[0]);
 
       DataType argType = args[0]->evalType;
 
       if (argType == T_INT) {
+        // INT2STR is the codegen counterpart of toStr for integers
         puts("POPS GF@$tmp1\n"
              "INT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       } else if (argType == T_DOUBLE) {
+        // FLOAT2STR also provides the IFJ26 required two-decimal format
         puts("POPS GF@$tmp1\n"
              "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       } else if (argType == T_BOOLEAN) {
         uint32_t labelId = cg_next_label_id();
 
+        // IFJcode26 has no direct boolToStr conversion
+        // push the result of a small comparison and choose the matching text
         printf("PUSHS bool@true\n"
                "JUMPIFNEQS $tostr_false_%u\n"
                "PUSHS string@true\n"
@@ -1001,8 +1017,13 @@ void cg_gen_call(const AstNode *callNode) {
                "LABEL $tostr_end_%u\n",
                labelId, labelId, labelId, labelId);
       } else if (argType == T_UNIT) {
+        // Unit has no payload, so its textual representation is fixed
         puts("POPS GF@$tmp1\n"
              "PUSHS string@()");
+      } else if (argType == T_STRING) {
+        // String is already text, so pop and push it without conversion
+        puts("POPS GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
       }
     }
 
@@ -1011,12 +1032,14 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "floor") == 0) {
     if (argCount > 0) {
+      // floor is implemented from existing primitive conversions
+      // no dedicated FLOOR instruction is available in IFJcode26
       cg_gen_expr(args[0]);
 
       uint32_t labelId = cg_next_label_id();
 
-      // first truncate toward zero, then lower negative fractional values
-      // by one after converting the truncated integer back to Double
+      // truncate toward zero, convert back to Double, and lower negative
+      // fractional values by one after the original check
       printf("POPS GF@$tmp1\n"
              "FLOAT2INT GF@$tmp2 GF@$tmp1\n"
              "INT2FLOAT GF@$tmp3 GF@$tmp2\n"
@@ -1033,6 +1056,7 @@ void cg_gen_call(const AstNode *callNode) {
 
   if (strcmp(name, "print") == 0) {
     if (argCount > 0) {
+      // Unit is the only value that WRITE cannot print directly as requested
       cg_gen_expr(args[0]);
 
       if (args[0]->evalType == T_UNIT) {

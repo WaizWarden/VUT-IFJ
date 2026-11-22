@@ -171,6 +171,7 @@ static PrecSymbol convert_token_to_symbol(const Token *token,
   case TOKEN_NEWLINE:
   case TOKEN_SEMICOLON:
   case TOKEN_DEDENT:
+  case TOKEN_INTERP_END:
     return SYM_DOLLAR;
   case TOKEN_KEYWORD:
     if (token->value.keyword == KW_THEN || token->value.keyword == KW_DO ||
