@@ -88,16 +88,15 @@ typedef enum {
   enSimpleMultiLine,
   enInterpSingleLine,
   enInterpMultiLine,
-  enInterpExpression
 } stackState;
 
 static ScannerStack interpStack;
 
 static bool interpVariable = false;
 static bool interpStart = false;
-static bool interpExpression = false;
 static bool interpResume = false;
 static bool interpEnd = false;
+static int interpExprDepth = 0;
 
 /**
  * @brief Parses stdin and creates token
@@ -731,8 +730,8 @@ static TokenType single_operator(FILE *input, int currentChar) {
     return TOKEN_AT;
 
   case '}':
-    if (interpExpression) {
-      interpExpression = false;
+    if (interpExprDepth > 0) {
+      interpExprDepth--;
       interpResume = true;
       return TOKEN_INTERP_END;
     }
@@ -792,11 +791,21 @@ static TokenType single_operator(FILE *input, int currentChar) {
     return TOKEN_NOT;
 
   case '\n':
-    if (bracketDepth == 0) {
+    /* AI USAGE - claude
+      newline inside ${} - skip in multi-line string, error in single-line
+    */
+    if (interpExprDepth > 0 &&
+        !is_multiline_state(*scanner_stack_top(&interpStack))) {
+      fprintf(stderr, "Scanner error: %d, newline in single-line string\n",
+              SCANNER_ERROR);
+      return TOKEN_ERROR;
+    }
+    if (bracketDepth == 0 && interpExprDepth == 0) {
       lineStart = true;
       return TOKEN_NEWLINE;
     }
     return TOKEN_SKIP;
+    // END OF AI USAGE
 
   case ' ':
   case '\t':
@@ -963,7 +972,7 @@ static Token scan_string(FILE *input, bool interp) {
           // expression inside ${
           else if (next == '{') {
             interpStart = true;
-            interpExpression = true;
+            interpExprDepth++;
 
             str[len] = '\0';
             token.type = TOKEN_STRING;
@@ -1048,7 +1057,7 @@ static Token scan_string(FILE *input, bool interp) {
           // expression inside ${
           else if (next == '{') {
             interpStart = true;
-            interpExpression = true;
+            interpExprDepth++;
 
             str[len] = '\0';
             token.type = TOKEN_STRING;
@@ -1286,7 +1295,7 @@ void scanner_destroy(void) {
   interpStart = false;
   interpResume = false;
   interpEnd = false;
-  interpExpression = false;
+  interpExprDepth = 0;
 }
 
 /**
@@ -1345,10 +1354,18 @@ static void put_back(int currentChar, FILE *input) {
   ungetc(currentChar, input);
 }
 
+/**
+ * @brief Helper function for interpolateds
+ * @param state - state of stackState
+ */
 static bool is_interp_state(int state) {
   return state == enInterpSingleLine || state == enInterpMultiLine;
 }
 
+/**
+ * @brief Helper function for interpolateds
+ * @param state - state of stackState
+ */
 static bool is_multiline_state(int state) {
   return state == enSimpleMultiLine || state == enInterpMultiLine;
 }
