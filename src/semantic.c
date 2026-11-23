@@ -16,10 +16,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-static SemanticError analyze_functions(Symtable *symtable, AstNode *root);
+static SemanticError evaluate_function_headers(Symtable *symtable,
+                                               AstNode *root);
 static SemanticError register_builtin_functions(Symtable *symtable);
-static SemanticError analyze_function_body(Symtable *symtable,
-                                           AstNode *functionNode);
+static SemanticError analyze_functions(Symtable *symtable,
+                                       AstNode *functionNode);
 static Parameter *copy_params(const Parameter *src, uint16_t count);
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt);
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
@@ -30,12 +31,12 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     return ERR_OTHER;
   }
 
-  SemanticError error = analyze_functions(symtable, root);
+  SemanticError error = evaluate_function_headers(symtable, root);
   if (error != ERR_OK) {
     return error;
   }
 
-  SemanticError error2 = analyze_function_body(symtable, root);
+  SemanticError error2 = analyze_functions(symtable, root);
   if (error2 != ERR_OK) {
     return error2;
   }
@@ -47,7 +48,8 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
 /// @param symtable symbol table
 /// @param root AST root
 /// @return Semantic error type
-static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
+static SemanticError evaluate_function_headers(Symtable *symtable,
+                                               AstNode *root) {
 
   // insertion of built-in functions into symtable
   if (register_builtin_functions(symtable) != ERR_OK) {
@@ -116,8 +118,16 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
   if (!checkedMain) {
     return ERR_UNDEFINED_SYMBOL;
   }
+  return ERR_OK;
+}
 
-  // analyze function body
+/// @brief Analyzes all function bodies
+/// @param symtable symbol table
+/// @param functionNode Function AST node
+/// @return Semantic error type
+static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
+
+  // insert parameters to new scope for each function and analyze body
   for (size_t i = 0; i < root->as.program.count; i++) {
 
     AstNode *functionNode = root->as.program.functions[i];
@@ -126,8 +136,9 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     }
 
     // Add params from function
-    for (uint16_t p = 0; p < functionNode->as.funcDef.paramCount; p++) {
-      Parameter param = functionNode->as.funcDef.params[p];
+    for (uint16_t paramIdx = 0; paramIdx < functionNode->as.funcDef.paramCount;
+         paramIdx++) {
+      Parameter param = functionNode->as.funcDef.params[paramIdx];
 
       if (!st_insert_var(symtable, param.name, param.type, false)) {
         st_pop_scope(symtable);
@@ -135,27 +146,22 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
       }
     }
 
-    SemanticError result = analyze_function_body(symtable, functionNode);
+    AstNode *body = functionNode->as.funcDef.body;
+
+    // semantically analyze all statements in function body
+    for (size_t i = 0; i < body->as.block.count; i++) {
+      AstNode *stmt = body->as.block.stmts[i];
+
+      SemanticError errCode = analyze_statement(symtable, stmt);
+      if (errCode != ERR_OK) {
+        st_pop_scope(symtable);
+        return errCode;
+      }
+    }
+    
     st_pop_scope(symtable);
 
-    if (result != ERR_OK) {
-      return result;
-    }
-  }
-  return ERR_OK;
-}
-
-/// @brief Analyzes all statements in body of a function
-/// @param symtable symbol table
-/// @param functionNode Function AST node
-/// @return Semantic error type
-static SemanticError analyze_function_body(Symtable *symtable,
-                                           AstNode *functionNode) {
-  AstNode *body = functionNode->as.funcDef.body;
-
-  for (size_t i = 0; i < body->as.block.count; i++) {
-    AstNode *stmt = body->as.block.stmts[i];
-    analyze_statement(symtable, stmt);
+    return ERR_OK;
   }
 
   return ERR_OK;
@@ -168,7 +174,7 @@ static SemanticError analyze_function_body(Symtable *symtable,
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
 
   switch (stmt->type) {
-  case (AST_BLOCK):
+  case AST_BLOCK:
 
     if (!st_push_scope(symtable)) {
       return ERR_INTERNAL;
@@ -186,7 +192,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     st_pop_scope(symtable);
     break;
 
-  case (AST_VAR_DECL):
+  case AST_VAR_DECL:
     // initExpr - ride side of =
     DataType result;
     SemanticError error =
@@ -209,16 +215,16 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out) {
 
   SemanticError error = ERR_OK;
-  
+
   // var x: Int
-  if (expr == NULL){
+  if (expr == NULL) {
     *out = T_UNIT;
     return ERR_OK;
   }
 
   switch (expr->type) {
   case AST_LITERAL_INT:
-    *out = T_UNIT;
+    *out = T_INT;
     break;
 
   case AST_LITERAL_DOUBLE:
@@ -232,18 +238,17 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
   case AST_LITERAL_BOOL:
     *out = T_BOOLEAN;
     break;
-  
+
   case AST_LITERAL_UNIT:
     *out = T_UNIT;
     break;
 
   case AST_IDENTIFIER:
     break;
-  
 
   case AST_BINARY:
     break;
-  
+
   case AST_FUNC_CALL:
     break;
 
