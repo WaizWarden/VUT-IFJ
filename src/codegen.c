@@ -344,6 +344,11 @@ static void cg_adjust_return_value(DataType exprType, DataType funcRetType) {
   }
 }
 
+/**
+ * @brief Generates instructions for one AST statement.
+ * @param stmt Statement AST node.
+ * @param funcRetType Return type of the enclosing function.
+ */
 void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   if (!stmt) {
     return;
@@ -471,6 +476,13 @@ static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   }
 }
 
+
+/**
+ * @brief Generates instructions for a block or non-block AST body.
+ * @param block Block AST node, or a single statement.
+ * @param isLastInFunc Whether this block supplies the function return value.
+ * @param funcRetType Return type of the enclosing function.
+ */
 void cg_gen_block(const AstNode *block, bool isLastInFunc,
                   DataType funcRetType) {
   if (!block) {
@@ -509,6 +521,10 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
   cg_gen_tail(last, funcRetType);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for the complete AST program.
+ * @param root Root AST node of type AST_PROGRAM.
+ */
 void cg_gen_program(const AstNode *root) {
   if (!root || root->type != AST_PROGRAM) {
     return;

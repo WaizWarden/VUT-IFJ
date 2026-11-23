@@ -17,8 +17,6 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 </p>
 
 </div>
-`
-
 # Team distribution
 - **xjuricl01** – project coordination, lexical analysis, fixes in semantic analysis
 - **xoramst00** – symbol table, code generator (main developer)
@@ -32,7 +30,7 @@ While reviewing his code, we found a lot of signs of very high AI usage. When we
 
 Other issues contributed to this decision as well. Such as little commit count with high line count, not following git conventions we set as team.
 
-# Colaboration in team
+# Team collaboration
 - Each module has its own unit tests
 - Whole compiler is tested by e2e tests
 - Before merging to main we used valgrind to check for memory leaks
@@ -42,10 +40,8 @@ Other issues contributed to this decision as well. Such as little commit count w
 
 
 # Block diagram
-# TBD
 
 # FSM of lexical analysis
-# TBD
 
 # Syntax Analysis
 
@@ -561,25 +557,43 @@ function - e.g. the `<statement>` row is the switch in
 
 
 
-## Modules description
+# Modules description
 
-### Code generator (codegen)
+## Code generator (codegen)
 
-The code generator builds on the semantic analysis, from which it receives the completed AST. The output is a sequence of instructions defined by IFJcode26 to standard output. Main files are *codegen.c* and *codegen.h* with tests.
+The code generator builds on the syntax-semantic analysis, from which it receives the completed AST. The output is a sequence of instructions defined by IFJcode26 to standard output. Main files are *codegen.c* and *codegen.h* with tests.
 
-The basis of generating instructions is passing through the AST and writing out the corresponding instructions from AST nodes.
+The basis of generating instructions is passing through the AST and writing out the corresponding instructions from AST nodes to standard output directly.
 
-#### Variables and functions:
+### Variables and functions
 
-- Names of all compiler-only variables and functions use '$' in name for separation from names used by IFJ26 source code.
+- Names of all compiler-only variables and functions use '$' in name for separation from user-code names.
 - To ensure unique labels for separate instructions (like two for loops after each other), we generate unique number from global counter every time needed.
-- Shorter built-in functions of IFJcode26 are generated in-line, but the longer ones are designed as a normal function you call - defined in _codegen.c_ header.
+- Shorter built-in functions of IFJcode26 are generated in-line, but the longer ones are designed as a normal function you call, as described in _codegen.c_ header.
 - When calling a function, arguments are pushed to the stack, so that the last argument is at the top. Return value is left at stack top.
 
-## References
-  @todo
+### Complications and solutions
+
+The source code IFJ26 supports variable shadowing but IFJcode26 does not. Therefore we used unique ID for every variable in source code to distinguish them.
+
+We perform "pre-pass" of the AST functions, where we generate all the "DEFVAR" instructions, so that they are accessible throughout all sub-blocks.
+
+Interpretation of every AST node is different with the type of the node:
+- function definitions (including @main; we use the "pre-pass" here)
+- blocks (for example function body)
+- statements (for example function calls, while loop or '=')
+- expressions (everything else, leaves value on stack)
+
+### Notes
+
+- The module assumes semantic correctness and does not check it.
+- The module does not perform general optimalization (except for the specified ones in IFJcode26 specificaton, like && and || generation)
 
 
-## AI usage
+
+# References
+
+
+# AI usage
 - We agreed at a team meeting to document every use of AI (including the model) and to briefly describe what it was used for, as required by the assignment.
 
