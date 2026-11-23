@@ -564,6 +564,16 @@ function - e.g. the `<statement>` row is the switch in
 # Modules description
 # TBA
 
+## Semantic analysis
+
+The module utilizes the AST created by the parser and the symbol table, where all the user variables and functions are saved. We use 2 pass architecture with pre-definition of builtin functions:
+
+0. Insertion of built-in functions with parameters into symbol table.
+1. Analysis of user defined functions with parameters and types (and insertion into symbol table).
+2. Analysis of function bodies.
+
+We also generate unique id for all variables including function parameters. This helps code generation process, which would otherwise need to search for variables in symbol table.
+
 # References
 # TBA
 
