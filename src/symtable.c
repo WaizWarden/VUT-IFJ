@@ -31,7 +31,24 @@ SymtableNode *st_alloc_node(void) {
   return new;
 }
 
-void st_free_symbol(void *symbol) { free(symbol); }
+void st_free_symbol(void *symbol) {
+  if (!symbol) {
+    return;
+  }
+
+  Symbol *symbolData = symbol;
+
+  // if symbol is a function definition, free all parameters
+  if (symbolData->type == ST_FUNC) {
+    for (uint16_t i = 0; i < symbolData->data.func.paramCount; i++) {
+      free(symbolData->data.func.parameters[i].name);
+    }
+
+    free(symbolData->data.func.parameters);
+  }
+
+  free(symbolData);
+}
 
 bool st_init(Symtable *symtable) {
   if (!symtable) {
