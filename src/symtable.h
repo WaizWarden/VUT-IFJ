@@ -127,7 +127,7 @@ void st_pop_scope(Symtable *symtable);
  * @return true on succes, false if insertion fails.
  */
 bool st_insert_var(Symtable *symtable, const char *name, DataType type,
-                   bool modifiable);
+                   bool modifiable, uint32_t uid);
 
 /**
  * @brief Insert a function into the symbol table.

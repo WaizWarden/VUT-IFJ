@@ -26,6 +26,8 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt);
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out);
 
+static uint32_t uidCounter = 0;
+
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
   if (root == NULL || root->type != AST_PROGRAM) {
     return ERR_OTHER;
@@ -139,8 +141,9 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     for (uint16_t paramIdx = 0; paramIdx < functionNode->as.funcDef.paramCount;
          paramIdx++) {
       Parameter param = functionNode->as.funcDef.params[paramIdx];
-
-      if (!st_insert_var(symtable, param.name, param.type, false)) {
+      
+      uint32_t newUid = ++uidCounter;
+      if (!st_insert_var(symtable, param.name, param.type, false, newUid)) {
         st_pop_scope(symtable);
         return ERR_REDEFINITION;
       }
