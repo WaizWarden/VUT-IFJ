@@ -23,12 +23,12 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 - **xjuricl01** – project coordination, lexical analysis, fixes in semantic analysis
 - **xoramst00** – symbol table, code generator (main developer)
 - **xhorakj01** – parser, AST, precedence analysis, stack
-- **xsirmat00** – semantic analysis, code generator (secondary developer)
+- **xsirmat00** – semantic analysis, code generator (secondary developer), dropped out
 
 #### Explanation of percent distribution
 **xsirmat00**
 
-While reviewing his code we found a lot of signs of very high AI usage. When we asked him about the AI, he said we can give him zero percent and he will retake the course next year.
+While reviewing his code, we found a lot of signs of very high AI usage. When we asked him about the AI, he said we can give him zero percent and he will retake the course next year.
 
 Other issues contributed to this decision as well. Such as little commit count with high line count, not following git conventions we set as team.
 
@@ -42,10 +42,10 @@ Other issues contributed to this decision as well. Such as little commit count w
 
 
 # Block diagram
-# TBA
+# TBD
 
 # FSM of lexical analysis
-# TBA
+# TBD
 
 # Syntax Analysis
 
@@ -561,13 +561,25 @@ function - e.g. the `<statement>` row is the switch in
 
 
 
-# Modules description
-# TBA
+## Modules description
 
-# References
-# TBA
+### Code generator (codegen)
+
+The code generator builds on the semantic analysis, from which it receives the completed AST. The output is a sequence of instructions defined by IFJcode26 to standard output. Main files are *codegen.c* and *codegen.h* with tests.
+
+The basis of generating instructions is passing through the AST and writing out the corresponding instructions from AST nodes.
+
+#### Variables and functions:
+
+- Names of all compiler-only variables and functions use '$' in name for separation from names used by IFJ26 source code.
+- To ensure unique labels for separate instructions (like two for loops after each other), we generate unique number from global counter every time needed.
+- Shorter built-in functions of IFJcode26 are generated in-line, but the longer ones are designed as a normal function you call - defined in _codegen.c_ header.
+- When calling a function, arguments are pushed to the stack, so that the last argument is at the top. Return value is left at stack top.
+
+## References
+  @todo
 
 
-# AI usage
+## AI usage
 - We agreed at a team meeting to document every use of AI (including the model) and to briefly describe what it was used for, as required by the assignment.
 
