@@ -11,7 +11,8 @@
 static SemanticError analyze_functions(Symtable *symtable, AstNode *root);
 static SemanticError register_builtins(Symtable *symtable);
 
-static int scope = 0;
+static uint32_t scope = 0;
+static uint32_t uidCounter = 0;
 
 typedef struct {
   const char *name;

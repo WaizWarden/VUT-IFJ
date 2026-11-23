@@ -43,6 +43,7 @@ typedef struct {
 typedef struct {
   DataType type;
   bool modifiable;
+  uint32_t uid;
 } VarInfo;
 
 /**
