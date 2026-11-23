@@ -9,3 +9,4 @@
  */
 void first_iteration(void);
 void indentation_flow_tests(void);
+void interp_tests(void);

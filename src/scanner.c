@@ -36,8 +36,11 @@ static IndentResult calculate_indent(FILE *input, int *spaces);
 static TokenType resolve_indent(int spaces);
 
 static TokenType single_operator(FILE *input, int currentChar);
-static Token scan_string(FILE *input);
+static Token scan_string(FILE *input, bool interp);
 static Token scan_identifier(FILE *input, int currentChar);
+
+static bool is_interp_state(int state);
+static bool is_multiline_state(int state);
 
 // States in scanner
 typedef enum {
@@ -65,6 +68,8 @@ KeywordEntry keywordTable[] = {
 };
 //  End of AI usage
 
+static ScannerStack indentStack;
+
 static int bracketDepth = 0;
 static bool stackInitialized = false;
 static int pendingDedents = 0;
@@ -76,13 +81,22 @@ static bool EndOfFileDetected = false;
 static bool valmemReturnDot = false;
 
 // interpolades
-static bool interpActive = false;
+// AI usage - claude
+// Ai pointed me in a direction how to implement nested (via stack)
+typedef enum {
+  enSimpleSingleLine,
+  enSimpleMultiLine,
+  enInterpSingleLine,
+  enInterpMultiLine,
+} stackState;
+
+static ScannerStack interpStack;
+
 static bool interpVariable = false;
 static bool interpStart = false;
-static bool interpExpression = false;
 static bool interpResume = false;
 static bool interpEnd = false;
-static bool interpMultiLine = false;
+static int interpExprDepth = 0;
 
 /**
  * @brief Parses stdin and creates token
@@ -108,8 +122,9 @@ Token get_token(FILE *input) {
   }
 
   if (!stackInitialized) {
-    scanner_stack_init();
-    scanner_stack_push(0);
+    scanner_stack_init(&interpStack);
+    scanner_stack_init(&indentStack);
+    scanner_stack_push(&indentStack, 0);
     stackInitialized = true;
   }
 
@@ -143,7 +158,7 @@ Token get_token(FILE *input) {
   }
 
   if (interpResume) {
-    token = scan_string(input);
+    token = scan_string(input, false);
     if (token.type == TOKEN_ERROR) {
       goto return_error;
     }
@@ -238,7 +253,7 @@ Token get_token(FILE *input) {
 
       // '"' already consumed, not needed to add it back
       case TOKEN_STRING:
-        token = scan_string(input);
+        token = scan_string(input, false);
         if (token.type == TOKEN_ERROR) {
           goto return_error;
         }
@@ -529,14 +544,15 @@ static Token scan_identifier(FILE *input, int currentChar) {
   }
 
   // interpolades
-  int next = next_char(input);
-  if (currentChar == 's' && next == '"') {
-    interpActive = true;
-    free(str);
-    return scan_string(input);
-  }
+  if (!interpVariable) { // edgecase for s"$s"
+    int next = next_char(input);
+    if (currentChar == 's' && next == '"') {
+      free(str);
+      return scan_string(input, true);
+    }
 
-  put_back(next, input);
+    put_back(next, input);
+  }
 
   while (isalnum(currentChar) || currentChar == '_') {
 
@@ -563,6 +579,13 @@ static Token scan_identifier(FILE *input, int currentChar) {
   // its keyword
   int key = is_keyword(str);
   if (key != -1) {
+    if (interpVariable) {
+      fprintf(stderr, "Scanner error: %d, keywrod cannot be interpVariable\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+
     token.type = TOKEN_KEYWORD;
     token.value.keyword = keywordTable[key].keyword;
     free(str);
@@ -579,6 +602,12 @@ static Token scan_identifier(FILE *input, int currentChar) {
     }
 
     if (strcmp(str, "true") == 0) {
+      if (interpVariable) {
+        fprintf(stderr, "Scanner error: %d, true in interpVariable\n",
+                SCANNER_ERROR);
+        free(str);
+        return token;
+      }
       token.type = TOKEN_BOOL;
       token.value.boolean = true;
       free(str);
@@ -586,6 +615,12 @@ static Token scan_identifier(FILE *input, int currentChar) {
     }
 
     if (strcmp(str, "false") == 0) {
+      if (interpVariable) {
+        fprintf(stderr, "Scanner error: %d, false interpVariable\n",
+                SCANNER_ERROR);
+        free(str);
+        return token;
+      }
       token.type = TOKEN_BOOL;
       token.value.boolean = false;
       free(str);
@@ -695,8 +730,8 @@ static TokenType single_operator(FILE *input, int currentChar) {
     return TOKEN_AT;
 
   case '}':
-    if (interpExpression) {
-      interpExpression = false;
+    if (interpExprDepth > 0) {
+      interpExprDepth--;
       interpResume = true;
       return TOKEN_INTERP_END;
     }
@@ -756,11 +791,21 @@ static TokenType single_operator(FILE *input, int currentChar) {
     return TOKEN_NOT;
 
   case '\n':
-    if (bracketDepth == 0) {
+    /* AI USAGE - claude
+      newline inside ${} - skip in multi-line string, error in single-line
+    */
+    if (interpExprDepth > 0 &&
+        !is_multiline_state(*scanner_stack_top(&interpStack))) {
+      fprintf(stderr, "Scanner error: %d, newline in single-line string\n",
+              SCANNER_ERROR);
+      return TOKEN_ERROR;
+    }
+    if (bracketDepth == 0 && interpExprDepth == 0) {
       lineStart = true;
       return TOKEN_NEWLINE;
     }
     return TOKEN_SKIP;
+    // END OF AI USAGE
 
   case ' ':
   case '\t':
@@ -833,7 +878,7 @@ static TokenType single_operator(FILE *input, int currentChar) {
  * @param[in, out] input - input to stream of chars from stdin
  * @return String token ready to be sent to parser
  */
-static Token scan_string(FILE *input) {
+static Token scan_string(FILE *input, bool interp) {
   Token token = {.type = TOKEN_ERROR};
 
   // handle malloc
@@ -847,7 +892,7 @@ static Token scan_string(FILE *input) {
   }
 
   // interpolades
-  bool resume = interpResume; 
+  bool resume = interpResume;
   interpResume = false;
 
   bool multiLineString = false;
@@ -856,17 +901,26 @@ static Token scan_string(FILE *input) {
   // check multi-line string
   // multi-line string can start only at start not in middle
   if (!resume) {
-  int next = next_char(input);
-  if (currentChar == '"' && next == '"') {
-    multiLineString = true;
-    if (interpActive) {
-      interpMultiLine = true;
+    int next = next_char(input);
+    if (currentChar == '"' && next == '"') {
+      multiLineString = true;
+      currentChar = next_char(input);
+    } else {
+      put_back(next, input);
     }
-    currentChar = next_char(input);
-  } else {
-    put_back(next, input);
-  }}
 
+    stackState state;
+    if (interp) {
+      state = multiLineString ? enInterpMultiLine : enInterpSingleLine;
+    } else {
+      state = multiLineString ? enSimpleMultiLine : enSimpleSingleLine;
+    }
+    scanner_stack_push(&interpStack, state);
+  }
+
+  int top = *scanner_stack_top(&interpStack);
+  bool isMultiLine = is_multiline_state(top);
+  bool isInterp = is_interp_state(top);
 
   while (true) {
 
@@ -888,9 +942,9 @@ static Token scan_string(FILE *input) {
       capacity *= 2;
     }
 
-    if (multiLineString || interpMultiLine) {
+    if (isMultiLine) {
 
-      if (interpActive) {
+      if (isInterp) {
         if (currentChar == '$') {
           int next = next_char(input);
 
@@ -918,7 +972,7 @@ static Token scan_string(FILE *input) {
           // expression inside ${
           else if (next == '{') {
             interpStart = true;
-            interpExpression = true;
+            interpExprDepth++;
 
             str[len] = '\0';
             token.type = TOKEN_STRING;
@@ -946,10 +1000,9 @@ static Token scan_string(FILE *input) {
 
         if (next1 == '"' && next2 == '"') {
           str[len] = '\0';
-          interpMultiLine = false;
-          interpActive = false;
           token.type = TOKEN_STRING;
           token.value.string = strdup(str);
+          scanner_stack_pop(&interpStack);
 
           free(str);
           return token;
@@ -976,7 +1029,7 @@ static Token scan_string(FILE *input) {
         return token;
       }
 
-      if (interpActive) {
+      if (isInterp) {
         if (currentChar == '$') {
           int next = next_char(input);
 
@@ -1004,7 +1057,7 @@ static Token scan_string(FILE *input) {
           // expression inside ${
           else if (next == '{') {
             interpStart = true;
-            interpExpression = true;
+            interpExprDepth++;
 
             str[len] = '\0';
             token.type = TOKEN_STRING;
@@ -1067,7 +1120,7 @@ static Token scan_string(FILE *input) {
         token.value.string = strdup(str);
 
         free(str);
-        interpActive = false;
+        scanner_stack_pop(&interpStack);
         return token;
       }
 
@@ -1126,14 +1179,14 @@ static bool number_token_end(int currentChar) {
  * @returns TOKEN_INDENT, TOKEN_DEDENT, TOKEN_SKIP, TOKEN_ERROR
  */
 static TokenType resolve_indent(int spaces) {
-  int currentTop = *scanner_stack_top();
-  int topIndex = scanner_stack_size() - 1;
+  int currentTop = *scanner_stack_top(&indentStack);
+  int topIndex = scanner_stack_size(&indentStack) - 1;
 
   if (spaces > currentTop) {
-    scanner_stack_push(spaces);
+    scanner_stack_push(&indentStack, spaces);
     return TOKEN_INDENT;
   } else if (spaces < currentTop) {
-    int index = find_number_in_stack(spaces);
+    int index = find_number_in_stack(&indentStack, spaces);
 
     if (index == -1) {
       fprintf(stderr, "Scanner error: %d, Indentation error \n", SCANNER_ERROR);
@@ -1143,7 +1196,7 @@ static TokenType resolve_indent(int spaces) {
     int levels_to_pop = topIndex - index;
 
     for (int i = 0; i < levels_to_pop; i++) {
-      scanner_stack_pop();
+      scanner_stack_pop(&indentStack);
     }
 
     if (levels_to_pop > 1) {
@@ -1225,7 +1278,8 @@ static IndentResult calculate_indent(FILE *input, int *spaces) {
  */
 void scanner_destroy(void) {
   if (stackInitialized) {
-    scanner_stack_free();
+    scanner_stack_free(&indentStack);
+    scanner_stack_free(&interpStack);
     stackInitialized = false;
   }
 
@@ -1237,13 +1291,11 @@ void scanner_destroy(void) {
 
   valmemReturnDot = false;
 
-  interpActive = false;
   interpVariable = false;
   interpStart = false;
   interpResume = false;
   interpEnd = false;
-  interpExpression = false;
-  interpMultiLine = false;
+  interpExprDepth = 0;
 }
 
 /**
@@ -1252,11 +1304,20 @@ void scanner_destroy(void) {
  * @param[out] Token to write the resulting type to
  */
 static void handle_eof(Token *token) {
-  int open_levels = scanner_stack_size() - 1;
+  int interpStackSize = scanner_stack_size(&interpStack);
+  if (interpStackSize != 0) {
+    scanner_destroy();
+    fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
+            SCANNER_ERROR);
+    token->type = TOKEN_ERROR;
+    return;
+  }
+
+  int open_levels = scanner_stack_size(&indentStack) - 1;
 
   if (open_levels > 0) {
-    while (scanner_stack_size() > 1) {
-      scanner_stack_pop();
+    while (scanner_stack_size(&indentStack) > 1) {
+      scanner_stack_pop(&indentStack);
     }
     pendingDedents = open_levels - 1;
     EndOfFileDetected = true;
@@ -1291,4 +1352,20 @@ static void put_back(int currentChar, FILE *input) {
     currentLine--;
   }
   ungetc(currentChar, input);
+}
+
+/**
+ * @brief Helper function for interpolateds
+ * @param state - state of stackState
+ */
+static bool is_interp_state(int state) {
+  return state == enInterpSingleLine || state == enInterpMultiLine;
+}
+
+/**
+ * @brief Helper function for interpolateds
+ * @param state - state of stackState
+ */
+static bool is_multiline_state(int state) {
+  return state == enSimpleMultiLine || state == enInterpMultiLine;
 }
