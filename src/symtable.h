@@ -124,9 +124,9 @@ void st_pop_scope(Symtable *symtable);
  * @param name Variable name.
  * @param type Variable data type.
  * @param modifiable Whether the variable can be modified.
- * @return true on succes, false if insertion fails.
+ * @return Symtable return code.
  */
-bool st_insert_var(Symtable *symtable, const char *name, DataType type,
+StInsertResult st_insert_var(Symtable *symtable, const char *name, DataType type,
                    bool modifiable, uint32_t uid);
 
 /**
@@ -134,7 +134,7 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
  * @param st Symbol table to update.
  * @param name Function name.
  * @param ret_type Function return type.
- * @return true on succes, false if insertion fails.
+ * @return Symtable return code.
  */
 StInsertResult st_insert_func(Symtable *symtable, const char *name,
                               DataType retType, Parameter *params,

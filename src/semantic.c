@@ -141,11 +141,17 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     for (uint16_t paramIdx = 0; paramIdx < functionNode->as.funcDef.paramCount;
          paramIdx++) {
       Parameter param = functionNode->as.funcDef.params[paramIdx];
-      
+
       uint32_t newUid = ++uidCounter;
-      if (!st_insert_var(symtable, param.name, param.type, false, newUid)) {
+      functionNode->as.funcDef.params[paramIdx].uid = newUid;
+      StInsertResult stResult = st_insert_var(symtable, param.name, param.type, false, newUid);
+      if (stResult == ST_INSERT_REDEFINED) {
         st_pop_scope(symtable);
         return ERR_REDEFINITION;
+      }
+      if (stResult == ST_INSERT_ERROR) {
+        st_pop_scope(symtable);
+        return ERR_INTERNAL;
       }
     }
 
@@ -161,10 +167,8 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
         return errCode;
       }
     }
-    
-    st_pop_scope(symtable);
 
-    return ERR_OK;
+    st_pop_scope(symtable);
   }
 
   return ERR_OK;
@@ -176,6 +180,8 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 /// @return Semantic error type
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
 
+  SemanticError error = ERR_OK;
+
   switch (stmt->type) {
   case AST_BLOCK:
 
@@ -184,8 +190,8 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     }
 
     for (size_t i = 0; i < stmt->as.block.count; i++) {
-      SemanticError error =
-          analyze_statement(symtable, stmt->as.block.stmts[i]);
+
+      error = analyze_statement(symtable, stmt->as.block.stmts[i]);
       if (error != ERR_OK) {
         st_pop_scope(symtable);
         return error;
@@ -195,17 +201,43 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     st_pop_scope(symtable);
     break;
 
-  case AST_VAR_DECL:
-    // initExpr - ride side of =
-    DataType result;
-    SemanticError error =
-        analyze_expression(symtable, stmt->as.varDecl.initExpr, &result);
+  case AST_VAR_DECL: {
+    // evaluate the right side of var declaration
+    DataType rightSideDatatype = T_UNIT;
+    if (stmt->as.varDecl.initExpr) // null check
+    {
+      error = analyze_expression(symtable, stmt->as.varDecl.initExpr,
+                                 &rightSideDatatype);
+      if (error != ERR_OK) {
+        return error;
+      }
+    }
 
-    if (error != ERR_OK) {
-      return error;
+    // Use declared data type if it is assigned
+    DataType varType = stmt->as.varDecl.hasDeclaredType
+                           ? stmt->as.varDecl.declaredType
+                           : rightSideDatatype;
+
+      
+    /// @todo Add type conversion for double and int
+
+    stmt->evalType = varType;
+
+    // assign new uid and insert to symtable
+    uint32_t newUid = ++uidCounter;
+    stmt->uid = newUid;
+    StInsertResult stResult =
+        st_insert_var(symtable, stmt->as.varDecl.name, varType,
+                      stmt->as.varDecl.isModifiable, newUid);
+    if (stResult == ST_INSERT_REDEFINED) {
+      return ERR_REDEFINITION;
+    }
+    if (stResult == ST_INSERT_ERROR) {
+      return ERR_INTERNAL;
     }
 
     break;
+  }
 
   default:
     return ERR_OTHER;
@@ -222,28 +254,34 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
   // var x: Int
   if (expr == NULL) {
     *out = T_UNIT;
+    expr->evalType = *out;
     return ERR_OK;
   }
 
   switch (expr->type) {
   case AST_LITERAL_INT:
     *out = T_INT;
+    expr->evalType = *out;
     break;
 
   case AST_LITERAL_DOUBLE:
     *out = T_DOUBLE;
+    expr->evalType = *out;
     break;
 
   case AST_LITERAL_STRING:
     *out = T_STRING;
+    expr->evalType = *out;
     break;
 
   case AST_LITERAL_BOOL:
     *out = T_BOOLEAN;
+    expr->evalType = *out;
     break;
 
   case AST_LITERAL_UNIT:
     *out = T_UNIT;
+    expr->evalType = *out;
     break;
 
   case AST_IDENTIFIER:

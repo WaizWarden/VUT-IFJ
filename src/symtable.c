@@ -130,15 +130,15 @@ void st_pop_scope(Symtable *symtable) {
   free(toFree);
 }
 
-bool st_insert_var(Symtable *symtable, const char *name, DataType type,
+StInsertResult st_insert_var(Symtable *symtable, const char *name, DataType type,
                    bool modifiable, uint32_t uid) {
   if (!symtable || !symtable->top || !symtable->top->table || !name) {
-    return false;
+    return ST_INSERT_ERROR;
   }
 
   Symbol *new = calloc(1, sizeof(Symbol));
   if (!new) {
-    return false;
+    return ST_INSERT_ERROR;
   }
 
   new->type = ST_VAR;
@@ -149,7 +149,7 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
   // insert symbol while checking fail
   if (!ht_insert(symtable->top->table, name, new)) {
     st_free_symbol(new);
-    return false;
+    return ST_INSERT_REDEFINED;
   }
 
   return true;
