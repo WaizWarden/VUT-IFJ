@@ -596,9 +596,23 @@ Symbol table manages variables and functions in scopes, where each scope has a r
 
 Functions are stored in global scope. Every variable (including parameters) also contains 'UID' which code generator uses to distinguish between different shadowed variables. 
 
+### Hashing
+
+The hash table uses the DJB2 hashing function ([Daniel J. Bernstein: djb2 hash](https://theartincode.stanis.me/008-djb2/); produces different hash for the same strings in a different character order). Hash table uses a looping array of cells (key value pairs with status) as memory.
+
+Inserting element from hash table works by:
+- hashing the key to get index of element
+- passing through array, skipping deleted cells
+- if a cell with same key is found, it is an unallowed redefinition
+- if a empty cell is found, element is inserted (unless deleted cell was found first - element is inserted at first deleted cell spot)
+
+Freeing an element is ensured by the caller by defining a callback free function the hashtable then uses.
+
+
 # References
 
+Daniel J. Bernstein. *djb2 hash*. <https://theartincode.stanis.me/008-djb2/>
 
 # AI usage
-- We agreed at a team meeting to document every use of AI (including the model) and to briefly describe what it was used for, as required by the assignment.
+- We agreed at a team meeting to document every use of AI and to briefly describe what it was used for, as required by the assignment.
 
