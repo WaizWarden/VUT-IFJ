@@ -2,6 +2,10 @@
  * @file    semantic.c
  * @author  xjuricl01, xoramst00
  * @brief   Implementation of semantic analysis
+ * 
+ * @note Main principles and architecture are inspired by "demo-cvičení" on semantic analysis.
+ * 
+ * @note Current AI use: As a second keyboard (writing repetetive code continuaton)
  */
 
 #include "semantic.h"
@@ -67,11 +71,15 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     return ERR_OTHER;
   }
 
+  // ensure all builtin functions are on global scope
+  // and user defined are lower
   if (!st_push_scope(symtable)) {
     return ERR_OTHER;
   }
-  // loop through functions all defined functions in program
-  int mainCount = 0;
+
+  bool checkedMain = false;
+
+  // loop through all defined functions in program
   for (size_t i = 0; i < root->as.program.count; i++) {
     AstNode *functionNode = root->as.program.functions[i];
 
@@ -79,8 +87,14 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
       return ERR_OTHER;
     }
 
+    ///@todo Validate user functions and insert them into symbol table
+
     // validate main function
     if (functionNode->as.funcDef.isMain) {
+
+      if (checkedMain) {
+        return ERR_REDEFINITION;
+      }
 
       if (functionNode->as.funcDef.paramCount > 0) {
         return ERR_INVALID_FUNCTION_PARAMS;
@@ -90,16 +104,13 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
         return ERR_WRONG_TYPE;
       }
 
-      if (mainCount != 0) {
-        return ERR_REDEFINITION;
-      }
-
-      mainCount++;
+      checkedMain = true;
     }
+  }
 
-    if (mainCount == 0) {
-      return ERR_UNDEFINED_SYMBOL;
-    }
+  // @main missing
+  if (!checkedMain) {
+    return ERR_UNDEFINED_SYMBOL;
   }
 
   return ERR_OK;
@@ -133,8 +144,7 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   }
 
   // readDouble(): Double
-  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false,
-                      true)) {
+  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
     return ERR_INTERNAL;
   }
 
@@ -144,8 +154,7 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "toStr", T_STRING, paramCopy, 1, false,
-                      true)) {
+  if (!st_insert_func(symtable, "toStr", T_STRING, paramCopy, 1, false, true)) {
     return ERR_INTERNAL;
   }
 
