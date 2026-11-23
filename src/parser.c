@@ -552,7 +552,10 @@ static AstNode **parse_call_arguments(size_t *outCount) {
       argument = ast_new_int(pToken.value.numberInt, pToken.line);
       break;
     case TOKEN_STRING:
-      argument = ast_new_string(strdup(pToken.value.string), pToken.line);
+      argument = precedence_read_string(pInput, &pToken);
+      if (argument == NULL) {
+        exit(2);
+      }
       break;
     case TOKEN_BOOL:
       argument = ast_new_bool(pToken.value.boolean, pToken.line);
