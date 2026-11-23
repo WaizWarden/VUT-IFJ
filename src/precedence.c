@@ -216,27 +216,27 @@ static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
   return item;
 }
 
-static void push_nonterm(AstNode *node) {
+static void push_nonterm(Stack *stack, AstNode *node) {
   StackItem result = {SYM_NONTERM, TOKEN_EOF, node};
-  stack_push(result);
+  stack_push(stack, result);
 }
 
-static int precedence_simplify(void) {
+static int precedence_simplify(Stack *stack) {
   StackItem handle[3];
   size_t cnt = 0;
 
-  while (stack_top()->symbol != SYM_HANDLE_START) {
-    if (stack_top()->symbol == SYM_DOLLAR) {
+  while (stack_top(stack)->symbol != SYM_HANDLE_START) {
+    if (stack_top(stack)->symbol == SYM_DOLLAR) {
       goto syntax_error;
     }
     if (cnt == 3) {
       goto syntax_error;
     }
 
-    handle[cnt] = stack_pop();
+    handle[cnt] = stack_pop(stack);
     cnt++;
   }
-  stack_pop();
+  stack_pop(stack);
 
   // Converting i to E
   if (cnt == 1) {
@@ -246,7 +246,7 @@ static int precedence_simplify(void) {
       result.token = TOKEN_EOF;
       result.node = handle[0].node;
 
-      stack_push(result);
+      stack_push(stack, result);
       return 0;
     }
   }
@@ -260,7 +260,7 @@ static int precedence_simplify(void) {
       result.token = TOKEN_EOF;
       result.node = handle[1].node;
 
-      stack_push(result);
+      stack_push(stack, result);
       return 0;
     }
   }
@@ -317,7 +317,7 @@ static int precedence_simplify(void) {
     result.symbol = SYM_NONTERM;
     result.token = TOKEN_EOF;
     result.node = ast_new_binary(operation, handle[2].node, handle[0].node, 0);
-    stack_push(result);
+    stack_push(stack, result);
 
     return 0;
   }
@@ -333,28 +333,29 @@ static int precedence_simplify(void) {
     char *memberName = handle[0].node->as.identif;
     free(handle[0].node);
 
-    push_nonterm(ast_new_member_call(handle[2].node, memberName, 0));
+    push_nonterm(stack,
+                 ast_new_member_call(handle[2].node, memberName, 0));
     return 0;
   }
 
   // Converting u- E to E
   if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
       handle[1].symbol == SYM_UMINUS) {
-    push_nonterm(ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
+    push_nonterm(stack, ast_new_unary(OP_UNARY_MINUS, handle[0].node, 0));
     return 0;
   }
 
   // Converting ! E to E
   if (cnt == 2 && handle[0].symbol == SYM_NONTERM &&
       handle[1].symbol == SYM_NOT) {
-    push_nonterm(ast_new_unary(OP_UNARY_NOT, handle[0].node, 0));
+    push_nonterm(stack, ast_new_unary(OP_UNARY_NOT, handle[0].node, 0));
     return 0;
   }
 
   // Converting () to Unit literal
   if (cnt == 2 && handle[0].symbol == SYM_RPAREN &&
       handle[1].symbol == SYM_LPAREN) {
-    push_nonterm(ast_new_unit(0));
+    push_nonterm(stack, ast_new_unit(0));
     return 0;
   }
 
@@ -366,30 +367,31 @@ syntax_error:
   return 2;
 }
 
-static void precedence_free_stack(void) {
-  while (stack_size() > 0) {
-    StackItem item = stack_pop();
+static void precedence_free_stack(Stack *stack) {
+  while (stack_size(stack) > 0) {
+    StackItem item = stack_pop(stack);
     ast_free(item.node);
   }
 
-  stack_free();
+  stack_free(stack);
 }
 
 AstNode *precedence_parse(FILE *input, Token *currentToken,
                           AstNode *firstOperand,
                           const char *const stopIdents[]) {
-  stack_init();
+  Stack stack;
+  stack_init(&stack);
 
   StackItem bot;
   bot.symbol = SYM_DOLLAR;
   bot.token = TOKEN_EOF;
   bot.node = NULL;
-  stack_push(bot);
+  stack_push(&stack, bot);
 
   PrecSymbol prevSymbol = SYM_DOLLAR;
 
   if (firstOperand != NULL) {
-    push_nonterm(firstOperand);
+    push_nonterm(&stack, firstOperand);
     prevSymbol = SYM_TERM;
   }
 
@@ -397,36 +399,36 @@ AstNode *precedence_parse(FILE *input, Token *currentToken,
       convert_token_to_symbol(currentToken, prevSymbol, stopIdents);
 
   while (1) {
-    if (inputSymbol == SYM_DOLLAR && stack_size() == 2 &&
-        stack_top()->symbol == SYM_NONTERM) {
-      AstNode *result = stack_pop().node;
-      stack_free();
+    if (inputSymbol == SYM_DOLLAR && stack_size(&stack) == 2 &&
+        stack_top(&stack)->symbol == SYM_NONTERM) {
+      AstNode *result = stack_pop(&stack).node;
+      stack_free(&stack);
       return result;
     }
 
-    PrecSymbol stackSymbol = stack_top_terminal()->symbol;
+    PrecSymbol stackSymbol = stack_top_terminal(&stack)->symbol;
     PrecedenceRelation relation =
         precedence_get_relation(stackSymbol, inputSymbol);
 
     switch (relation) {
     case PRECEDENCE_LESS:
-      stack_insert_handle_start();
+      stack_insert_handle_start(&stack);
       /* fall through */
     case PRECEDENCE_EQUAL:
-      stack_push(stack_item_create(currentToken, inputSymbol));
+      stack_push(&stack, stack_item_create(currentToken, inputSymbol));
       prevSymbol = inputSymbol;
       *currentToken = get_token(input);
       inputSymbol =
           convert_token_to_symbol(currentToken, prevSymbol, stopIdents);
       break;
     case PRECEDENCE_GREATER:
-      if (precedence_simplify() != 0) {
-        precedence_free_stack();
+      if (precedence_simplify(&stack) != 0) {
+        precedence_free_stack(&stack);
         return NULL;
       }
       break;
     case PRECEDENCE_EMPTY:
-      precedence_free_stack();
+      precedence_free_stack(&stack);
       return NULL;
     }
   }
