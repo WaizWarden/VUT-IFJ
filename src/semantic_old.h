@@ -34,4 +34,4 @@ typedef enum {
  */
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root);
 
-#endif  SEMANTIC_H_OLD
+#endif SEMANTIC_H_OLD

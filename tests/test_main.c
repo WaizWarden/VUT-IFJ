@@ -11,6 +11,7 @@
 #include "test_scanner.h"
 #include "test_semantic.h"
 #include "test_stack.h"
+#include "test_symtable.h"
 
 #include <string.h>
 
@@ -21,6 +22,7 @@ int main(int argc, char **argv) {
   }
   // first_iteration();
   indentation_flow_tests();
+  test_symtable();
   /*
   test_stack();
   test_ast();

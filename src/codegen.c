@@ -27,6 +27,7 @@
  *      chr(code: Int): String
  *      toStr(value: Any): String
  *      print(value: Any): Unit
+ *      floor(val: Double): Double
  *  extra func:
  *      readInt(): Int
  *      readDouble(): Double
@@ -41,7 +42,7 @@
  *
  */
 
-// Characters at or below this ASCII value must be escaped in string literals.
+// characters at or below this ASCII value must be escaped in string literals
 #define SPECIAL_CHAR_IN_STRING_MAX 32
 
 #include "codegen.h"
@@ -49,11 +50,10 @@
 #include <stdio.h>
 #include <string.h>
 
-// Labels receive a module-wide sequence number so each generated jump is
-// unique.
+// labels get increasing IDs, so repeated control structures stay unique
 static uint32_t label_counter = 0;
 
-// Return the next label ID.
+// return the next label ID
 uint32_t cg_next_label_id(void) { return label_counter++; }
 
 void cg_print_int(int64_t val) { printf("int@%" PRId64, val); }
@@ -73,7 +73,7 @@ void cg_print_string(const char *str) {
   printf("string@");
   while (nextChar && *nextChar != '\0') {
 
-    // escape characters are already parsed to one character
+    // escape characters are already parsed into a single character
     unsigned char sym = (unsigned char)*nextChar;
 
     if (sym <= SPECIAL_CHAR_IN_STRING_MAX || sym == '#' || sym == '\\') {
@@ -93,7 +93,7 @@ void cg_print_var(const char *name, uint32_t uid) {
 void cg_gen_head(void) {
   label_counter = 0;
 
-  // Start the IFJcode26 program and make $main the initial entry point.
+  // start at $main after the interpreter loads the generated program
   puts(".IFJcode26\n"
        "DEFVAR GF@$tmp1\n"
        "DEFVAR GF@$tmp2\n"
@@ -101,9 +101,9 @@ void cg_gen_head(void) {
        "CALL $main\n"
        "EXIT int@0\n");
 
-  // Read operations are implemented as reusable built-in labels.
+  // reading primitives share small helper labels instead of being repeated
 
-  // Built-in reads convert EOF/nil into the language-defined default values.
+  // nil and malformed input become the defaults expected by IFJ26
   puts("LABEL $builtin_readInt\n"
        "READ GF@$tmp1 int\n"
        "JUMPIFNEQ $readInt_ok GF@$tmp1 nil@nil\n"
@@ -121,8 +121,8 @@ void cg_gen_head(void) {
        "PUSHS GF@$tmp1\n"
        "RETURN\n");
 
-  // ord(s, i) pops the arguments and leaves the character code on the stack.
-  // An invalid index reports -1.
+  // ord(s, i) pops both arguments and leaves the character code on the stack
+  // an invalid index reports -1
   puts("LABEL $builtin_ord\n"
        "POPS GF@$tmp2\n"
        "POPS GF@$tmp1\n"
@@ -142,10 +142,10 @@ void cg_gen_head(void) {
        "PUSHS int@-1\n"
        "RETURN\n");
 
-  // subStr(s, start, end) builds the selected substring in a local frame.
+  // subStr(s, start, end) builds the substring in a private local frame
   puts("LABEL $builtin_substr\n"
 
-       // Create a fresh frame so helper variables do not collide with callers.
+       // create a fresh frame so helper variables do not collide with callers
        "CREATEFRAME\n"
        "PUSHFRAME\n"
        "DEFVAR LF@str\n"
@@ -161,7 +161,7 @@ void cg_gen_head(void) {
 
        "STRLEN LF@len LF@str\n"
 
-       // Reject negative or backwards indexes and indexes outside the string.
+       // reject negative, backwards, or out-of-bounds indexes
        "LT LF@cond LF@start int@0\n"
        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // start < 0
        "LT LF@cond LF@end int@0\n"
@@ -173,7 +173,7 @@ void cg_gen_head(void) {
        "GT LF@cond LF@end LF@len\n"
        "JUMPIFEQ $substr_err40 LF@cond bool@true\n" // end < len
 
-       // Append characters until the start index reaches the end index.
+       // append one character at a time until start reaches end
        "MOVE LF@res string@\n"
        "LABEL $substr_loop\n"
        "JUMPIFEQ $substr_done LF@start LF@end\n"
@@ -182,7 +182,7 @@ void cg_gen_head(void) {
        "ADD LF@start LF@start int@1\n"
        "JUMP $substr_loop\n"
 
-       // Restore the caller frame and leave the resulting string on the stack.
+       // restore the caller frame and leave the resulting string on the stack
        "LABEL $substr_done\n"
        "PUSHS LF@res\n"
        "POPFRAME\n"
@@ -276,7 +276,7 @@ static void cg_gen_vars_prepass(const AstNode *node) {
     cg_gen_vars_prepass(node->as.forStatement.body);
     break;
 
-  default: // literals and identifiers do not require a pass
+  default: // literals and identifiers do not need declarations
     break;
   }
 }
@@ -300,7 +300,7 @@ static void cg_gen_func_def(const AstNode *node) {
   puts("CREATEFRAME\n"
        "PUSHFRAME\n");
 
-  // Parameters are local variables in the function frame.
+  // parameters are ordinary local variables in this function frame
   for (uint16_t i = 0; i < node->as.funcDef.paramCount; i++) {
     fputs("DEFVAR ", stdout);
     cg_print_var(node->as.funcDef.params[i].name,
@@ -308,7 +308,7 @@ static void cg_gen_func_def(const AstNode *node) {
     putchar('\n');
   }
 
-  // Arguments arrive on the stack in reverse order, so pop them in reverse.
+  // arguments arrive in reverse order, so pop them back in signature order
   for (int i = (int)node->as.funcDef.paramCount - 1; i >= 0; i--) {
     fputs("POPS ", stdout);
     cg_print_var(node->as.funcDef.params[i].name,
@@ -316,7 +316,7 @@ static void cg_gen_func_def(const AstNode *node) {
     putchar('\n');
   }
 
-  // Discover declarations throughout the body before emitting its instructions.
+  // discover declarations before generating executable instructions
   cg_gen_vars_prepass(node->as.funcDef.body);
 
   // generate function body
@@ -334,7 +334,7 @@ static void cg_gen_func_def(const AstNode *node) {
 static void cg_adjust_return_value(DataType exprType, DataType funcRetType) {
 
   if (funcRetType == T_UNIT) {
-    // Unit must return nil@nil, even when the expression merely has Unit type.
+    // unit has no payload, so always normalize it to nil@nil
     puts("POPS GF@$tmp1\n"
          "PUSHS nil@nil");
   }
@@ -344,6 +344,11 @@ static void cg_adjust_return_value(DataType exprType, DataType funcRetType) {
   }
 }
 
+/**
+ * @brief Generates instructions for one AST statement.
+ * @param stmt Statement AST node.
+ * @param funcRetType Return type of the enclosing function.
+ */
 void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   if (!stmt) {
     return;
@@ -361,11 +366,11 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
         puts("INT2FLOATS");
       }
     } else {
-      // An omitted initializer is represented by nil.
+      // an omitted initializer is represented by nil
       puts("PUSHS nil@nil");
     }
 
-    // The prepass has already emitted DEFVAR for this variable.
+    // defvar for this variable was emitted by the prepass
     fputs("POPS ", stdout);
     cg_print_var(stmt->as.varDecl.name, stmt->uid);
     putchar('\n');
@@ -374,13 +379,13 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   case AST_ASSIGN:
     cg_gen_expr(stmt->as.assign.value);
 
-    // Assignment from Int to Double is the one allowed implicit conversion.
+    // assignment also allows the sole implicit conversion, Int to Double
     if (stmt->evalType == T_DOUBLE &&
         stmt->as.assign.value->evalType == T_INT) {
       puts("INT2FLOATS");
     }
 
-    // Store the expression result in the UID-qualified variable.
+    // uid keeps shadowed variables in nested blocks from colliding
     fputs("POPS ", stdout);
     cg_print_var(stmt->as.assign.name, stmt->uid);
     putchar('\n');
@@ -409,12 +414,12 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
 
   case AST_EXPR_STATEMENT:
     cg_gen_expr(stmt->as.exprStatement.expr);
-    puts("POPS GF@$tmp1"); // not at end of block: return not needed
+    puts("POPS GF@$tmp1"); // the result is intentionally discarded
     break;
 
   case AST_FUNC_CALL:
     cg_gen_call(stmt);
-    puts("POPS GF@$tmp1"); // not needed
+    puts("POPS GF@$tmp1"); // calls used as statements discard their value
     break;
 
   case AST_FOR:
@@ -423,7 +428,7 @@ void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
 
   default:
     cg_gen_expr(stmt);
-    puts("POPS GF@$tmp1"); // not needed
+    puts("POPS GF@$tmp1"); // this is not the function tail
     break;
   }
 }
@@ -471,6 +476,13 @@ static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   }
 }
 
+
+/**
+ * @brief Generates instructions for a block or non-block AST body.
+ * @param block Block AST node, or a single statement.
+ * @param isLastInFunc Whether this block supplies the function return value.
+ * @param funcRetType Return type of the enclosing function.
+ */
 void cg_gen_block(const AstNode *block, bool isLastInFunc,
                   DataType funcRetType) {
   if (!block) {
@@ -493,7 +505,7 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
     return;
   }
 
-  // Statements before the tail execute normally and discard no visible result.
+  // statements before the tail execute normally and discard no visible result
   for (size_t i = 0; i < block->as.block.count - 1; i++) {
     cg_gen_statement(block->as.block.stmts[i], funcRetType);
   }
@@ -505,19 +517,23 @@ void cg_gen_block(const AstNode *block, bool isLastInFunc,
     return;
   }
 
-  // The last item must follow the function's return-value convention.
+  // the last item decides what the function leaves on the stack
   cg_gen_tail(last, funcRetType);
 }
 
+/**
+ * @brief Generates IFJcode26 instructions for the complete AST program.
+ * @param root Root AST node of type AST_PROGRAM.
+ */
 void cg_gen_program(const AstNode *root) {
   if (!root || root->type != AST_PROGRAM) {
     return;
   }
 
-  // Generate head of program and internal functions
+  // generate the head and reusable built-in functions
   cg_gen_head();
 
-  // Generate all functions defined in program including @main
+  // generate every source function, including $main
   for (size_t i = 0; i < root->as.program.count; i++) {
     cg_gen_func_def(root->as.program.functions[i]);
   }
@@ -600,9 +616,7 @@ void cg_gen_expr(const AstNode *expr) {
     const AstNode *right = expr->as.binary.right;
     BinaryOperation operation = expr->as.binary.operation;
 
-    // AND and OR are short-circuit operations. Skip the right operand and
-    // synthesize its Boolean result when the left operand already determines
-    // the final value.
+    // && and || skip the right operand when the left result decides it
     if (operation == OP_AND) {
       uint32_t labelId = cg_next_label_id();
       cg_gen_expr(left);
@@ -633,19 +647,19 @@ void cg_gen_expr(const AstNode *expr) {
       break;
     }
 
-    // 1. Evaluate the left operand and promote Int to Double if needed.
+    // evaluate the left operand and promote Int to Double if needed
     cg_gen_expr(left);
     if (left->evalType == T_INT && right->evalType == T_DOUBLE) {
       puts("INT2FLOATS");
     }
 
-    // 2. Evaluate the right operand and promote Int to Double if needed.
+    // evaluate the right operand and promote Int to Double if needed
     cg_gen_expr(right);
     if (right->evalType == T_INT && left->evalType == T_DOUBLE) {
       puts("INT2FLOATS");
     }
 
-    // 3. Apply the operation to the values already left on the stack.
+    // apply the operation to the values left on the data stack
     switch (operation) {
     case OP_ADD:
       if (expr->evalType == T_STRING) {
@@ -728,17 +742,17 @@ void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
 
   uint32_t labelId = cg_next_label_id();
 
-  // False is compared against the condition so the branch is skipped cleanly.
+  // adding false lets JUMPIFEQS replace a separate Boolean variable
   cg_gen_expr(ifNode->as.ifStatement.condition);
   printf("PUSHS bool@false\n"
          "JUMPIFEQS $if_else_%u\n",
          labelId);
 
-  // Execute the then branch and jump over the else branch.
+  // execute the then branch, then jump past the else branch
   cg_gen_block(ifNode->as.ifStatement.thenBlock, isExprOrReturn, funcRetType);
   printf("JUMP $if_end_%u\n", labelId);
 
-  // An expression-style if requires a value even when else is absent.
+  // an expression-style if needs an explicit nil if there is no else
   printf("LABEL $if_else_%u\n", labelId);
   if (ifNode->as.ifStatement.elseBlock) {
     cg_gen_block(ifNode->as.ifStatement.elseBlock, isExprOrReturn, funcRetType);
@@ -764,13 +778,13 @@ void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
 
   printf("LABEL $while_start_%u\n", labelId);
 
-  // A false condition exits the loop.
+  // a false condition exits the while loop
   cg_gen_expr(whileNode->as.whileStatement.cond);
   printf("PUSHS bool@false\n"
          "JUMPIFEQS $while_end_%u\n",
          labelId);
 
-  // Loop body
+  // execute the loop body
   cg_gen_block(whileNode->as.whileStatement.bodyBlock, false, funcRetType);
 
   printf("JUMP $while_start_%u\n"
@@ -797,33 +811,36 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
   const uint32_t labelId = cg_next_label_id();
   const char *varName = forNode->as.forStatement.varName;
 
-  // Initialize the loop variable once.
+  // evaluate the first value once and place it into the loop variable
   cg_gen_expr(forNode->as.forStatement.from);
+
   printf("POPS ");
   cg_print_var(varName, varUid);
   putchar('\n');
 
-  // Save the end value so an expression is not re-evaluated for every
-  // iteration.
+  // save the end value once so it is not reevaluated for every iteration
   cg_gen_expr(forNode->as.forStatement.to);
+
   printf("POPS LF@%%end$%u\n", varUid);
 
-  // An omitted step means 1.
+  // when by is omitted, Scala-style range iteration starts with step 1
   if (forNode->as.forStatement.step) {
     cg_gen_expr(forNode->as.forStatement.step);
   } else {
     puts("PUSHS int@1");
   }
+
   printf("POPS LF@%%step$%u\n"
          "LABEL $for_start_%u\n",
          varUid, labelId);
 
+  // zero is never useful for a range; it would make the loop never advance
   printf("JUMPIFEQ $for_zero_%u LF@%%step$%u int@0\n"
          "LT LF@%%cond$%u LF@%%step$%u int@0\n"
          "JUMPIFEQ $for_negative_%u LF@%%cond$%u bool@true\n",
          labelId, varUid, varUid, varUid, labelId, varUid);
 
-  // A positive step requires the opposite boundary checks from a negative step.
+  // positive steps stop when the loop variable moves past the right boundary
   if (forNode->as.forStatement.inclusive) {
     printf("GT LF@%%cond$%u ", varUid);
     cg_print_var(varName, varUid);
@@ -848,6 +865,7 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
          "LABEL $for_negative_%u\n",
          labelId, labelId);
 
+  // negative steps stop when the loop variable moves past the left boundary
   if (forNode->as.forStatement.inclusive) {
     printf("LT LF@%%cond$%u ", varUid);
     cg_print_var(varName, varUid);
@@ -867,11 +885,12 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
            varUid, labelId, varUid);
   }
 
-  // Guards are AND-like: the first false guard skips both the remaining guards
-  // and the loop body for this iteration.
+  // guards act as AND conditions; false skips the body and remaining guards
   printf("LABEL $for_body_%u\n", labelId);
+
   for (size_t i = 0; i < forNode->as.forStatement.guardCount; i++) {
     cg_gen_expr(forNode->as.forStatement.guards[i]);
+
     printf("PUSHS bool@false\n"
            "JUMPIFEQS $for_next_%u\n",
            labelId);
@@ -879,8 +898,9 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
 
   cg_gen_block(forNode->as.forStatement.body, false, funcRetType);
 
-  // Advance the loop variable and return to the boundary check.
+  // advance by the saved step, then start the next boundary check
   printf("LABEL $for_next_%u\n", labelId);
+
   printf("ADD LF@");
   cg_print_var(varName, varUid);
   printf(" LF@");
@@ -907,73 +927,95 @@ void cg_gen_call(const AstNode *callNode) {
   size_t argCount = callNode->as.funcCall.argCount;
   AstNode **args = callNode->as.funcCall.args;
 
-  // --- INLINE BUILT-IN FUNCTIONS ---
+  // inline built-ins keep the result directly on the data stack
 
   if (strcmp(name, "readLine") == 0) {
     uint32_t labelId = cg_next_label_id();
+
+    // nil from EOF is converted to an empty String
     printf("READ GF@$tmp1 string\n"
            "JUMPIFNEQ $readLine_ok_%u GF@$tmp1 nil@nil\n"
            "MOVE GF@$tmp1 string@\n"
            "LABEL $readLine_ok_%u\n"
            "PUSHS GF@$tmp1\n",
            labelId, labelId);
+
     return;
   }
 
   if (strcmp(name, "readBoolean") == 0) {
     uint32_t labelId = cg_next_label_id();
+
+    // nil reads become false, matching the other read helpers
     printf("READ GF@$tmp1 bool\n"
            "JUMPIFNEQ $readBool_ok_%u GF@$tmp1 nil@nil\n"
            "MOVE GF@$tmp1 bool@false\n"
            "LABEL $readBool_ok_%u\n"
            "PUSHS GF@$tmp1\n",
            labelId, labelId);
+
     return;
   }
 
   if (strcmp(name, "toInt") == 0) {
     if (argCount > 0) {
+      // evaluate the argument before converting it
       cg_gen_expr(args[0]);
+
       if (args[0]->evalType == T_DOUBLE) {
+        // stack conversion truncates toward zero
         puts("FLOAT2INTS");
       }
     }
+
     return;
   }
 
   if (strcmp(name, "strLength") == 0) {
     if (argCount > 0) {
+      // STRLEN needs a named variable, so save the receiver in $tmp1
       cg_gen_expr(args[0]);
+
       puts("POPS GF@$tmp1\n"
            "STRLEN GF@$tmp1 GF@$tmp1\n"
            "PUSHS GF@$tmp1");
     }
+
     return;
   }
 
   if (strcmp(name, "chr") == 0) {
     if (argCount > 0) {
+      // chr can use the stack conversion directly
       cg_gen_expr(args[0]);
+
       puts("INT2CHARS");
     }
+
     return;
   }
 
   if (strcmp(name, "toStr") == 0) {
     if (argCount > 0) {
+      // each type replaces the value with its String representation
       cg_gen_expr(args[0]);
+
       DataType argType = args[0]->evalType;
 
       if (argType == T_INT) {
+        // use INT2STR for integer values
         puts("POPS GF@$tmp1\n"
              "INT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       } else if (argType == T_DOUBLE) {
+        // FLOAT2STR uses the required two-decimal format
         puts("POPS GF@$tmp1\n"
              "FLOAT2STR GF@$tmp1 GF@$tmp1\n"
              "PUSHS GF@$tmp1");
       } else if (argType == T_BOOLEAN) {
         uint32_t labelId = cg_next_label_id();
+
+        // handle Boolean text with a small true/false branch
         printf("PUSHS bool@true\n"
                "JUMPIFNEQS $tostr_false_%u\n"
                "PUSHS string@true\n"
@@ -983,16 +1025,47 @@ void cg_gen_call(const AstNode *callNode) {
                "LABEL $tostr_end_%u\n",
                labelId, labelId, labelId, labelId);
       } else if (argType == T_UNIT) {
+        // Unit always has the fixed text "()"
         puts("POPS GF@$tmp1\n"
              "PUSHS string@()");
+      } else if (argType == T_STRING) {
+        // Strings do not need conversion
+        puts("POPS GF@$tmp1\n"
+             "PUSHS GF@$tmp1");
       }
     }
+
+    return;
+  }
+
+  if (strcmp(name, "floor") == 0) {
+    if (argCount > 0) {
+      // there is no FLOOR instruction, so use existing numeric conversions
+      cg_gen_expr(args[0]);
+
+      uint32_t labelId = cg_next_label_id();
+
+      // truncate toward zero, convert back to Double, and lower negative
+      // fractional values by one after the original check
+      printf("POPS GF@$tmp1\n"
+             "FLOAT2INT GF@$tmp2 GF@$tmp1\n"
+             "INT2FLOAT GF@$tmp3 GF@$tmp2\n"
+             "LT GF@$tmp4 GF@$tmp1 GF@$tmp3\n"
+             "JUMPIFEQ $floor_end_%u GF@$tmp4 bool@false\n"
+             "SUB GF@$tmp3 GF@$tmp3 float@0x1p+0\n"
+             "LABEL $floor_end_%u\n"
+             "PUSHS GF@$tmp3\n",
+             labelId, labelId);
+    }
+
     return;
   }
 
   if (strcmp(name, "print") == 0) {
     if (argCount > 0) {
+      // Unit is the only value that WRITE cannot print directly as requested
       cg_gen_expr(args[0]);
+
       if (args[0]->evalType == T_UNIT) {
         puts("POPS GF@$tmp1\n"
              "WRITE string@()\n"
@@ -1005,18 +1078,19 @@ void cg_gen_call(const AstNode *callNode) {
     } else {
       puts("PUSHS nil@nil");
     }
+
     return;
   }
 
-  // --- EXTRA BUILT-IN FUNCTIONS ($builtin_...) ---
-
   if (strcmp(name, "readInt") == 0) {
     puts("CALL $builtin_readInt");
+
     return;
   }
 
   if (strcmp(name, "readDouble") == 0) {
     puts("CALL $builtin_readDouble");
+
     return;
   }
 
@@ -1024,7 +1098,9 @@ void cg_gen_call(const AstNode *callNode) {
     for (size_t idx = 0; idx < argCount; idx++) {
       cg_gen_expr(args[idx]);
     }
+
     puts("CALL $builtin_ord");
+
     return;
   }
 
@@ -1032,13 +1108,16 @@ void cg_gen_call(const AstNode *callNode) {
     for (size_t i = 0; i < argCount; i++) {
       cg_gen_expr(args[i]);
     }
+
     puts("CALL $builtin_substr");
+
     return;
   }
 
-  // --- USER-DEFINED FUNCTIONS ($func_...) ---
+  // all remaining calls are assumed to refer to source-level functions
   for (size_t idx = 0; idx < argCount; idx++) {
     cg_gen_expr(args[idx]);
   }
+
   printf("CALL $func_%s\n", name);
 }

@@ -31,7 +31,24 @@ SymtableNode *st_alloc_node(void) {
   return new;
 }
 
-void st_free_symbol(void *symbol) { free(symbol); }
+void st_free_symbol(void *symbol) {
+  if (!symbol) {
+    return;
+  }
+
+  Symbol *symbolData = symbol;
+
+  // if symbol is a function definition, free all parameters
+  if (symbolData->type == ST_FUNC) {
+    for (uint16_t i = 0; i < symbolData->data.func.paramCount; i++) {
+      free(symbolData->data.func.parameters[i].name);
+    }
+
+    free(symbolData->data.func.parameters);
+  }
+
+  free(symbolData);
+}
 
 bool st_init(Symtable *symtable) {
   if (!symtable) {
@@ -130,7 +147,7 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
 
   // insert symbol while checking fail
   if (!ht_insert(symtable->top->table, name, new)) {
-    free(new);
+    st_free_symbol(new);
     return false;
   }
 
@@ -170,7 +187,7 @@ bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
 
   // insert symbol while checking fail
   if (!ht_insert(globalScope->table, name, new)) {
-    free(new);
+    st_free_symbol(new);
     return false;
   }
 

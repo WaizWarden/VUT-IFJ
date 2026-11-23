@@ -17,22 +17,20 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 </p>
 
 </div>
-`
-
 # Team distribution
 - **xjuricl01** – project coordination, lexical analysis, fixes in semantic analysis
 - **xoramst00** – symbol table, code generator (main developer)
 - **xhorakj01** – parser, AST, precedence analysis, stack
-- **xsirmat00** – semantic analysis, code generator (secondary developer)
+- **xsirmat00** – semantic analysis, code generator (secondary developer), dropped out
 
 #### Explanation of percent distribution
 **xsirmat00**
 
-While reviewing his code we found a lot of signs of very high AI usage. When we asked him about the AI, he said we can give him zero percent and he will retake the course next year.
+While reviewing his code, we found a lot of signs of very high AI usage. When we asked him about the AI, he said we can give him zero percent and he will retake the course next year.
 
 Other issues contributed to this decision as well. Such as little commit count with high line count, not following git conventions we set as team.
 
-# Colaboration in team
+# Team collaboration
 - Each module has its own unit tests
 - Whole compiler is tested by e2e tests
 - Before merging to main we used valgrind to check for memory leaks
@@ -42,10 +40,8 @@ Other issues contributed to this decision as well. Such as little commit count w
 
 
 # Block diagram
-# TBA
 
 # FSM of lexical analysis
-# TBA
 
 # Syntax Analysis
 
@@ -562,7 +558,56 @@ function - e.g. the `<statement>` row is the switch in
 
 
 # Modules description
-# TBA
+
+## Code generator (codegen)
+
+The code generator builds on the syntax-semantic analysis, from which it receives the completed AST. The output is a sequence of instructions defined by IFJcode26 to standard output. Main files are *codegen.c* and *codegen.h* with tests.
+
+The basis of generating instructions is passing through the AST and writing out the corresponding instructions from AST nodes to standard output directly.
+
+### Variables and functions
+
+- Names of all compiler-only variables and functions use '$' in name for separation from user-code names.
+- To ensure unique labels for separate instructions (like two for loops after each other), we generate unique number from global counter every time needed.
+- Shorter built-in functions of IFJcode26 are generated in-line, but the longer ones are designed as a normal function you call, as described in _codegen.c_ header.
+- When calling a function, arguments are pushed to the stack, so that the last argument is at the top. Return value is left at stack top.
+
+### Complications and solutions
+
+The source code IFJ26 supports variable shadowing but IFJcode26 does not. Therefore we used unique ID for every variable in source code to distinguish them.
+
+We perform "pre-pass" of the AST functions, where we generate all the "DEFVAR" instructions, so that they are accessible throughout all sub-blocks.
+
+Interpretation of every AST node is different with the type of the node:
+- function definitions (including @main; we use the "pre-pass" here)
+- blocks (for example function body)
+- statements (for example function calls, while loop or '=')
+- expressions (everything else, leaves value on stack)
+
+### Notes
+
+- The module assumes semantic correctness and does not check it.
+- The module does not perform general optimalization (except for the specified ones in IFJcode26 specificaton, like && and || generation).
+
+
+## Symbol table and Hash table
+
+Symbol table manages variables and functions in scopes, where each scope has a reference to its parent (linked list), so when searching for a symbol, the newest is prefered (ensures shadowing). Each scope has its own hash table. Once the nested scope is removed, shadowed variable from parent scope is avalible again.
+
+Functions are stored in global scope. Every variable (including parameters) also contains 'UID' which code generator uses to distinguish between different shadowed variables. 
+
+### Hashing
+
+The hash table uses the DJB2 hashing function ([Daniel J. Bernstein: djb2 hash](https://theartincode.stanis.me/008-djb2/); produces different hash for the same strings in a different character order). Hash table uses a looping array of cells (key value pairs with status) as memory.
+
+Inserting element from hash table works by:
+- hashing the key to get index of element
+- passing through array, skipping deleted cells
+- if a cell with same key is found, it is an unallowed redefinition
+- if a empty cell is found, element is inserted (unless deleted cell was found first - element is inserted at first deleted cell spot)
+
+Freeing an element is ensured by the caller by defining a callback free function the hashtable then uses.
+
 
 ## Semantic analysis
 
@@ -575,9 +620,9 @@ The module utilizes the AST created by the parser and the symbol table, where al
 We also generate unique id for all variables including function parameters. This helps code generation process, which would otherwise need to search for variables in symbol table.
 
 # References
-# TBA
 
+Daniel J. Bernstein. *djb2 hash*. <https://theartincode.stanis.me/008-djb2/>
 
 # AI usage
-- We agreed at a team meeting to document every use of AI (including the model) and to briefly describe what it was used for, as required by the assignment.
+- We agreed at a team meeting to document every use of AI and to briefly describe what it was used for, as required by the assignment.
 
