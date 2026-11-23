@@ -35,13 +35,18 @@ typedef struct {
   AstNode *node;
 } StackItem;
 
-void stack_init(void);
-void stack_push(StackItem item);
-StackItem stack_pop(void);
-StackItem *stack_top(void);
-StackItem *stack_top_terminal(void);
-void stack_free(void);
-void stack_insert_handle_start(void);
-size_t stack_size(void);
+typedef struct {
+  StackItem *items;
+  size_t size;
+  size_t capacity;
+} Stack;
 
+void stack_init(Stack *stack);
+void stack_push(Stack *stack, StackItem item);
+StackItem stack_pop(Stack *stack);
+StackItem *stack_top(Stack *stack);
+StackItem *stack_top_terminal(Stack *stack);
+void stack_free(Stack *stack);
+void stack_insert_handle_start(Stack *stack);
+size_t stack_size(Stack *stack);
 #endif
