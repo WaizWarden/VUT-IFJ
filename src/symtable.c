@@ -147,7 +147,7 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
 
   // insert symbol while checking fail
   if (!ht_insert(symtable->top->table, name, new)) {
-    free(new);
+    st_free_symbol(new);
     return false;
   }
 
@@ -187,7 +187,7 @@ bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
 
   // insert symbol while checking fail
   if (!ht_insert(globalScope->table, name, new)) {
-    free(new);
+    st_free_symbol(new);
     return false;
   }
 
