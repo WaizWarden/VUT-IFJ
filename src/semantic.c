@@ -15,13 +15,13 @@ static int scope = 0;
 
 typedef struct {
   const char *name;
-  DataType retType;
   Parameter *params;
+  DataType retType;
   uint16_t paramCount;
 } Builtin;
 
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
-  if (root != AST_PROGRAM) {
+  if (root == NULL || root->type != AST_PROGRAM) {
     return ERR_OTHER;
   }
 
@@ -43,10 +43,10 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
   if (!st_push_scope(symtable)) {
     return ERR_OTHER;
   }
-  // global functions are at scope 0
+  // global functions are defined at scope 0
   scope++;
 
-  // loop through functions
+  // loop through functions all defined functions in program
   int mainCount = 0;
   for (size_t i = 0; i < root->as.program.count; i++) {
     AstNode *functionNode = root->as.program.functions[i];
@@ -94,20 +94,23 @@ static SemanticError register_builtins(Symtable *symtable) {
   static Parameter intParam[] = {{"code", T_INT, 0}};
 
   static Parameter subStrParams[] = {
-      {"value", T_STRING, 0}, {"start", T_INT, 0}, {"end", T_INT, 0}};
+      {"value", T_STRING, 0},
+      {"start", T_INT, 0},
+      {"end", T_INT, 0},
+  };
   static Parameter ordParams[] = {{"value", T_STRING, 0}, {"index", T_INT, 0}};
 
   static Builtin builtins[] = {
-      {"print", T_UNIT, anyParam, 1},
-      {"readLine", T_STRING, NULL, 0},
-      {"readInt", T_INT, NULL, 0},
-      {"readDouble", T_DOUBLE, NULL, 0},
-      {"toStr", T_STRING, anyParam, 1},
-      {"toInt", T_INT, doubleParam, 1},
-      {"strLength", T_INT, stringParam, 1},
-      {"subStr", T_STRING, subStrParams, 3},
-      {"ord", T_INT, ordParams, 2},
-      {"chr", T_STRING, intParam, 1},
+      {"print", anyParam, T_UNIT, 1},
+      {"readLine", NULL, T_STRING, 0},
+      {"readInt", NULL, T_INT, 0},
+      {"readDouble", NULL, T_DOUBLE, 0},
+      {"toStr", anyParam, T_STRING, 1},
+      {"toInt", doubleParam, T_INT, 1},
+      {"strLength", stringParam, T_INT, 1},
+      {"subStr", subStrParams, T_STRING, 3},
+      {"ord", ordParams, T_INT, 2},
+      {"chr", intParam, T_STRING, 1},
   };
 
   int builtinsSize = sizeof(builtins) / sizeof(builtins[0]);
