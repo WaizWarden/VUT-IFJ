@@ -587,9 +587,14 @@ Interpretation of every AST node is different with the type of the node:
 ### Notes
 
 - The module assumes semantic correctness and does not check it.
-- The module does not perform general optimalization (except for the specified ones in IFJcode26 specificaton, like && and || generation)
+- The module does not perform general optimalization (except for the specified ones in IFJcode26 specificaton, like && and || generation).
 
 
+## Symbol table and Hash table
+
+Symbol table manages variables and functions in scopes, where each scope has a reference to its parent (linked list), so when searching for a symbol, the newest is prefered (ensures shadowing). Each scope has its own hash table. Once the nested scope is removed, shadowed variable from parent scope is avalible again.
+
+Functions are stored in global scope. Every variable (including parameters) also contains 'UID' which code generator uses to distinguish between different shadowed variables. 
 
 # References
 
