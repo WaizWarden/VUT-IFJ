@@ -684,7 +684,7 @@ SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
     if (fnNode->type != AST_FUNC_DEF) {
       return ERR_SEM_OTHER;
     }
-
+ 
     Parameter *params = NULL;
     if (fnNode->as.funcDef.paramCount > 0) {
       params = calloc(fnNode->as.funcDef.paramCount, sizeof(Parameter));

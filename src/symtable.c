@@ -154,23 +154,28 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
   return true;
 }
 
-bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
-                    Parameter *params, uint16_t paramCount, bool isMain,
-                    bool isDefined) {
+StInsertResult st_insert_func(Symtable *symtable, const char *name,
+                              DataType retType, Parameter *params,
+                              uint16_t paramCount, bool isMain,
+                              bool isDefined) {
   if (!symtable || !symtable->top || !symtable->top->table || !name ||
       (paramCount > 0 && !params)) {
-    return false;
+    return ST_INSERT_ERROR;
   }
 
   for (uint16_t i = 0; i < paramCount; i++) {
     if (!params[i].name) {
-      return false;
+      return ST_INSERT_ERROR;
     }
   }
 
   Symbol *new = calloc(1, sizeof(Symbol));
   if (!new) {
-    return false;
+    for (uint16_t i = 0; i < paramCount; i++) {
+      free(params[i].name);
+    }
+    free(params);
+    return ST_INSERT_ERROR;
   }
 
   new->type = ST_FUNC;
@@ -186,12 +191,16 @@ bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
   }
 
   // insert symbol while checking fail
+  if (ht_get(globalScope->table, name) != NULL) {
+    st_free_symbol(new);
+    return ST_INSERT_REDEFINED;
+  }
   if (!ht_insert(globalScope->table, name, new)) {
     st_free_symbol(new);
-    return false;
+    return ST_INSERT_ERROR;
   }
 
-  return true;
+  return ST_INSERT_OK;
 }
 
 Symbol *st_get(Symtable *symtable, const char *name) {

@@ -2,10 +2,12 @@
  * @file    semantic.c
  * @author  xjuricl01, xoramst00
  * @brief   Implementation of semantic analysis
- * 
- * @note Main principles and architecture are inspired by "demo-cvičení" on semantic analysis.
- * 
- * @note Current AI use: As a second keyboard (writing repetetive code continuaton)
+ *
+ * @note Main principles and architecture are inspired by "demo-cvičení" on
+ * semantic analysis.
+ *
+ * @note Current AI use: As a second keyboard (writing repetetive code
+ * continuaton)
  */
 
 #include "semantic.h"
@@ -81,13 +83,31 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 
   // loop through all defined functions in program
   for (size_t i = 0; i < root->as.program.count; i++) {
+
     AstNode *functionNode = root->as.program.functions[i];
 
     if (functionNode->type != AST_FUNC_DEF) {
       return ERR_OTHER;
     }
 
-    ///@todo Validate user functions and insert them into symbol table
+    Parameter *paramCopy = NULL;
+
+    // copy parameters so symtable has own data
+    paramCopy = copy_params(functionNode->as.funcDef.params,
+                            functionNode->as.funcDef.paramCount);
+    if (!paramCopy) {
+      return ERR_INTERNAL;
+    }
+    StInsertResult insertResult =
+        st_insert_func(symtable, functionNode->as.funcDef.name,
+                       functionNode->as.funcDef.retType, paramCopy,
+                       functionNode->as.funcDef.paramCount, false, true);
+    if (insertResult == ST_INSERT_REDEFINED) {
+      return ERR_REDEFINITION;
+    }
+    if (insertResult == ST_INSERT_ERROR) {
+      return ERR_INTERNAL;
+    }
 
     // validate main function
     if (functionNode->as.funcDef.isMain) {
@@ -129,22 +149,26 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "print", T_UNIT, paramCopy, 1, false, true)) {
+  if (st_insert_func(symtable, "print", T_UNIT, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
   // readLine(): String
-  if (!st_insert_func(symtable, "readLine", T_STRING, NULL, 0, false, true)) {
+  if (st_insert_func(symtable, "readLine", T_STRING, NULL, 0, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
   // readInt(): Int
-  if (!st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true)) {
+  if (st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
   // readDouble(): Double
-  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
+  if (st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -154,7 +178,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "toStr", T_STRING, paramCopy, 1, false, true)) {
+  if (st_insert_func(symtable, "toStr", T_STRING, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -164,7 +189,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "toInt", T_INT, paramCopy, 1, false, true)) {
+  if (st_insert_func(symtable, "toInt", T_INT, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -174,8 +200,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "strLength", T_INT, paramCopy, 1, false,
-                      true)) {
+  if (st_insert_func(symtable, "strLength", T_INT, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -189,8 +215,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "subStr", T_STRING, paramCopy, 3, false,
-                      true)) {
+  if (st_insert_func(symtable, "subStr", T_STRING, paramCopy, 3, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -203,7 +229,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "ord", T_INT, paramCopy, 2, false, true)) {
+  if (st_insert_func(symtable, "ord", T_INT, paramCopy, 2, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -213,7 +240,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (!st_insert_func(symtable, "chr", T_STRING, paramCopy, 1, false, true)) {
+  if (st_insert_func(symtable, "chr", T_STRING, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 

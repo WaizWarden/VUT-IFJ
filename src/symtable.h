@@ -29,6 +29,15 @@ typedef enum {
 typedef enum { ST_VAR, ST_FUNC } SymbolType;
 
 /**
+ * @brief Result of insering a function symbol.
+ */
+typedef enum {
+  ST_INSERT_OK,
+  ST_INSERT_REDEFINED,
+  ST_INSERT_ERROR
+} StInsertResult;
+
+/**
  * @brief Function parameter name and type.
  */
 typedef struct {
@@ -127,9 +136,9 @@ bool st_insert_var(Symtable *symtable, const char *name, DataType type,
  * @param ret_type Function return type.
  * @return true on succes, false if insertion fails.
  */
-bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
-                    Parameter *params, uint16_t paramCount, bool isMain,
-                    bool isDefined);
+StInsertResult st_insert_func(Symtable *symtable, const char *name,
+                              DataType retType, Parameter *params,
+                              uint16_t paramCount, bool isMain, bool isDefined);
 
 /**
  * @brief Find a symbol by name, searching the current and parent scopes.
