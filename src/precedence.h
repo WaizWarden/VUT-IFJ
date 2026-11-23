@@ -41,4 +41,6 @@ PrecedenceRelation precedence_get_relation(PrecSymbol stackSymbol,
 AstNode *precedence_parse(FILE *input, Token *currentToken,
                           AstNode *firstOperand,
                           const char *const stopIdents[]);
+
+AstNode *precedence_read_string(FILE *input, Token *currentToken);
 #endif
