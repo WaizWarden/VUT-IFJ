@@ -18,47 +18,25 @@
 
 static SemanticError analyze_functions(Symtable *symtable, AstNode *root);
 static SemanticError register_builtin_functions(Symtable *symtable);
-
-/// @brief Creates a deep copy of Parameter list, of n elements
-/// @param src parameter array
-/// @param count number of elements to copy
-/// @return copy of parameter array
-static Parameter *copy_params(const Parameter *src, uint16_t count) {
-  if (count == 0) {
-    return NULL;
-  }
-
-  Parameter *dst = calloc(count, sizeof(Parameter));
-  if (!dst) {
-    return NULL;
-  }
-
-  // copy names
-  for (uint16_t i = 0; i < count; i++) {
-    dst[i].name = strdup(src[i].name);
-
-    // failed copy, free all previous parameters
-    if (!dst[i].name) {
-      for (uint16_t j = 0; j < i; j++) {
-        free(dst[j].name);
-      }
-      free(dst);
-      return NULL;
-    }
-
-    dst[i].type = src[i].type;
-    dst[i].uid = src[i].uid;
-  }
-
-  return dst;
-}
+static SemanticError analyze_function_body(Symtable *symtable, AstNode *functionNode);
+static Parameter *copy_params(const Parameter *src, uint16_t count);
+static SemanticError analyze_statement(Symtable *symtable, AstNode *statement);
 
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
   if (root == NULL || root->type != AST_PROGRAM) {
     return ERR_OTHER;
   }
 
-  analyze_functions(symtable, root);
+  SemanticError error = analyze_functions(symtable, root);
+  if (error != ERR_OK) {
+    return error;
+  }
+
+  SemanticError error2 = analyze_function_body(symtable, root);
+  if (error2 != ERR_OK) {
+    return error2;
+  }
+
   return ERR_OK;
 }
 
@@ -95,13 +73,16 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     // copy parameters so symtable has own data
     paramCopy = copy_params(functionNode->as.funcDef.params,
                             functionNode->as.funcDef.paramCount);
-    if (!paramCopy) {
+
+    if (!paramCopy && functionNode->as.funcDef.paramCount > 0) {
       return ERR_INTERNAL;
     }
+
     StInsertResult insertResult =
         st_insert_func(symtable, functionNode->as.funcDef.name,
                        functionNode->as.funcDef.retType, paramCopy,
                        functionNode->as.funcDef.paramCount, false, true);
+
     if (insertResult == ST_INSERT_REDEFINED) {
       return ERR_REDEFINITION;
     }
@@ -131,6 +112,62 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
   // @main missing
   if (!checkedMain) {
     return ERR_UNDEFINED_SYMBOL;
+  }
+
+  // analyze function body
+  for (size_t i = 0; i < root->as.program.count; i++) {
+
+    AstNode *functionNode = root->as.program.functions[i];
+    if (!st_push_scope(symtable)) {
+      return ERR_INTERNAL;
+    }
+
+    // Add params from function
+    for (uint16_t p = 0; p < functionNode->as.funcDef.paramCount; p++) {
+      Parameter param = functionNode->as.funcDef.params[p];
+
+      if (!st_insert_var(symtable, param.name, param.type, false)) {
+        st_pop_scope(symtable);
+        return ERR_REDEFINITION;
+      }
+    }
+
+    SemanticError result = analyze_function_body(symtable, functionNode);
+    st_pop_scope(symtable);
+
+    if (result != ERR_OK){
+      return result;
+    }
+
+  }
+  return ERR_OK;
+}
+
+/// @brief Analyzes body of a function
+/// @param symtable symbol table
+/// @param root AST root
+/// @return Semantic error type
+static SemanticError analyze_function_body(Symtable *symtable, AstNode *functionNode) {
+  AstNode *body = functionNode->as.funcDef.body;
+
+  for (size_t i = 0; i < body->as.block.count; i++){
+    AstNode *stmt =  body->as.block.stmts[i];
+    analyze_statement(symtable, stmt);
+  }
+  
+  return ERR_OK;
+}
+
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
+  
+  switch (stmt->type)
+  {
+  case (AST_BLOCK):
+    /* code */
+    break;
+  
+  default:
+    return ERR_OTHER;
   }
 
   return ERR_OK;
@@ -246,4 +283,38 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   }
 
   return ERR_OK;
+}
+
+/// @brief Creates a deep copy of Parameter list, of n elements
+/// @param src parameter array
+/// @param count number of elements to copy
+/// @return copy of parameter array
+static Parameter *copy_params(const Parameter *src, uint16_t count) {
+  if (count == 0) {
+    return NULL;
+  }
+
+  Parameter *dst = calloc(count, sizeof(Parameter));
+  if (!dst) {
+    return NULL;
+  }
+
+  // copy names
+  for (uint16_t i = 0; i < count; i++) {
+    dst[i].name = strdup(src[i].name);
+
+    // failed copy, free all previous parameters
+    if (!dst[i].name) {
+      for (uint16_t j = 0; j < i; j++) {
+        free(dst[j].name);
+      }
+      free(dst);
+      return NULL;
+    }
+
+    dst[i].type = src[i].type;
+    dst[i].uid = src[i].uid;
+  }
+
+  return dst;
 }
