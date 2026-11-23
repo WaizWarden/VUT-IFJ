@@ -540,6 +540,7 @@ static AstNode **parse_call_arguments(size_t *outCount) {
 
   while (true) {
     AstNode *argument;
+    bool consumed = false;
     switch (pToken.type) {
     case TOKEN_IDENTIFIER:
       argument =
@@ -556,6 +557,7 @@ static AstNode **parse_call_arguments(size_t *outCount) {
       if (argument == NULL) {
         exit(2);
       }
+      consumed = true;
       break;
     case TOKEN_BOOL:
       argument = ast_new_bool(pToken.value.boolean, pToken.line);
@@ -569,7 +571,9 @@ static AstNode **parse_call_arguments(size_t *outCount) {
     }
 
     // Moving on next token
-    advance();
+    if (!consumed) {
+      advance();
+    }
 
     // VALMEM: member access chain `arg.id` desugars to a builtin call
     while (pToken.type == TOKEN_DOT) {

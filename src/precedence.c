@@ -209,6 +209,10 @@ AstNode *precedence_read_string(FILE *input, Token *currentToken) {
     // End of the current token (TOKEN_INTERP_END)
 
     AstNode **arguments = malloc(sizeof(AstNode *));
+    if (arguments == NULL) {
+      ast_free(node);
+      exit(99);
+    }
     arguments[0] = innerNode;
     AstNode *toStr = ast_new_func_call(strdup("toStr"), arguments, 1, line);
     node = ast_new_binary(OP_ADD, node, toStr, line);
@@ -221,9 +225,11 @@ AstNode *precedence_read_string(FILE *input, Token *currentToken) {
     }
 
     AstNode *seg = ast_new_string(currentToken->value.string, line);
-    innerNode = ast_new_binary(OP_ADD, innerNode, seg, line);
+    node = ast_new_binary(OP_ADD, node, seg, line);
     *currentToken = get_token(input);
   }
+
+  return node;
 }
 
 static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
