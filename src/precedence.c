@@ -180,11 +180,50 @@ static PrecSymbol convert_token_to_symbol(const Token *token,
       return SYM_DOLLAR;
     }
     exit(2);
+case TOKEN_INTERP_START:
+    exit(2);
   case TOKEN_ERROR:
     exit(1);
   default:
     exit(2);
   }
+}
+
+AstNode *precedence_read_string(FILE *input, Token *currentToken){
+    int line = currentToken->line;
+    AstNode *node = ast_new_string(currentToken->value.string, line);
+
+    *currentToken = get_token(input);
+
+    // When interpolateds started
+    while (currentToken->type == TOKEN_INTERP_START){
+        // Innter token getter
+        *currentToken = get_token(input);
+
+        // Inner node
+        AstNode *innerNode = precedence_parse(input, currentToken, NULL, NULL);
+        if (innerNode == NULL) {
+            ast_free(node);
+            return NULL;
+        }
+        // End of the current token (TOKEN_INTERP_END)
+
+        AstNode **arguments = malloc(sizeof(AstNode *));
+        arguments[0] = innerNode;
+        AstNode *toStr = ast_new_func_call(strdup("toStr"), arguments, 1, line);
+        node = ast_new_binary(OP_ADD, node, toStr, line);
+
+        *currentToken = get_token(input);
+
+        if (currentToken->type != TOKEN_STRING) {
+            ast_free(node);
+            return NULL;
+        }
+
+        AstNode *seg = ast_new_string(currentToken->value.string, line);
+        innerNode =  ast_new_binary(OP_ADD, innerNode, seg, line);
+        *currentToken = get_token(input);
+    }
 }
 
 static StackItem stack_item_create(const Token *token, PrecSymbol symbol) {
