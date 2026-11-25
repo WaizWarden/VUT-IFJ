@@ -543,7 +543,7 @@ AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line) {
     const char *builtin;
   } memberMap[] = {{"toString", "toStr"},
                    {"toInt", "toInt"},
-                   {"floor", "floor"},
+                   {"floor", "$floor"},
                    {"length", "strLength"}};
 
   char *callName = memberName;
@@ -556,6 +556,15 @@ AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line) {
         exit(INTERPRET_ERROR);
       }
       break;
+    }
+  }
+
+  // Unknown members must not become calls to user defined functions.
+  if (callName == memberName) {
+    free(memberName);
+    callName = strdup("$valmem_unknown");
+    if (callName == NULL) {
+      exit(INTERPRET_ERROR);
     }
   }
 
