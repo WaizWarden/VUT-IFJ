@@ -56,9 +56,9 @@ StackItem *stack_top(Stack *stack) {
 
 /*
  * An Gemini LLM was used for advice on implementation of the further function
- * Citation of LLM: "Algoritmus se ptá tabulky na a  = terminál nejblíže vrcholu. Na
- * zásobníku ale může být navrchu neterminál  E  (stav třeba  $E+<E ), takže
- * musíš sestoupit od vrcholu dolů a přeskočit  SYM_NONTERM"
+ * Citation of LLM: "Algoritmus se ptá tabulky na a  = terminál nejblíže
+ * vrcholu. Na zásobníku ale může být navrchu neterminál  E  (stav třeba  $E+<E
+ * ), takže musíš sestoupit od vrcholu dolů a přeskočit  SYM_NONTERM"
  */
 StackItem *stack_top_terminal(Stack *stack) {
   for (size_t i = stack->size; i > 0; i--) {
