@@ -22,10 +22,15 @@ static SemanticError register_builtin_functions(Symtable *symtable);
 static SemanticError analyze_functions(Symtable *symtable,
                                        AstNode *functionNode);
 static Parameter *copy_params(const Parameter *src, uint16_t count);
-static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt);
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
+                                       DataType *out);
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out);
 static AstNode *new_implicit_conversion(AstNode *operand);
+static SemanticError resolve_binary_operands_type(AstNode *expr,
+                                                  DataType *leftType,
+                                                  DataType *rightType);
+static bool is_numeric_type(DataType type);
 
 static uint32_t uidCounter = 0;
 static DataType currentFuncRetType = T_UNIT;
@@ -162,7 +167,7 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     for (size_t i = 0; i < body->as.block.count; i++) {
       AstNode *stmt = body->as.block.stmts[i];
 
-      SemanticError errCode = analyze_statement(symtable, stmt);
+      SemanticError errCode = analyze_statement(symtable, stmt, NULL);
       if (errCode != ERR_OK) {
         st_pop_scope(symtable);
         return errCode;
@@ -179,7 +184,11 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 /// @param symtable symbol table
 /// @param stmt statement AST node
 /// @return Semantic error type
-static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
+                                       DataType *out) {
+
+  ///@todo add out data type (mostly T_UNIT, when isTail == true, return type is
+  ///needed)
 
   SemanticError error = ERR_OK;
 
@@ -197,7 +206,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
 
     for (size_t i = 0; i < stmt->as.block.count; i++) {
 
-      error = analyze_statement(symtable, stmt->as.block.stmts[i]);
+      error = analyze_statement(symtable, stmt->as.block.stmts[i], NULL);
       if (error != ERR_OK) {
         st_pop_scope(symtable);
         return error;
@@ -398,39 +407,11 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
   return ERR_OK;
 }
 
-static bool is_numeric_type(DataType type) {
-  return type == T_INT || type == T_DOUBLE;
-}
-
-static SemanticError promote_binary_operands(AstNode *expr, DataType *leftType,
-                                             DataType *rightType) {
-  if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
-    return ERR_WRONG_TYPE;
-  }
-
-  if (*leftType == *rightType) {
-    return ERR_OK;
-  }
-
-  if (*leftType == T_INT) {
-    AstNode *converted = new_implicit_conversion(expr->as.binary.left);
-    if (!converted) {
-      return ERR_INTERNAL;
-    }
-    expr->as.binary.left = converted;
-    *leftType = T_DOUBLE;
-  } else {
-    AstNode *converted = new_implicit_conversion(expr->as.binary.right);
-    if (!converted) {
-      return ERR_INTERNAL;
-    }
-    expr->as.binary.right = converted;
-    *rightType = T_DOUBLE;
-  }
-
-  return ERR_OK;
-}
-
+/// @brief Analyzes expression and annotates its evaluation type
+/// @param symtable symbol table
+/// @param expr expression to analyze
+/// @param out assigned by fucntion, data type of expression
+/// @return ERR_OK or encounterd error
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out) {
   if (expr == NULL) {
@@ -484,11 +465,14 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
     switch (operation) {
     case OP_ADD:
+      // concat strings
       if (leftType == T_STRING && rightType == T_STRING) {
         expr->evalType = T_STRING;
         break;
       }
-      error = promote_binary_operands(expr, &leftType, &rightType);
+
+      // convert types (if numeric)
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -498,7 +482,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_SUB:
     case OP_MUL:
     case OP_DIV:
-      error = promote_binary_operands(expr, &leftType, &rightType);
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -509,11 +493,13 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_LE:
     case OP_GT:
     case OP_GE:
+      // string compare
       if (leftType == T_STRING && rightType == T_STRING) {
         expr->evalType = T_BOOLEAN;
         break;
       }
-      error = promote_binary_operands(expr, &leftType, &rightType);
+      // convert types (if numeric)
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -522,8 +508,9 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
     case OP_EQ:
     case OP_NEQ:
+      // types must be equal or convertable to same type
       if (leftType != rightType) {
-        error = promote_binary_operands(expr, &leftType, &rightType);
+        error = resolve_binary_operands_type(expr, &leftType, &rightType);
         if (error != ERR_OK) {
           return error;
         }
@@ -559,12 +546,14 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
       }
       expr->evalType = operandType;
       break;
+
     case OP_UNARY_NOT:
       if (operandType != T_BOOLEAN) {
         return ERR_WRONG_TYPE;
       }
       expr->evalType = T_BOOLEAN;
       break;
+
     case OP_UNARY_INT2DOUBLE:
       if (operandType != T_INT) {
         return ERR_WRONG_TYPE;
@@ -577,8 +566,93 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     break;
   }
 
-  case AST_FUNC_CALL:
+  case AST_FUNC_CALL: {
+
+    // Verify that function and parameters are same as in symtable
+    Symbol *sym = st_get(symtable, expr->as.funcCall.funcName);
+    if (!sym || sym->type != ST_FUNC) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
+    if (sym->data.func.paramCount != expr->as.funcCall.argCount) {
+      return ERR_INVALID_FUNCTION_PARAMS;
+    }
+
+    // Analyze parameters
+    for (size_t i = 0; i < expr->as.funcCall.argCount; i++) {
+      AstNode *arg = expr->as.funcCall.args[i];
+      DataType resolvedType;
+      error = analyze_expression(symtable, arg, &resolvedType);
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      // Compare type from symtable and aplly conversions
+      DataType paramType = sym->data.func.parameters[i].type;
+      if (paramType != T_ANY && resolvedType != paramType) {
+        if (paramType == T_DOUBLE && resolvedType == T_INT) {
+          AstNode *converted = new_implicit_conversion(arg);
+          if (!converted) {
+            return ERR_INTERNAL;
+          }
+          expr->as.funcCall.args[i] = converted;
+        } else {
+          return ERR_INVALID_FUNCTION_PARAMS;
+        }
+      }
+    }
+
+    expr->evalType = sym->data.func.returnType;
     break;
+  }
+
+  // CONTROL extension
+  case AST_IF: {
+    // evaluate if condition valid
+    DataType condType;
+    error =
+        analyze_expression(symtable, expr->as.ifStatement.condition, &condType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    if (condType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    // else branch is mandatory
+    if (!expr->as.ifStatement.elseBlock) {
+      return ERR_OTHER;
+    }
+
+    DataType thenType = T_UNIT;
+    DataType elseType = T_UNIT;
+    // most of the time it will probably be an expression, but it can be block
+    // also, so we need to call analyze statement
+    error =
+        analyze_statement(symtable, expr->as.ifStatement.thenBlock, &thenType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    error =
+        analyze_statement(symtable, expr->as.ifStatement.elseBlock, &elseType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    // check if the types are valid
+    if (thenType == elseType) {
+      expr->evalType = thenType;
+    }
+    else if(is_numeric_type(thenType) && is_numeric_type(elseType))
+    {
+      // codegen hadnles the conversion, because we cannot wrap a block node
+      expr->evalType = T_DOUBLE;
+    }
+    else {
+      return ERR_WRONG_TYPE;
+    }
+
+    break;
+  }
 
   default:
     return ERR_OTHER;
@@ -697,6 +771,23 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
     return ERR_INTERNAL;
   }
 
+  // readBool(): Boolean
+  if (st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false,
+                     true) != ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // floor(val: Double): Double
+  const Parameter paramFloor = {"value", T_DOUBLE, 0};
+  paramCopy = copy_params(&paramFloor, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "floor", T_DOUBLE, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
   return ERR_OK;
 }
 
@@ -734,12 +825,10 @@ static Parameter *copy_params(const Parameter *src, uint16_t count) {
   return dst;
 }
 
-/**
- * @brief Helper function for converting Int to double
- * @brief Wraps expression into Int to Double conversion node
- * @param operand Int expression
- * @return AstNode if success, else NULL
- */
+/// @brief Generates a new AST node for implicit int->double conversion and
+/// automatically connects it to expression
+/// @param operand AST node of expression to convert
+/// @return new AST node
 static AstNode *new_implicit_conversion(AstNode *operand) {
   if (!operand) {
     return NULL;
@@ -752,4 +841,52 @@ static AstNode *new_implicit_conversion(AstNode *operand) {
   newNode->evalType = T_DOUBLE;
 
   return newNode;
+}
+
+/// @brief Determines if the type is of T_INT or T_DOUBLE
+/// @param type data type
+/// @return true if numeric, false otherwise
+static bool is_numeric_type(DataType type) {
+  return type == T_INT || type == T_DOUBLE;
+}
+
+/// @brief Checks type compatibility and handles implicit conversion of int ->
+/// double
+/// @param expr AST node of expression
+/// @param leftType data type of left operand
+/// @param rightType data type of right operand
+/// @return ERR_OK or encountered semantic error
+static SemanticError resolve_binary_operands_type(AstNode *expr,
+                                                  DataType *leftType,
+                                                  DataType *rightType) {
+  if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
+    return ERR_WRONG_TYPE;
+  }
+
+  // int + int or double + double
+  if (*leftType == *rightType) {
+    return ERR_OK;
+  }
+
+  // int + double
+  if (*leftType == T_INT) {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.left);
+    if (!converted) {
+      return ERR_INTERNAL;
+    }
+    expr->as.binary.left = converted;
+    *leftType = T_DOUBLE;
+  }
+
+  // double + int
+  else {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.right);
+    if (!converted) {
+      return ERR_INTERNAL;
+    }
+    expr->as.binary.right = converted;
+    *rightType = T_DOUBLE;
+  }
+
+  return ERR_OK;
 }
