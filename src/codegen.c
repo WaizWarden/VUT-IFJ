@@ -50,23 +50,35 @@
 #include <stdio.h>
 #include <string.h>
 
+
+static void cg_gen_statement(const AstNode *stmt, DataType funcRetType);
+static void cg_gen_block(const AstNode *block, bool isLastInFunc,
+                         DataType funcRetType);
+static void cg_gen_expr(const AstNode *expr);
+static void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
+                      DataType funcRetType);
+static void cg_gen_while(const AstNode *whileNode, DataType funcRetType);
+static void cg_gen_for(const AstNode *forNode, DataType funcRetType);
+static void cg_gen_call(const AstNode *callNode);
+
+
 // labels get increasing IDs, so repeated control structures stay unique
 static uint32_t label_counter = 0;
 
 // return the next label ID
-uint32_t cg_next_label_id(void) { return label_counter++; }
+static uint32_t cg_next_label_id(void) { return label_counter++; }
 
-void cg_print_int(int64_t val) { printf("int@%" PRId64, val); }
+static void cg_print_int(int64_t val) { printf("int@%" PRId64, val); }
 
-void cg_print_double(double val) { printf("float@%a", val); }
+static void cg_print_double(double val) { printf("float@%a", val); }
 
-void cg_print_bool(bool val) {
+static void cg_print_bool(bool val) {
   val ? printf("bool@true") : printf("bool@false");
 }
 
-void cg_print_unit(void) { printf("nil@nil"); }
+static void cg_print_unit(void) { printf("nil@nil"); }
 
-void cg_print_string(const char *str) {
+static void cg_print_string(const char *str) {
 
   const char *nextChar = str;
 
@@ -86,11 +98,11 @@ void cg_print_string(const char *str) {
   }
 }
 
-void cg_print_var(const char *name, uint32_t uid) {
+static void cg_print_var(const char *name, uint32_t uid) {
   printf("LF@%s$%u", name, uid);
 }
 
-void cg_gen_head(void) {
+static void cg_gen_head(void) {
   label_counter = 0;
 
   // start at $main after the interpreter loads the generated program
@@ -98,6 +110,7 @@ void cg_gen_head(void) {
        "DEFVAR GF@$tmp1\n"
        "DEFVAR GF@$tmp2\n"
        "DEFVAR GF@$tmp3\n"
+       "DEFVAR GF@$tmp4\n"
        "CALL $main\n"
        "EXIT int@0\n");
 
@@ -349,7 +362,7 @@ static void cg_adjust_return_value(DataType exprType, DataType funcRetType) {
  * @param stmt Statement AST node.
  * @param funcRetType Return type of the enclosing function.
  */
-void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
+static void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
   if (!stmt) {
     return;
   }
@@ -476,15 +489,14 @@ static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   }
 }
 
-
 /**
  * @brief Generates instructions for a block or non-block AST body.
  * @param block Block AST node, or a single statement.
  * @param isLastInFunc Whether this block supplies the function return value.
  * @param funcRetType Return type of the enclosing function.
  */
-void cg_gen_block(const AstNode *block, bool isLastInFunc,
-                  DataType funcRetType) {
+static void cg_gen_block(const AstNode *block, bool isLastInFunc,
+                         DataType funcRetType) {
   if (!block) {
     return;
   }
@@ -545,7 +557,7 @@ void cg_gen_program(const AstNode *root) {
  *
  * @param expr AST node representing the expression
  */
-void cg_gen_expr(const AstNode *expr) {
+static void cg_gen_expr(const AstNode *expr) {
   if (!expr) {
     return;
   }
@@ -604,9 +616,16 @@ void cg_gen_expr(const AstNode *expr) {
       }
       cg_gen_expr(expr->as.unary.operand);
       puts("SUBS");
-    } else if (expr->as.unary.op == OP_UNARY_NOT) {
+    }
+
+    else if (expr->as.unary.op == OP_UNARY_NOT) {
       cg_gen_expr(expr->as.unary.operand);
       puts("NOTS");
+    }
+
+    else if (expr->as.unary.op == OP_UNARY_INT2DOUBLE) {
+      cg_gen_expr(expr->as.unary.operand);
+      puts("INT2FLOATS");
     }
     break;
   }
@@ -734,8 +753,8 @@ void cg_gen_expr(const AstNode *expr) {
  * @param isExprOrReturn True if result value must be left on the stack
  * @param funcRetType Return type of enclosing function
  */
-void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
-               DataType funcRetType) {
+static void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
+                      DataType funcRetType) {
   if (!ifNode) {
     return;
   }
@@ -769,7 +788,7 @@ void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
  * @param whileNode AST node of type AST_WHILE
  * @param funcRetType Return type of enclosing function
  */
-void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
+static void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
   if (!whileNode) {
     return;
   }
@@ -802,7 +821,7 @@ void cg_gen_while(const AstNode *whileNode, DataType funcRetType) {
  * @param forNode AST node of type AST_FOR.
  * @param funcRetType Return type of the enclosing function.
  */
-void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
+static void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
   if (!forNode) {
     return;
   }
@@ -901,9 +920,9 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
   // advance by the saved step, then start the next boundary check
   printf("LABEL $for_next_%u\n", labelId);
 
-  printf("ADD LF@");
+  printf("ADD ");
   cg_print_var(varName, varUid);
-  printf(" LF@");
+  printf(" ");
   cg_print_var(varName, varUid);
   printf(" LF@%%step$%u\n"
          "JUMP $for_start_%u\n"
@@ -918,7 +937,7 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
  *
  * @param callNode AST node of type AST_FUNC_CALL
  */
-void cg_gen_call(const AstNode *callNode) {
+static void cg_gen_call(const AstNode *callNode) {
   if (!callNode) {
     return;
   }

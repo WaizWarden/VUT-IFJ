@@ -152,7 +152,7 @@ StInsertResult st_insert_var(Symtable *symtable, const char *name, DataType type
     return ST_INSERT_REDEFINED;
   }
 
-  return true;
+  return ST_INSERT_OK;
 }
 
 StInsertResult st_insert_func(Symtable *symtable, const char *name,
