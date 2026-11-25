@@ -187,7 +187,6 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
                                        DataType *out) {
 
-
   SemanticError error = ERR_OK;
   if (out) {
     *out = T_UNIT;
@@ -392,6 +391,12 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       return error;
     }
 
+    // unit function 
+    if (currentFuncRetType == T_UNIT) {
+      stmt->evalType = T_UNIT;
+      break;
+    }
+
     if (retType != currentFuncRetType) {
 
       // convert int to double
@@ -407,6 +412,12 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       }
     }
 
+    // empty return is only allowed if function is T_UNIT
+    if (stmt->as.ret.expr == NULL) {
+      if (currentFuncRetType != T_UNIT) {
+        return ERR_WRONG_TYPE;
+      }
+    }
     stmt->evalType = currentFuncRetType;
     break;
   }
