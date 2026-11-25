@@ -476,7 +476,6 @@ static void cg_gen_tail(const AstNode *node, DataType funcRetType) {
   }
 }
 
-
 /**
  * @brief Generates instructions for a block or non-block AST body.
  * @param block Block AST node, or a single statement.
@@ -604,9 +603,16 @@ void cg_gen_expr(const AstNode *expr) {
       }
       cg_gen_expr(expr->as.unary.operand);
       puts("SUBS");
-    } else if (expr->as.unary.op == OP_UNARY_NOT) {
+    }
+
+    else if (expr->as.unary.op == OP_UNARY_NOT) {
       cg_gen_expr(expr->as.unary.operand);
       puts("NOTS");
+    }
+
+    else if (expr->as.unary.op == OP_UNARY_INT2DOUBLE) {
+      cg_gen_expr(expr->as.unary.operand);
+      puts("INT2FLOATS");
     }
     break;
   }
