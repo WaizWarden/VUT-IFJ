@@ -574,6 +574,23 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
     return ERR_INTERNAL;
   }
 
+  // readBool(): Boolean
+  if (st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 1, false,
+                     true) != ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // floor(val: Double): Double
+  const Parameter paramFloor = {"value", T_DOUBLE, 0};
+  paramCopy = copy_params(&paramFloor, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "floor", T_DOUBLE, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
   return ERR_OK;
 }
 
