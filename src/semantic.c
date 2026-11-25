@@ -502,16 +502,14 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     }
     else if(is_numeric_type(thenType) && is_numeric_type(elseType))
     {
-      if(thenType == T_INT){
-        expr->as.ifStatement.thenBlock = new_implicit_conversion(expr->as.ifStatement.thenBlock);
-      }
-      else {
-        expr->as.ifStatement.elseBlock = new_implicit_conversion(expr->as.ifStatement.elseBlock);
-      }
+      // codegen hadnles the conversion, because we cannot wrap a block node
+      expr->evalType = T_DOUBLE;
     }
     else {
       return ERR_WRONG_TYPE;
     }
+
+    break;
   }
 
   default:
@@ -632,7 +630,7 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   }
 
   // readBool(): Boolean
-  if (st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 1, false,
+  if (st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false,
                      true) != ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
