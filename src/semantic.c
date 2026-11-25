@@ -26,6 +26,9 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt);
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out);
 static AstNode *new_implicit_conversion(AstNode *operand);
+static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
+                                           DataType *rightType);
+static bool is_numeric_type(DataType type);
 
 static uint32_t uidCounter = 0;
 
@@ -251,48 +254,6 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
 
   default:
     return ERR_OTHER;
-  }
-
-  return ERR_OK;
-}
-
-/// @brief Determines if the type is of T_INT or T_DOUBLE
-/// @param type data type
-/// @return true if numeric, false otherwise
-static bool is_numeric_type(DataType type) {
-  return type == T_INT || type == T_DOUBLE;
-}
-
-/// @brief Checks type compatibility and handles implicit conversion of int ->
-/// double
-/// @param expr AST node of expression
-/// @param leftType data type of left operand
-/// @param rightType data type of right operand
-/// @return ERR_OK or encountered semantic error
-static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
-                                           DataType *rightType) {
-  if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
-    return ERR_WRONG_TYPE;
-  }
-
-  if (*leftType == *rightType) {
-    return ERR_OK;
-  }
-
-  if (*leftType == T_INT) {
-    AstNode *converted = new_implicit_conversion(expr->as.binary.left);
-    if (!converted) {
-      return ERR_INTERNAL;
-    }
-    expr->as.binary.left = converted;
-    *leftType = T_DOUBLE;
-  } else {
-    AstNode *converted = new_implicit_conversion(expr->as.binary.right);
-    if (!converted) {
-      return ERR_INTERNAL;
-    }
-    expr->as.binary.right = converted;
-    *rightType = T_DOUBLE;
   }
 
   return ERR_OK;
@@ -622,4 +583,51 @@ static AstNode *new_implicit_conversion(AstNode *operand) {
   newNode->evalType = T_DOUBLE;
 
   return newNode;
+}
+
+/// @brief Determines if the type is of T_INT or T_DOUBLE
+/// @param type data type
+/// @return true if numeric, false otherwise
+static bool is_numeric_type(DataType type) {
+  return type == T_INT || type == T_DOUBLE;
+}
+
+/// @brief Checks type compatibility and handles implicit conversion of int ->
+/// double
+/// @param expr AST node of expression
+/// @param leftType data type of left operand
+/// @param rightType data type of right operand
+/// @return ERR_OK or encountered semantic error
+static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
+                                           DataType *rightType) {
+  if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
+    return ERR_WRONG_TYPE;
+  }
+
+  // int + int or double + double
+  if (*leftType == *rightType) {
+    return ERR_OK;
+  }
+
+  // int + double
+  if (*leftType == T_INT) {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.left);
+    if (!converted) {
+      return ERR_INTERNAL;
+    }
+    expr->as.binary.left = converted;
+    *leftType = T_DOUBLE;
+  } 
+  
+  // double + int
+  else {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.right);
+    if (!converted) {
+      return ERR_INTERNAL;
+    }
+    expr->as.binary.right = converted;
+    *rightType = T_DOUBLE;
+  }
+
+  return ERR_OK;
 }
