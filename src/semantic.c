@@ -465,8 +465,21 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
     break;
   }
 
-  default:
-    return ERR_OTHER;
+  default: {
+    // one-line functions
+
+    DataType exprType = T_UNIT;
+    error = analyze_expression(symtable, stmt, &exprType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (out) {
+      *out = exprType;
+    }
+
+    break;
+  }
   }
 
   return ERR_OK;
@@ -953,22 +966,22 @@ static SemanticError resolve_binary_operands_type(AstNode *expr,
   return ERR_OK;
 }
 
-/**
- * @brief Helper function that checks if all branches end with return statement
- */
+/// @brief Helper function that checks if all branches end with return statement
+/// @param node statement AST node
+/// @return true if every path ends with return statement, else otherwise
 static bool always_returns(AstNode *node) {
   if (!node) {
     return false;
   }
 
   switch (node->type) {
-  
+
   case AST_RETURN:
     return true;
-  
+
   case AST_BLOCK:
     if (node->as.block.count == 0) {
-      return true;
+      return false;
     }
     return always_returns(node->as.block.stmts[node->as.block.count - 1]);
 
