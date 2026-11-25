@@ -471,7 +471,93 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
   // CONTROL extension
   case AST_FOR: {
 
+    // validate range
     DataType fromType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.forStatement.from, &fromType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    DataType toType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.forStatement.to, &toType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (fromType != T_INT || fromType != T_INT) {
+      return ERR_WRONG_TYPE;
+    }
+
+    // validate step
+    if (stmt->as.forStatement.step) {
+      DataType stepType = T_UNIT;
+      error =
+          analyze_expression(symtable, stmt->as.forStatement.step, &stepType);
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      if (stepType != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+
+      if (stepType == T_INT) {
+        if (stmt->as.forStatement.step->as.intValue == 0) {
+          return ERR_OTHER;
+        }
+      }
+
+      // todo - error 40 or something idk
+    }
+
+    // required by assignement
+    if (!st_push_scope(symtable)) {
+      return ERR_INTERNAL;
+    }
+
+    // register loop variable
+    uint32_t newUid = ++uidCounter;
+    stmt->as.forStatement.varUid = newUid;
+
+    StInsertResult stResult = st_insert_var(
+        symtable, stmt->as.forStatement.varName, T_INT, false, newUid);
+
+    if (error != ERR_OK) {
+      st_pop_scope(symtable);
+      return error;
+    }
+
+    if (stResult == ST_INSERT_ERROR) {
+      st_pop_scope(symtable);
+      return ERR_INTERNAL;
+    }
+
+    for (size_t i = 0; i < stmt->as.forStatement.guardCount; i++) {
+      DataType guardType = T_UNIT;
+      error =
+          analyze_expression(symtable, stmt->as.forStatement.step, &guardType);
+
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      if (error != T_BOOLEAN) {
+        return error;
+      }
+    }
+
+    // analyze body
+    error = analyze_statement(symtable, stmt->as.forStatement.body, NULL);
+    st_pop_scope(symtable);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (out) {
+      *out = T_UNIT;
+    }
+    stmt->evalType = T_UNIT;
+    break;
   }
 
   default: {
@@ -867,7 +953,8 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (st_insert_func(symtable, "$floor", T_DOUBLE, paramCopy, 1, false, true) != ST_INSERT_OK) {
+  if (st_insert_func(symtable, "$floor", T_DOUBLE, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
@@ -974,7 +1061,8 @@ static SemanticError resolve_binary_operands_type(AstNode *expr,
   return ERR_OK;
 }
 
-/// @brief Helper function that checks if all branches end with return statement
+/// @brief Helper function that checks if all branches end with return
+/// statement
 /// @param node statement AST node
 /// @return true if every path ends with return statement, else otherwise
 static bool always_returns(AstNode *node) {
