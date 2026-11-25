@@ -249,6 +249,46 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     break;
   }
 
+  
+case AST_ASSIGN: {
+
+    Symbol *symbol = st_get(symtable, stmt->as.assign.name);
+    if (symbol == NULL || symbol->type != ST_VAR) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
+
+    if (!symbol->data.var.modifiable) {
+      return ERR_IMMUTABLE;
+    }
+
+    DataType valueDataType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.assign.value, &valueDataType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+
+    if (valueDataType != symbol->data.var.type) {
+
+      // convert int to double
+      if (symbol->data.var.type == T_DOUBLE && valueDataType == T_INT) {
+        stmt->as.assign.value = new_implicit_conversion(stmt->as.assign.value);
+        if (!stmt->as.assign.value) {
+          return ERR_INTERNAL;
+        }
+
+      }
+
+      else {
+        return ERR_WRONG_TYPE;
+      }
+    }
+
+    stmt->uid = symbol->data.var.uid;
+    stmt->evalType = symbol->data.var.type;
+    break;
+  }
+
   default:
     return ERR_OTHER;
   }
@@ -260,8 +300,7 @@ static bool is_numeric_type(DataType type) {
   return type == T_INT || type == T_DOUBLE;
 }
 
-static SemanticError promote_binary_operands(AstNode *expr,
-                                             DataType *leftType,
+static SemanticError promote_binary_operands(AstNode *expr, DataType *leftType,
                                              DataType *rightType) {
   if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
     return ERR_WRONG_TYPE;
@@ -332,13 +371,11 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     DataType rightType = T_UNIT;
     BinaryOperation operation = expr->as.binary.operation;
 
-    error =
-        analyze_expression(symtable, expr->as.binary.left, &leftType);
+    error = analyze_expression(symtable, expr->as.binary.left, &leftType);
     if (error != ERR_OK) {
       return error;
     }
-    error =
-        analyze_expression(symtable, expr->as.binary.right, &rightType);
+    error = analyze_expression(symtable, expr->as.binary.right, &rightType);
     if (error != ERR_OK) {
       return error;
     }
@@ -408,8 +445,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
   case AST_UNARY: {
     DataType operandType = T_UNIT;
-    error =
-        analyze_expression(symtable, expr->as.unary.operand, &operandType);
+    error = analyze_expression(symtable, expr->as.unary.operand, &operandType);
     if (error != ERR_OK) {
       return error;
     }
@@ -596,6 +632,12 @@ static Parameter *copy_params(const Parameter *src, uint16_t count) {
   return dst;
 }
 
+/**
+ * @brief Helper function for converting Int to double
+ * @brief Wraps expression into Int to Double conversion node
+ * @param operand Int expression
+ * @return AstNode if success, else NULL
+ */
 static AstNode *new_implicit_conversion(AstNode *operand) {
   if (!operand) {
     return NULL;
