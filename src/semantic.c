@@ -986,9 +986,8 @@ static bool always_returns(AstNode *node) {
     return always_returns(node->as.block.stmts[node->as.block.count - 1]);
 
   case AST_IF:
-    bool result = always_returns(node->as.ifStatement.thenBlock) &&
-                  always_returns(node->as.ifStatement.elseBlock);
-    return result;
+    return always_returns(node->as.ifStatement.thenBlock) &&
+           always_returns(node->as.ifStatement.elseBlock);
 
   default:
     return false;
