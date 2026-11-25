@@ -317,10 +317,13 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
     switch (operation) {
     case OP_ADD:
+      // concat strings
       if (leftType == T_STRING && rightType == T_STRING) {
         expr->evalType = T_STRING;
         break;
       }
+
+      // convert types (if numeric)
       error = resolve_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
@@ -342,10 +345,12 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_LE:
     case OP_GT:
     case OP_GE:
+      // string compare
       if (leftType == T_STRING && rightType == T_STRING) {
         expr->evalType = T_BOOLEAN;
         break;
       }
+      // convert types (if numeric)
       error = resolve_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
@@ -355,6 +360,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
     case OP_EQ:
     case OP_NEQ:
+      // types must be equal or convertable to same type
       if (leftType != rightType) {
         error = resolve_operands_type(expr, &leftType, &rightType);
         if (error != ERR_OK) {
@@ -392,12 +398,14 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
       }
       expr->evalType = operandType;
       break;
+
     case OP_UNARY_NOT:
       if (operandType != T_BOOLEAN) {
         return ERR_WRONG_TYPE;
       }
       expr->evalType = T_BOOLEAN;
       break;
+
     case OP_UNARY_INT2DOUBLE:
       if (operandType != T_INT) {
         return ERR_WRONG_TYPE;
@@ -410,8 +418,44 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     break;
   }
 
-  case AST_FUNC_CALL:
+  case AST_FUNC_CALL: {
+
+    // Verify that function and parameters are same as in symtable
+    Symbol *sym = st_get(symtable, expr->as.funcCall.funcName);
+    if (!sym || sym->type != ST_FUNC) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
+    if (sym->data.func.paramCount != expr->as.funcCall.argCount) {
+      return ERR_INVALID_FUNCTION_PARAMS;
+    }
+
+    // Analyze parameters
+    for (size_t i = 0; i < expr->as.funcCall.argCount; i++) {
+      AstNode *arg = expr->as.funcCall.args[i];
+      DataType resolvedType;
+      error = analyze_expression(symtable, arg, &resolvedType);
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      // Compare type from symtable and aplly conversions
+      DataType paramType = sym->data.func.parameters[i].type;
+      if (paramType != T_ANY && resolvedType != paramType) {
+        if (paramType == T_DOUBLE && resolvedType == T_INT) {
+          AstNode *converted = new_implicit_conversion(arg);
+          if (!converted) {
+            return ERR_INTERNAL;
+          }
+          expr->as.funcCall.args[i] = converted;
+        } else {
+          return ERR_INVALID_FUNCTION_PARAMS;
+        }
+      }
+    }
+
+    expr->evalType = sym->data.func.returnType;
     break;
+  }
 
   default:
     return ERR_OTHER;
@@ -617,8 +661,8 @@ static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
     }
     expr->as.binary.left = converted;
     *leftType = T_DOUBLE;
-  } 
-  
+  }
+
   // double + int
   else {
     AstNode *converted = new_implicit_conversion(expr->as.binary.right);
