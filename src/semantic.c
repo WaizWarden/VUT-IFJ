@@ -25,6 +25,7 @@ static Parameter *copy_params(const Parameter *src, uint16_t count);
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt);
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out);
+static AstNode *new_implicit_conversion(AstNode *operand);
 
 static uint32_t uidCounter = 0;
 
@@ -54,13 +55,9 @@ static SemanticError evaluate_function_headers(Symtable *symtable,
                                                AstNode *root) {
 
   // insertion of built-in functions into symtable
+  // built-in functions and unser defined functions are all on global scope to
+  // forbid redefinitions
   if (register_builtin_functions(symtable) != ERR_OK) {
-    return ERR_OTHER;
-  }
-
-  // ensure all builtin functions are on global scope
-  // and user defined are lower
-  if (!st_push_scope(symtable)) {
     return ERR_OTHER;
   }
 
@@ -88,7 +85,8 @@ static SemanticError evaluate_function_headers(Symtable *symtable,
     StInsertResult insertResult =
         st_insert_func(symtable, functionNode->as.funcDef.name,
                        functionNode->as.funcDef.retType, paramCopy,
-                       functionNode->as.funcDef.paramCount, false, true);
+                       functionNode->as.funcDef.paramCount,
+                       functionNode->as.funcDef.isMain, true);
 
     if (insertResult == ST_INSERT_REDEFINED) {
       return ERR_REDEFINITION;
@@ -144,7 +142,8 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 
       uint32_t newUid = ++uidCounter;
       functionNode->as.funcDef.params[paramIdx].uid = newUid;
-      StInsertResult stResult = st_insert_var(symtable, param.name, param.type, false, newUid);
+      StInsertResult stResult =
+          st_insert_var(symtable, param.name, param.type, false, newUid);
       if (stResult == ST_INSERT_REDEFINED) {
         st_pop_scope(symtable);
         return ERR_REDEFINITION;
@@ -213,21 +212,34 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
       }
     }
 
-    // Use declared data type if it is assigned
-    DataType varType = stmt->as.varDecl.hasDeclaredType
-                           ? stmt->as.varDecl.declaredType
-                           : rightSideDatatype;
+    if (stmt->as.varDecl.hasDeclaredType) {
+      if (rightSideDatatype == stmt->as.varDecl.declaredType) {
+        stmt->evalType = rightSideDatatype;
 
-      
-    /// @todo Add type conversion for double and int
+      }
 
-    stmt->evalType = varType;
+      // implicit conversion of int to double
+      else if (stmt->as.varDecl.declaredType == T_DOUBLE &&
+               rightSideDatatype == T_INT) {
+        stmt->as.varDecl.initExpr =
+            new_implicit_conversion(stmt->as.varDecl.initExpr);
+        stmt->evalType = T_DOUBLE;
+      }
+
+      // incompatible data types
+      else {
+        return ERR_WRONG_TYPE;
+      }
+
+    } else {
+      stmt->evalType = rightSideDatatype;
+    }
 
     // assign new uid and insert to symtable
     uint32_t newUid = ++uidCounter;
     stmt->uid = newUid;
     StInsertResult stResult =
-        st_insert_var(symtable, stmt->as.varDecl.name, varType,
+        st_insert_var(symtable, stmt->as.varDecl.name, stmt->evalType,
                       stmt->as.varDecl.isModifiable, newUid);
     if (stResult == ST_INSERT_REDEFINED) {
       return ERR_REDEFINITION;
@@ -251,10 +263,8 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
   SemanticError error = ERR_OK;
 
-  // var x: Int
   if (expr == NULL) {
     *out = T_UNIT;
-    expr->evalType = *out;
     return ERR_OK;
   }
 
@@ -447,4 +457,15 @@ static Parameter *copy_params(const Parameter *src, uint16_t count) {
   }
 
   return dst;
+}
+
+static AstNode *new_implicit_conversion(AstNode *operand) {
+  if (!operand) {
+    return NULL;
+  }
+
+  AstNode *newNode = ast_new_unary(OP_UNARY_INT2DOUBLE, operand, operand->line);
+  newNode->evalType = T_DOUBLE;
+
+  return newNode;
 }

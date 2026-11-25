@@ -49,7 +49,7 @@ typedef enum {
   OP_OR
 } BinaryOperation;
 
-typedef enum { OP_UNARY_MINUS, OP_UNARY_NOT } UnaryOperation;
+typedef enum { OP_UNARY_MINUS, OP_UNARY_NOT, OP_UNARY_INT2DOUBLE } UnaryOperation;
 
 typedef struct AstNode {
   AstNodeType type;
