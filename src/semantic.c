@@ -215,7 +215,6 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     if (stmt->as.varDecl.hasDeclaredType) {
       if (rightSideDatatype == stmt->as.varDecl.declaredType) {
         stmt->evalType = rightSideDatatype;
-
       }
 
       // implicit conversion of int to double
@@ -230,7 +229,6 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
       else {
         return ERR_WRONG_TYPE;
       }
-
     } else {
       stmt->evalType = rightSideDatatype;
     }
@@ -294,8 +292,17 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     expr->evalType = *out;
     break;
 
-  case AST_IDENTIFIER:
+  case AST_IDENTIFIER: {
+    Symbol *symbol = st_get(symtable, expr->as.identif);
+    if (!symbol || symbol->type != ST_VAR) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
+
+    expr->evalType = symbol->data.var.type;
+    expr->uid = symbol->data.var.uid;
+    *out = expr->evalType;
     break;
+  }
 
   case AST_BINARY:
     break;
@@ -303,8 +310,37 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
   case AST_FUNC_CALL:
     break;
 
-  case AST_UNARY:
+  case AST_UNARY: {
+    DataType unaryType = T_UNIT;
+    error = analyze_expression(symtable, expr->as.unary.operand, &unaryType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (expr->as.unary.op == OP_UNARY_MINUS) {
+      if (unaryType != T_DOUBLE && unaryType != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = unaryType;
+    }
+
+    if (expr->as.unary.op == OP_UNARY_NOT) {
+      if (unaryType != T_BOOLEAN) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_BOOLEAN;
+    }
+
+    if (expr->as.unary.op == OP_UNARY_INT2DOUBLE) {
+      if (unaryType != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_DOUBLE;
+    }
+
+    *out = expr->evalType;
     break;
+  }
 
   default:
     break;
