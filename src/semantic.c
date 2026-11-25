@@ -270,28 +270,23 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
   switch (expr->type) {
   case AST_LITERAL_INT:
-    *out = T_INT;
-    expr->evalType = *out;
+    expr->evalType = T_INT;
     break;
 
   case AST_LITERAL_DOUBLE:
-    *out = T_DOUBLE;
-    expr->evalType = *out;
+    expr->evalType = T_DOUBLE;
     break;
 
   case AST_LITERAL_STRING:
-    *out = T_STRING;
-    expr->evalType = *out;
+    expr->evalType = T_STRING;
     break;
 
   case AST_LITERAL_BOOL:
-    *out = T_BOOLEAN;
-    expr->evalType = *out;
+    expr->evalType = T_BOOLEAN;
     break;
 
   case AST_LITERAL_UNIT:
-    *out = T_UNIT;
-    expr->evalType = *out;
+    expr->evalType = T_UNIT;
     break;
 
   case AST_IDENTIFIER:
@@ -309,6 +304,8 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
   default:
     break;
   }
+
+  *out = expr->evalType;
 
   return error;
 }
