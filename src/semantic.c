@@ -28,6 +28,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 static AstNode *new_implicit_conversion(AstNode *operand);
 
 static uint32_t uidCounter = 0;
+static DataType currentFuncRetType = T_UNIT;
 
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
   if (root == NULL || root->type != AST_PROGRAM) {
@@ -155,6 +156,7 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     }
 
     AstNode *body = functionNode->as.funcDef.body;
+    currentFuncRetType = functionNode->as.funcDef.retType;
 
     // semantically analyze all statements in function body
     for (size_t i = 0; i < body->as.block.count; i++) {
@@ -249,8 +251,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     break;
   }
 
-  
-case AST_ASSIGN: {
+  case AST_ASSIGN: {
 
     Symbol *symbol = st_get(symtable, stmt->as.assign.name);
     if (symbol == NULL || symbol->type != ST_VAR) {
@@ -267,7 +268,6 @@ case AST_ASSIGN: {
       return error;
     }
 
-
     if (valueDataType != symbol->data.var.type) {
 
       // convert int to double
@@ -276,7 +276,6 @@ case AST_ASSIGN: {
         if (!stmt->as.assign.value) {
           return ERR_INTERNAL;
         }
-
       }
 
       else {
@@ -289,10 +288,35 @@ case AST_ASSIGN: {
     break;
   }
 
+  case AST_RETURN: {
+    DataType retType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.ret.expr, &retType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (retType != currentFuncRetType) {
+
+      // convert int to double
+      if (currentFuncRetType == T_DOUBLE && retType == T_INT) {
+        stmt->as.ret.expr = new_implicit_conversion(stmt->as.ret.expr);
+        if (!stmt->as.ret.expr) {
+          return ERR_INTERNAL;
+        }
+      }
+
+      else {
+        return ERR_WRONG_TYPE;
+      }
+    }
+
+    stmt->evalType = currentFuncRetType;
+    break;
+  }
+
   default:
     return ERR_OTHER;
   }
-
   return ERR_OK;
 }
 
