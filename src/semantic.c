@@ -187,10 +187,11 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
                                        DataType *out) {
 
-  ///@todo add out data type (mostly T_UNIT, when isTail == true, return type is
-  ///needed)
 
   SemanticError error = ERR_OK;
+  if (out) {
+    *out = T_UNIT;
+  };
 
   switch (stmt->type) {
   case AST_BLOCK: {
@@ -223,6 +224,9 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       stmt->evalType = T_UNIT;
     }
 
+    if (out) {
+      *out = stmt->evalType;
+    }
     break;
   }
 
@@ -235,6 +239,9 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
     }
 
     stmt->evalType = exprType;
+    if (out) {
+      *out = exprType;
+    }
     break;
   }
 
@@ -252,7 +259,9 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       return ERR_WRONG_TYPE;
     }
 
-    error = analyze_statement(symtable, stmt->as.whileStatement.bodyBlock);
+    // analyze statement
+    error =
+        analyze_statement(symtable, stmt->as.whileStatement.bodyBlock, NULL);
     if (error != ERR_OK) {
       return error;
     }
@@ -274,13 +283,14 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       return ERR_WRONG_TYPE;
     }
 
-    error = analyze_statement(symtable, stmt->as.ifStatement.thenBlock);
+    // analyze statement
+    error = analyze_statement(symtable, stmt->as.ifStatement.thenBlock, NULL);
     if (error != ERR_OK) {
       return error;
     }
 
     if (stmt->as.ifStatement.elseBlock) {
-      error = analyze_statement(symtable, stmt->as.ifStatement.elseBlock);
+      error = analyze_statement(symtable, stmt->as.ifStatement.elseBlock, NULL);
       if (error != ERR_OK) {
         return error;
       }
@@ -404,6 +414,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
   default:
     return ERR_OTHER;
   }
+
   return ERR_OK;
 }
 
@@ -641,13 +652,10 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     // check if the types are valid
     if (thenType == elseType) {
       expr->evalType = thenType;
-    }
-    else if(is_numeric_type(thenType) && is_numeric_type(elseType))
-    {
+    } else if (is_numeric_type(thenType) && is_numeric_type(elseType)) {
       // codegen hadnles the conversion, because we cannot wrap a block node
       expr->evalType = T_DOUBLE;
-    }
-    else {
+    } else {
       return ERR_WRONG_TYPE;
     }
 
