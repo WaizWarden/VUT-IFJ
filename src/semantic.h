@@ -4,6 +4,9 @@
  * @brief   Implementation of semantic analysis
  */
 
+#ifndef SEMANTIC_H
+#define SEMANTIC_H
+
 #include "ast.h"
 #include "symtable.h"
 
@@ -24,3 +27,5 @@ typedef enum {
 /// @param root AST root node of program
 /// @return ERR_OK if there is no error encountered or apropriate error code
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root);
+
+#endif

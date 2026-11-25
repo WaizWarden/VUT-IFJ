@@ -98,6 +98,7 @@ void cg_gen_head(void) {
        "DEFVAR GF@$tmp1\n"
        "DEFVAR GF@$tmp2\n"
        "DEFVAR GF@$tmp3\n"
+       "DEFVAR GF@$tmp4\n"
        "CALL $main\n"
        "EXIT int@0\n");
 
@@ -901,9 +902,9 @@ void cg_gen_for(const AstNode *forNode, DataType funcRetType) {
   // advance by the saved step, then start the next boundary check
   printf("LABEL $for_next_%u\n", labelId);
 
-  printf("ADD LF@");
+  printf("ADD ");
   cg_print_var(varName, varUid);
-  printf(" LF@");
+  printf(" ");
   cg_print_var(varName, varUid);
   printf(" LF@%%step$%u\n"
          "JUMP $for_start_%u\n"

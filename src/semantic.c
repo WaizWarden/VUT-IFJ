@@ -22,12 +22,14 @@ static SemanticError register_builtin_functions(Symtable *symtable);
 static SemanticError analyze_functions(Symtable *symtable,
                                        AstNode *functionNode);
 static Parameter *copy_params(const Parameter *src, uint16_t count);
-static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt);
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
+                                       DataType *out);
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out);
 static AstNode *new_implicit_conversion(AstNode *operand);
-static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
-                                           DataType *rightType);
+static SemanticError resolve_binary_operands_type(AstNode *expr,
+                                                  DataType *leftType,
+                                                  DataType *rightType);
 static bool is_numeric_type(DataType type);
 
 static uint32_t uidCounter = 0;
@@ -163,7 +165,7 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     for (size_t i = 0; i < body->as.block.count; i++) {
       AstNode *stmt = body->as.block.stmts[i];
 
-      SemanticError errCode = analyze_statement(symtable, stmt);
+      SemanticError errCode = analyze_statement(symtable, stmt, NULL);
       if (errCode != ERR_OK) {
         st_pop_scope(symtable);
         return errCode;
@@ -180,7 +182,11 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 /// @param symtable symbol table
 /// @param stmt statement AST node
 /// @return Semantic error type
-static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
+                                       DataType *out) {
+
+  ///@todo add out data type (mostly T_UNIT, when isTail == true, return type is
+  ///needed)
 
   SemanticError error = ERR_OK;
 
@@ -193,7 +199,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
 
     for (size_t i = 0; i < stmt->as.block.count; i++) {
 
-      error = analyze_statement(symtable, stmt->as.block.stmts[i]);
+      error = analyze_statement(symtable, stmt->as.block.stmts[i], NULL);
       if (error != ERR_OK) {
         st_pop_scope(symtable);
         return error;
@@ -324,7 +330,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
       }
 
       // convert types (if numeric)
-      error = resolve_operands_type(expr, &leftType, &rightType);
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -334,7 +340,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_SUB:
     case OP_MUL:
     case OP_DIV:
-      error = resolve_operands_type(expr, &leftType, &rightType);
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -351,7 +357,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
         break;
       }
       // convert types (if numeric)
-      error = resolve_operands_type(expr, &leftType, &rightType);
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -362,7 +368,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_NEQ:
       // types must be equal or convertable to same type
       if (leftType != rightType) {
-        error = resolve_operands_type(expr, &leftType, &rightType);
+        error = resolve_binary_operands_type(expr, &leftType, &rightType);
         if (error != ERR_OK) {
           return error;
         }
@@ -455,6 +461,57 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
     expr->evalType = sym->data.func.returnType;
     break;
+  }
+
+  // CONTROL extension
+  case AST_IF: {
+    // evaluate if condition valid
+    DataType condType;
+    error =
+        analyze_expression(symtable, expr->as.ifStatement.condition, &condType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    if (condType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    // else branch is mandatory
+    if (!expr->as.ifStatement.elseBlock) {
+      return ERR_OTHER;
+    }
+
+    DataType thenType = T_UNIT;
+    DataType elseType = T_UNIT;
+    // most of the time it will probably be an expression, but it can be block
+    // also, so we need to call analyze statement
+    error =
+        analyze_statement(symtable, expr->as.ifStatement.thenBlock, &thenType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    error =
+        analyze_statement(symtable, expr->as.ifStatement.elseBlock, &elseType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    // check if the types are valid
+    if (thenType == elseType) {
+      expr->evalType = thenType;
+    }
+    else if(is_numeric_type(thenType) && is_numeric_type(elseType))
+    {
+      if(thenType == T_INT){
+        expr->as.ifStatement.thenBlock = new_implicit_conversion(expr->as.ifStatement.thenBlock);
+      }
+      else {
+        expr->as.ifStatement.elseBlock = new_implicit_conversion(expr->as.ifStatement.elseBlock);
+      }
+    }
+    else {
+      return ERR_WRONG_TYPE;
+    }
   }
 
   default:
@@ -659,8 +716,9 @@ static bool is_numeric_type(DataType type) {
 /// @param leftType data type of left operand
 /// @param rightType data type of right operand
 /// @return ERR_OK or encountered semantic error
-static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
-                                           DataType *rightType) {
+static SemanticError resolve_binary_operands_type(AstNode *expr,
+                                                  DataType *leftType,
+                                                  DataType *rightType) {
   if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
     return ERR_WRONG_TYPE;
   }
