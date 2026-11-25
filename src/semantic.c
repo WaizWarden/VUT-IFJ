@@ -304,8 +304,135 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     break;
   }
 
-  case AST_BINARY:
+  case AST_BINARY: {
+
+    // @todo sub, mul,
+    // @ extension and, or
+
+    DataType leftType = T_UNIT;
+    DataType rightType = T_UNIT;
+    BinaryOperation operation = expr->as.binary.operation;
+
+    error = analyze_expression(symtable, expr->as.binary.left, &leftType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    error = analyze_expression(symtable, expr->as.binary.right, &rightType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (operation == OP_ADD) {
+      if (leftType == T_STRING && rightType == T_STRING) {
+        expr->evalType = T_STRING;
+      }
+
+      else if ((leftType == T_INT && rightType == T_DOUBLE) ||
+               (leftType == T_DOUBLE && rightType == T_INT)) {
+
+        if (leftType != rightType) {
+          if (leftType == T_INT) {
+            expr->as.binary.left =
+                new_implicit_conversion(expr->as.binary.left);
+            if (!expr->as.binary.left) {
+              return ERR_INTERNAL;
+            }
+          }
+
+          else {
+            expr->as.binary.right =
+                new_implicit_conversion(expr->as.binary.right);
+            if (!expr->as.binary.right) {
+              return ERR_INTERNAL;
+            }
+          }
+        }
+        expr->evalType = T_DOUBLE;
+      }
+
+      else if (leftType == rightType &&
+               (leftType == T_INT || leftType == T_DOUBLE)) {
+        expr->evalType = leftType;
+      }
+
+      else {
+        return ERR_WRONG_TYPE;
+      }
+    }
+
+    else if (operation == OP_LT || operation == OP_LE || operation == OP_GT ||
+             operation == OP_GE) {
+
+      if ((leftType != T_INT && leftType != T_DOUBLE && leftType != T_STRING) ||
+          (rightType != T_INT && rightType != T_DOUBLE &&
+           rightType != T_STRING)) {
+        return ERR_WRONG_TYPE;
+      }
+
+      if (leftType != rightType) {
+        if (!((leftType == T_INT && rightType == T_DOUBLE) ||
+              (leftType == T_DOUBLE && rightType == T_INT))) {
+          return ERR_WRONG_TYPE;
+        }
+
+        // convert int to double
+        else {
+
+          if (leftType == T_INT) {
+            expr->as.binary.left =
+                new_implicit_conversion(expr->as.binary.left);
+            if (!expr->as.binary.left) {
+              return ERR_INTERNAL;
+            }
+          }
+
+          else {
+            expr->as.binary.right =
+                new_implicit_conversion(expr->as.binary.right);
+            if (!expr->as.binary.right) {
+              return ERR_INTERNAL;
+            }
+          }
+        }
+      }
+      expr->evalType = T_BOOLEAN;
+    }
+
+    else if (operation == OP_EQ || operation == OP_NEQ) {
+
+      if (leftType != rightType) {
+        if (!((leftType == T_INT && rightType == T_DOUBLE) ||
+              (leftType == T_DOUBLE && rightType == T_INT))) {
+          return ERR_WRONG_TYPE;
+        }
+
+        // convert int to double
+        else {
+
+          if (leftType == T_INT) {
+            expr->as.binary.left =
+                new_implicit_conversion(expr->as.binary.left);
+            if (!expr->as.binary.left) {
+              return ERR_INTERNAL;
+            }
+          }
+
+          else {
+            expr->as.binary.right =
+                new_implicit_conversion(expr->as.binary.right);
+            if (!expr->as.binary.right) {
+              return ERR_INTERNAL;
+            }
+          }
+        }
+      }
+      expr->evalType = T_BOOLEAN;
+    }
+
+    *out = expr->evalType;
     break;
+  }
 
   case AST_FUNC_CALL:
     break;
