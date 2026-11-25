@@ -256,13 +256,21 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
   return ERR_OK;
 }
 
+/// @brief Determines if the type is of T_INT or T_DOUBLE
+/// @param type data type
+/// @return true if numeric, false otherwise
 static bool is_numeric_type(DataType type) {
   return type == T_INT || type == T_DOUBLE;
 }
 
-static SemanticError promote_binary_operands(AstNode *expr,
-                                             DataType *leftType,
-                                             DataType *rightType) {
+/// @brief Checks type compatibility and handles implicit conversion of int ->
+/// double
+/// @param expr AST node of expression
+/// @param leftType data type of left operand
+/// @param rightType data type of right operand
+/// @return ERR_OK or encountered semantic error
+static SemanticError resolve_operands_type(AstNode *expr, DataType *leftType,
+                                           DataType *rightType) {
   if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
     return ERR_WRONG_TYPE;
   }
@@ -290,6 +298,11 @@ static SemanticError promote_binary_operands(AstNode *expr,
   return ERR_OK;
 }
 
+/// @brief Analyzes expression and annotates its evaluation type
+/// @param symtable symbol table
+/// @param expr expression to analyze
+/// @param out assigned by fucntion, data type of expression
+/// @return ERR_OK or encounterd error
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out) {
   if (expr == NULL) {
@@ -332,13 +345,11 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     DataType rightType = T_UNIT;
     BinaryOperation operation = expr->as.binary.operation;
 
-    error =
-        analyze_expression(symtable, expr->as.binary.left, &leftType);
+    error = analyze_expression(symtable, expr->as.binary.left, &leftType);
     if (error != ERR_OK) {
       return error;
     }
-    error =
-        analyze_expression(symtable, expr->as.binary.right, &rightType);
+    error = analyze_expression(symtable, expr->as.binary.right, &rightType);
     if (error != ERR_OK) {
       return error;
     }
@@ -349,7 +360,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
         expr->evalType = T_STRING;
         break;
       }
-      error = promote_binary_operands(expr, &leftType, &rightType);
+      error = resolve_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -359,7 +370,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_SUB:
     case OP_MUL:
     case OP_DIV:
-      error = promote_binary_operands(expr, &leftType, &rightType);
+      error = resolve_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -374,7 +385,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
         expr->evalType = T_BOOLEAN;
         break;
       }
-      error = promote_binary_operands(expr, &leftType, &rightType);
+      error = resolve_operands_type(expr, &leftType, &rightType);
       if (error != ERR_OK) {
         return error;
       }
@@ -384,7 +395,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     case OP_EQ:
     case OP_NEQ:
       if (leftType != rightType) {
-        error = promote_binary_operands(expr, &leftType, &rightType);
+        error = resolve_operands_type(expr, &leftType, &rightType);
         if (error != ERR_OK) {
           return error;
         }
@@ -408,8 +419,7 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
   case AST_UNARY: {
     DataType operandType = T_UNIT;
-    error =
-        analyze_expression(symtable, expr->as.unary.operand, &operandType);
+    error = analyze_expression(symtable, expr->as.unary.operand, &operandType);
     if (error != ERR_OK) {
       return error;
     }
@@ -596,6 +606,10 @@ static Parameter *copy_params(const Parameter *src, uint16_t count) {
   return dst;
 }
 
+/// @brief Generates a new AST node for implicit int->double conversion and
+/// automatically connects it to expression
+/// @param operand AST node of expression to convert
+/// @return new AST node
 static AstNode *new_implicit_conversion(AstNode *operand) {
   if (!operand) {
     return NULL;
