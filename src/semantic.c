@@ -29,7 +29,7 @@ static AstNode *new_implicit_conversion(AstNode *operand);
 static SemanticError resolve_binary_operands_type(AstNode *expr,
                                                   DataType *leftType,
                                                   DataType *rightType);
-static bool always_returns(const AstNode *node);
+static bool always_returns(AstNode *node);
 static bool is_numeric_type(DataType type);
 
 /// @brief global uid counter
@@ -434,7 +434,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       return error;
     }
 
-    // unit function 
+    // unit function
     if (currentFuncRetType == T_UNIT) {
       stmt->evalType = T_UNIT;
       break;
@@ -951,4 +951,33 @@ static SemanticError resolve_binary_operands_type(AstNode *expr,
   }
 
   return ERR_OK;
+}
+
+/**
+ * @brief Helper function that checks if all branches end with return statement
+ */
+static bool always_returns(AstNode *node) {
+  if (!node) {
+    return false;
+  }
+
+  switch (node->type) {
+  
+  case AST_RETURN:
+    return true;
+  
+  case AST_BLOCK:
+    if (node->as.block.count == 0) {
+      return true;
+    }
+    return always_returns(node->as.block.stmts[node->as.block.count - 1]);
+
+  case AST_IF:
+    bool result = always_returns(node->as.ifStatement.thenBlock) &&
+                  always_returns(node->as.ifStatement.elseBlock);
+    return result;
+
+  default:
+    return false;
+  }
 }
