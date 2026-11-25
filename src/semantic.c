@@ -215,7 +215,6 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     if (stmt->as.varDecl.hasDeclaredType) {
       if (rightSideDatatype == stmt->as.varDecl.declaredType) {
         stmt->evalType = rightSideDatatype;
-
       }
 
       // implicit conversion of int to double
@@ -230,7 +229,6 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
       else {
         return ERR_WRONG_TYPE;
       }
-
     } else {
       stmt->evalType = rightSideDatatype;
     }
@@ -258,59 +256,198 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
   return ERR_OK;
 }
 
+static bool is_numeric_type(DataType type) {
+  return type == T_INT || type == T_DOUBLE;
+}
+
+static SemanticError promote_binary_operands(AstNode *expr,
+                                             DataType *leftType,
+                                             DataType *rightType) {
+  if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
+    return ERR_WRONG_TYPE;
+  }
+
+  if (*leftType == *rightType) {
+    return ERR_OK;
+  }
+
+  if (*leftType == T_INT) {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.left);
+    if (!converted) {
+      return ERR_INTERNAL;
+    }
+    expr->as.binary.left = converted;
+    *leftType = T_DOUBLE;
+  } else {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.right);
+    if (!converted) {
+      return ERR_INTERNAL;
+    }
+    expr->as.binary.right = converted;
+    *rightType = T_DOUBLE;
+  }
+
+  return ERR_OK;
+}
+
 static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
                                         DataType *out) {
-
-  SemanticError error = ERR_OK;
-
   if (expr == NULL) {
     *out = T_UNIT;
     return ERR_OK;
   }
 
+  SemanticError error = ERR_OK;
+
   switch (expr->type) {
   case AST_LITERAL_INT:
-    *out = T_INT;
-    expr->evalType = *out;
+    expr->evalType = T_INT;
     break;
-
   case AST_LITERAL_DOUBLE:
-    *out = T_DOUBLE;
-    expr->evalType = *out;
+    expr->evalType = T_DOUBLE;
     break;
-
   case AST_LITERAL_STRING:
-    *out = T_STRING;
-    expr->evalType = *out;
+    expr->evalType = T_STRING;
     break;
-
   case AST_LITERAL_BOOL:
-    *out = T_BOOLEAN;
-    expr->evalType = *out;
+    expr->evalType = T_BOOLEAN;
     break;
-
   case AST_LITERAL_UNIT:
-    *out = T_UNIT;
-    expr->evalType = *out;
+    expr->evalType = T_UNIT;
     break;
 
-  case AST_IDENTIFIER:
-    break;
+  case AST_IDENTIFIER: {
+    Symbol *symbol = st_get(symtable, expr->as.identif);
+    if (symbol == NULL || symbol->type != ST_VAR) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
 
-  case AST_BINARY:
+    expr->evalType = symbol->data.var.type;
+    expr->uid = symbol->data.var.uid;
     break;
+  }
+
+  case AST_BINARY: {
+    DataType leftType = T_UNIT;
+    DataType rightType = T_UNIT;
+    BinaryOperation operation = expr->as.binary.operation;
+
+    error =
+        analyze_expression(symtable, expr->as.binary.left, &leftType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    error =
+        analyze_expression(symtable, expr->as.binary.right, &rightType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    switch (operation) {
+    case OP_ADD:
+      if (leftType == T_STRING && rightType == T_STRING) {
+        expr->evalType = T_STRING;
+        break;
+      }
+      error = promote_binary_operands(expr, &leftType, &rightType);
+      if (error != ERR_OK) {
+        return error;
+      }
+      expr->evalType = leftType;
+      break;
+
+    case OP_SUB:
+    case OP_MUL:
+    case OP_DIV:
+      error = promote_binary_operands(expr, &leftType, &rightType);
+      if (error != ERR_OK) {
+        return error;
+      }
+      expr->evalType = leftType;
+      break;
+
+    case OP_LT:
+    case OP_LE:
+    case OP_GT:
+    case OP_GE:
+      if (leftType == T_STRING && rightType == T_STRING) {
+        expr->evalType = T_BOOLEAN;
+        break;
+      }
+      error = promote_binary_operands(expr, &leftType, &rightType);
+      if (error != ERR_OK) {
+        return error;
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    case OP_EQ:
+    case OP_NEQ:
+      if (leftType != rightType) {
+        error = promote_binary_operands(expr, &leftType, &rightType);
+        if (error != ERR_OK) {
+          return error;
+        }
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    case OP_AND:
+    case OP_OR:
+      if (leftType != T_BOOLEAN || rightType != T_BOOLEAN) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    default:
+      return ERR_INTERNAL;
+    }
+    break;
+  }
+
+  case AST_UNARY: {
+    DataType operandType = T_UNIT;
+    error =
+        analyze_expression(symtable, expr->as.unary.operand, &operandType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    switch (expr->as.unary.op) {
+    case OP_UNARY_MINUS:
+      if (!is_numeric_type(operandType)) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = operandType;
+      break;
+    case OP_UNARY_NOT:
+      if (operandType != T_BOOLEAN) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+    case OP_UNARY_INT2DOUBLE:
+      if (operandType != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_DOUBLE;
+      break;
+    default:
+      return ERR_INTERNAL;
+    }
+    break;
+  }
 
   case AST_FUNC_CALL:
     break;
 
-  case AST_UNARY:
-    break;
-
   default:
-    break;
+    return ERR_OTHER;
   }
 
-  return error;
+  *out = expr->evalType;
+  return ERR_OK;
 }
 
 /// @brief Registeres all IFJcode26 built-in functions into symbol table
@@ -465,6 +602,9 @@ static AstNode *new_implicit_conversion(AstNode *operand) {
   }
 
   AstNode *newNode = ast_new_unary(OP_UNARY_INT2DOUBLE, operand, operand->line);
+  if (!newNode) {
+    return NULL;
+  }
   newNode->evalType = T_DOUBLE;
 
   return newNode;
