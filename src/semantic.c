@@ -19,8 +19,7 @@
 static SemanticError evaluate_function_headers(Symtable *symtable,
                                                AstNode *root);
 static SemanticError register_builtin_functions(Symtable *symtable);
-static SemanticError analyze_functions(Symtable *symtable,
-                                       AstNode *functionNode);
+static SemanticError analyze_functions(Symtable *symtable, AstNode *root);
 static Parameter *copy_params(const Parameter *src, uint16_t count);
 static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
                                        DataType *out);
@@ -30,15 +29,21 @@ static AstNode *new_implicit_conversion(AstNode *operand);
 static SemanticError resolve_binary_operands_type(AstNode *expr,
                                                   DataType *leftType,
                                                   DataType *rightType);
+static bool always_returns(const AstNode *node);
 static bool is_numeric_type(DataType type);
 
-static uint32_t uidCounter = 0;
+/// @brief global uid counter
+static uint32_t uidCounter;
+
+/// @brief global return data type tracker
 static DataType currentFuncRetType = T_UNIT;
 
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
   if (root == NULL || root->type != AST_PROGRAM) {
     return ERR_OTHER;
   }
+
+  uidCounter = 0;
 
   SemanticError error = evaluate_function_headers(symtable, root);
   if (error != ERR_OK) {
@@ -161,17 +166,55 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     }
 
     AstNode *body = functionNode->as.funcDef.body;
-    currentFuncRetType = functionNode->as.funcDef.retType;
 
-    // semantically analyze all statements in function body
-    for (size_t i = 0; i < body->as.block.count; i++) {
-      AstNode *stmt = body->as.block.stmts[i];
+    if (!body) {
+      st_pop_scope(symtable);
+      return ERR_OTHER;
+    }
 
-      SemanticError errCode = analyze_statement(symtable, stmt, NULL);
+    DataType retType = functionNode->as.funcDef.retType;
+    currentFuncRetType = retType;
+
+    DataType bodyType = T_UNIT;
+    bool hasReturn = false;
+
+    if (body->type != AST_BLOCK) {
+      // one-line function
+      hasReturn = always_returns(body);
+      SemanticError errCode =
+          analyze_statement(symtable, body, hasReturn ? NULL : &bodyType);
       if (errCode != ERR_OK) {
         st_pop_scope(symtable);
         return errCode;
       }
+    } else if (body->as.block.count > 0) {
+      // analyze all statements except the last one
+      for (size_t j = 0; j < body->as.block.count - 1; j++) {
+        SemanticError errCode =
+            analyze_statement(symtable, body->as.block.stmts[j], NULL);
+        if (errCode != ERR_OK) {
+          st_pop_scope(symtable);
+          return errCode;
+        }
+      }
+
+      // analyze the last statement (provides return value unless it always
+      // returns)
+      AstNode *lastStmt = body->as.block.stmts[body->as.block.count - 1];
+      hasReturn = always_returns(lastStmt);
+      SemanticError errCode =
+          analyze_statement(symtable, lastStmt, hasReturn ? NULL : &bodyType);
+      if (errCode != ERR_OK) {
+        st_pop_scope(symtable);
+        return errCode;
+      }
+    }
+
+    // non-Unit function without guaranteed return must match bodyType
+    if (retType != T_UNIT && !hasReturn && bodyType != retType &&
+        !(bodyType == T_INT && retType == T_DOUBLE)) {
+      st_pop_scope(symtable);
+      return ERR_WRONG_TYPE;
     }
 
     st_pop_scope(symtable);
