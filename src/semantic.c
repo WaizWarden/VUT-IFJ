@@ -289,16 +289,75 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
     expr->evalType = T_UNIT;
     break;
 
-  case AST_IDENTIFIER:
-    break;
+  case AST_IDENTIFIER: {
+    Symbol *sym = st_get(symtable, expr->as.identif);
+    if (sym == NULL || sym->type != ST_VAR) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
 
-  case AST_BINARY:
+    // transfer data from symtable to AST
+    expr->evalType = sym->data.var.type;
+    expr->uid = sym->data.var.uid;
+  }
+
+  case AST_BINARY: {
+    DataType tLeft, tRight;
+
+    SemanticError err =
+        analyze_expression(symtable, expr->as.binary.left, &tLeft);
+    if (err != ERR_OK) {
+      return err;
+    }
+
+    err = analyze_expression(symtable, expr->as.binary.right, &tRight);
+    if (err != ERR_OK) {
+      return err;
+    }
+
+    ///@todo
+  }
+
+  case AST_UNARY: {
+    DataType tOp;
+
+    SemanticError err =
+        analyze_expression(symtable, expr->as.unary.operand, &tOp);
+    if (err != ERR_OK) {
+      return err;
+    }
+
+    // determine if unary operation uses correct type
+    switch (expr->as.unary.op) {
+
+    case OP_UNARY_NOT:
+      if (tOp != T_BOOLEAN) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    case OP_UNARY_MINUS:
+      if (tOp != T_INT || tOp != T_DOUBLE) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = tOp;
+      break;
+
+    case OP_UNARY_INT2DOUBLE:
+      if (tOp != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_DOUBLE;
+      break;
+
+    default:
+      return ERR_INTERNAL;
+      break;
+    }
     break;
+  }
 
   case AST_FUNC_CALL:
-    break;
-
-  case AST_UNARY:
     break;
 
   default:
