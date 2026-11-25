@@ -184,7 +184,12 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
   SemanticError error = ERR_OK;
 
   switch (stmt->type) {
-  case AST_BLOCK:
+  case AST_BLOCK: {
+
+    if (stmt->as.block.count == 0) {
+      stmt->evalType = T_UNIT;
+      break;
+    }
 
     if (!st_push_scope(symtable)) {
       return ERR_INTERNAL;
@@ -200,7 +205,80 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt) {
     }
 
     st_pop_scope(symtable);
+
+    const AstNode *last = stmt->as.block.stmts[stmt->as.block.count - 1];
+
+    if (last->type == AST_EXPR_STATEMENT) {
+      stmt->evalType = last->evalType;
+    } else {
+      stmt->evalType = T_UNIT;
+    }
+
     break;
+  }
+
+  case AST_EXPR_STATEMENT: {
+    DataType exprType = T_UNIT;
+    error =
+        analyze_expression(symtable, stmt->as.exprStatement.expr, &exprType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    stmt->evalType = exprType;
+    break;
+  }
+
+  case AST_WHILE: {
+
+    // analyze condition
+    DataType conditionType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.whileStatement.cond,
+                               &conditionType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (conditionType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    error = analyze_statement(symtable, stmt->as.whileStatement.bodyBlock);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    break;
+  }
+
+  case AST_IF: {
+
+    // analyze condition
+    DataType conditionType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.ifStatement.condition,
+                               &conditionType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (conditionType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    error = analyze_statement(symtable, stmt->as.ifStatement.thenBlock);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (stmt->as.ifStatement.elseBlock) {
+      error = analyze_statement(symtable, stmt->as.ifStatement.elseBlock);
+      if (error != ERR_OK) {
+        return error;
+      }
+    }
+
+    break;
+  }
 
   case AST_VAR_DECL: {
     // evaluate the right side of var declaration
