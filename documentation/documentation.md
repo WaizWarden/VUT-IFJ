@@ -622,6 +622,12 @@ The module utilizes the AST created by the parser and the symbol table, where al
 
 We also generate unique id for all variables including function parameters. This ensures that the code generator does not need symbol table, which would be practically empty at the end of semantic analysis due to scope popping.
 
+### Problems and solutions
+
+One of the most important things is handling implicit conversions of int to double. This is done by making a new AST node, which takes the expression to be converted as operand. Old node with evaluation type int is then replaced with the new node with evaluation type double.
+
+Another problem is correctly evaluating data type of blocks in if-statements. We use a helper function "always_returns" to determine if a block (with all its sub-blocks) has 'return' or not.
+
 # References
 
 Daniel J. Bernstein. *djb2 hash*. <https://theartincode.stanis.me/008-djb2/>
