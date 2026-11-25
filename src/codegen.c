@@ -50,7 +50,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 static void cg_gen_statement(const AstNode *stmt, DataType funcRetType);
 static void cg_gen_block(const AstNode *block, bool isLastInFunc,
                          DataType funcRetType);
@@ -60,7 +59,6 @@ static void cg_gen_if(const AstNode *ifNode, bool isExprOrReturn,
 static void cg_gen_while(const AstNode *whileNode, DataType funcRetType);
 static void cg_gen_for(const AstNode *forNode, DataType funcRetType);
 static void cg_gen_call(const AstNode *callNode);
-
 
 // labels get increasing IDs, so repeated control structures stay unique
 static uint32_t label_counter = 0;
@@ -1057,7 +1055,7 @@ static void cg_gen_call(const AstNode *callNode) {
     return;
   }
 
-  if (strcmp(name, "floor") == 0) {
+  if (strcmp(name, "$floor") == 0) {
     if (argCount > 0) {
       // there is no FLOOR instruction, so use existing numeric conversions
       cg_gen_expr(args[0]);

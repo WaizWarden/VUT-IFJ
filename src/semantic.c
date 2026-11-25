@@ -363,6 +363,9 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
                rightSideDatatype == T_INT) {
         stmt->as.varDecl.initExpr =
             new_implicit_conversion(stmt->as.varDecl.initExpr);
+        if (!stmt->as.varDecl.initExpr) {
+          return ERR_INTERNAL;
+        }
         stmt->evalType = T_DOUBLE;
       }
 
@@ -463,6 +466,12 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
     }
     stmt->evalType = currentFuncRetType;
     break;
+  }
+
+  // CONTROL extension
+  case AST_FOR: {
+
+    DataType fromType = T_UNIT;
   }
 
   default: {
@@ -858,8 +867,7 @@ static SemanticError register_builtin_functions(Symtable *symtable) {
   if (!paramCopy) {
     return ERR_INTERNAL;
   }
-  if (st_insert_func(symtable, "floor", T_DOUBLE, paramCopy, 1, false, true) !=
-      ST_INSERT_OK) {
+  if (st_insert_func(symtable, "$floor", T_DOUBLE, paramCopy, 1, false, true) != ST_INSERT_OK) {
     return ERR_INTERNAL;
   }
 
