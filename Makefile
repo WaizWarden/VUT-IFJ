@@ -1,12 +1,12 @@
 #########################
 #
 # File: Makefile
-# Author: xjurilu00, xoramst00, AI návrh architektury (chatGPT)
+# Author: xjurilu00, xoramst00, AI návrh architektury + valgrind cíl (chatGPT)
 # Brief: Project makefile
 #
 #########################
 
-.PHONY: build test format tidy docs dev pdf
+.PHONY: build test valgrind format tidy docs dev pdf
 CFLAGS = -Wall -Wextra -pedantic
 
 SRC_SRCS := $(shell find src -name '*.c')
@@ -39,6 +39,17 @@ pdf:
 
 e2e: build
 	bash tests/e2e/tests.sh
+
+valgrind: CFLAGS += -g
+valgrind: build
+	@command -v valgrind >/dev/null 2>&1 || { echo "Valgrind is required for this target" >&2; exit 127; }
+	@set -e; \
+	for source in tests/e2e/basic/*.scala tests/e2e/custom/*.scala; do \
+		printf 'Valgrind: %s\n' "$$source"; \
+		valgrind --leak-check=full --show-leak-kinds=all \
+			--errors-for-leak-kinds=definite,indirect --track-origins=yes \
+			--error-exitcode=1 ./Output < "$$source" > /dev/null; \
+	done
 
 export: pdf
 	rm -rf result
