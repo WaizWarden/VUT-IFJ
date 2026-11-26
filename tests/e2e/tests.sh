@@ -91,7 +91,7 @@ run_dir() {
       continue
     fi
 
-    echo "passed: $pass, failed: $fail, skipped: $skip"
+    echo "PASS $name"
     pass=$((pass + 1))
   done
 }
@@ -101,7 +101,7 @@ run_dir "custom"
 run_dir "extensions"
 
 
-rm -rf "$tmpDir"
+#rm -rf "$tmpDir"
 echo "passed: $pass, failed: $fail"
 if [ $fail -ne 0 ]; then
   printf '  - %s\n' "${failed[@]}"
