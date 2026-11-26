@@ -57,7 +57,8 @@ The product are nodes of AST tree, if the syntax is incorrect, programm ends wit
 
 ### Prolog, Program and definition of functions
 
-Parser skips any leading newlines and expects the prolog. The prolog should be exactly `import ifj26.*`.
+Parser skips any leading newlines and expects the prolog.
+Prolog is necceceary string contained of `import ifj26.*`.
 
 Prolog is mandatory exactly once in the beginning of programm.
 
@@ -65,18 +66,18 @@ The parser then processes function definitions one by one until it reaches EOF. 
 
 #### How is the function body defined
 
-The body can be a single expression (`def f(): Int = 5 + 3`), a function call (`def g(): Int = f()`), or an indented block. The definition can be on the same line or on indented lines below.
+The body can be a single expression (`def f(): Int = 5 + 3`), a function call (`def g(): Int = f()`), or an indented block. The definition can be on the same line or on indented lines below. (using NEWLINE INDENT, DEDENT)
 
 The `@main` annotation is only recorded in the AST by the parser; its semantic correctness is not checked here.
 
 ### Block 
 
-Scanner generates 2 tokens (indenging).
+Scanner generates tokens based on the indentation.
 
   - `INDENT` marks nesting one level deeper into a block
   - `DEDENT` marks leaving the block
 
-Parser works with only these 2 tokens, errors of indentation are handled by the scanner.
+For the structure of blocks parser does not use spaces and tabs, but only INDENT and DEDENT.
 
 #### Inside of block
 
@@ -89,7 +90,7 @@ A block must not be empty.
 Standalone expressions are not handled by `parser.c` itself but are passed to `precedence.c`.
 Function calls are parsed by `parser.c` directly.
 
-This is the result of absence of expression FUNEXP.
+This is the result of absence of extension FUNEXP.
 
 If a statement starts with an identifier, the parser stores its name and looks at the next token to decide:
 
@@ -105,7 +106,7 @@ Inside call arguments, member access `arg.member` is supported (VALMEM).
 
 ## Operator-Precedence Parsing
 
-Module `precedence.c` is independant from `parser.c`
+Module `precedence.c` is independant (as module on its own) from `parser.c`
 A bottom-up operator-precedence method is used and decides using the precedence table. The result is Ast subtree, the structure matches priority, asociativity and parens.
 
 ### Stack and precedence symbols
@@ -201,7 +202,7 @@ Upon the end of the parser expression, parser inspects the identifier left in `c
   - As an expression (right side of symbol `=`, `return`, ...)
     - `else` is mandatory 
     - `else if` is desugared into a nested `if` inside the else branch.
-      - No additional AST node is created
+      - No additional AST node is created (else block is represented as nested AST_IF)
 
 CONTROL allows single-line bodies and indented blocks.
 
@@ -245,11 +246,13 @@ The parser is implemented using a recursive descent that uses an LL grammar cove
 Non terminals are written using brackets `<>`. Terminals are written as tokens (`NEWLINE, INDENT, DEDENT,..`)
 Expressions themselves are handled by the precedence parser and appear as a single terminal `<expr>`.
 
+`<expr>` is an interface symbol handled entirely by precedence analysis
+
 Precedence grammar for `<expr>` (not part of the LL grammar):
 
 ```
-E → i | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
-  | E && E | E || E | E . i | ( E ) | ( )
+E → id | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
+  | E && E | E || E | E . i | ( E ) | ( ) 
 ```
 
 ### Numbered rules
