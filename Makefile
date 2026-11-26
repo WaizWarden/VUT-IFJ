@@ -10,6 +10,7 @@
 CFLAGS = -Wall -Wextra -pedantic
 
 SRC_SRCS := $(shell find src -name '*.c')
+SRC_SRCS := $(filter-out src/semantic_old.c, $(SRC_SRCS))
 TEST_SRCS := $(shell find tests -name '*.c')
 H_SRCS := $(shell find src tests -name '*.h')
 ALL_SRCS := $(SRC_SRCS) $(TEST_SRCS) $(H_SRCS)

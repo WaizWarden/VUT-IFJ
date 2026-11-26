@@ -1,792 +1,1085 @@
 /**
  * @file    semantic.c
- * @author  xsirmat00 xjuricl01
+ * @author  xjuricl01, xoramst00
  * @brief   Implementation of semantic analysis
+ *
+ * @note Main principles and architecture are inspired by "demo-cvičení" on
+ * semantic analysis.
+ *
+ * @note Current AI use: As a second keyboard (writing repetetive code
+ * continuaton)
  */
 
 #include "semantic.h"
+#include "ast.h"
 #include "symtable.h"
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-  const char *name;
-  uint32_t uid;
-  uint32_t depth;
-} VarUidEntry;
-
-typedef struct {
-  Symtable *symtable;
-  DataType currentRetType;
-  uint32_t varUidCounter;
-  uint32_t scopeDepth;
-  VarUidEntry *uidStack;
-  size_t uidCount;
-  size_t uidCapacity;
-  bool inMain;
-} SemanticContext;
-
-static SemanticError analyze_node(SemanticContext *ctx, AstNode *node);
-static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
-                                  DataType *outType);
-static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
-                                        bool isFuncBody, DataType expectedRet);
+static SemanticError evaluate_function_headers(Symtable *symtable,
+                                               AstNode *root);
+static SemanticError register_builtin_functions(Symtable *symtable);
+static SemanticError analyze_functions(Symtable *symtable, AstNode *root);
+static Parameter *copy_params(const Parameter *src, uint16_t count);
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
+                                       DataType *out);
+static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
+                                        DataType *out);
+static AstNode *new_implicit_conversion(AstNode *operand);
+static SemanticError resolve_binary_operands_type(AstNode *expr,
+                                                  DataType *leftType,
+                                                  DataType *rightType);
 static bool always_returns(AstNode *node);
+static bool is_numeric_type(DataType type);
 
-/**
- * @brief Wraps an Int AST expression node in `expr + 0.0` so codegen emits
- * INT2FLOATS
- *
- * @param expr Original Int expression node
- * @return Double-typed AST binary addition node
- */
-static AstNode *promote_int_to_double(AstNode *expr) {
-  AstNode *zeroDouble = ast_new_double(0.0, expr->line);
-  zeroDouble->evalType = T_DOUBLE;
-  AstNode *promoted = ast_new_binary(OP_ADD, expr, zeroDouble, expr->line);
-  promoted->evalType = T_DOUBLE;
-  return promoted;
+/// @brief global uid counter
+static uint32_t uidCounter;
+
+/// @brief global return data type tracker
+static DataType currentFuncRetType = T_UNIT;
+static bool currentFuncHasReturnType;
+
+SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
+  if (root == NULL || root->type != AST_PROGRAM) {
+    return ERR_OTHER;
+  }
+
+  uidCounter = 0;
+
+  SemanticError error = evaluate_function_headers(symtable, root);
+  if (error != ERR_OK) {
+    return error;
+  }
+
+  SemanticError error2 = analyze_functions(symtable, root);
+  if (error2 != ERR_OK) {
+    return error2;
+  }
+
+  return ERR_OK;
 }
 
-/**
- * @brief Records variable UID in current lexical scope depth
- *
- * @param ctx Semantic context
- * @param name Variable identifier
- * @param uid Unique variable identifier
- * @return True on success, false on allocation failure
- */
-static bool ctx_push_var_uid(SemanticContext *ctx, const char *name,
-                             uint32_t uid) {
-  if (ctx->uidCount >= ctx->uidCapacity) {
-    size_t newCap = (ctx->uidCapacity == 0) ? 32 : ctx->uidCapacity * 2;
-    VarUidEntry *newStack =
-        realloc(ctx->uidStack, newCap * sizeof(VarUidEntry));
-    if (!newStack) {
-      return false;
+/// @brief Analyzes all function heads and inserts them into symbol table
+/// @param symtable symbol table
+/// @param root AST root
+/// @return Semantic error type
+static SemanticError evaluate_function_headers(Symtable *symtable,
+                                               AstNode *root) {
+
+  // insertion of built-in functions into symtable
+  // built-in functions and unser defined functions are all on global scope to
+  // forbid redefinitions
+  if (register_builtin_functions(symtable) != ERR_OK) {
+    return ERR_OTHER;
+  }
+
+  bool checkedMain = false;
+
+  // loop through all defined functions in program
+  for (size_t i = 0; i < root->as.program.count; i++) {
+
+    AstNode *functionNode = root->as.program.functions[i];
+
+    if (functionNode->type != AST_FUNC_DEF) {
+      return ERR_OTHER;
     }
-    ctx->uidStack = newStack;
-    ctx->uidCapacity = newCap;
-  }
 
-  ctx->uidStack[ctx->uidCount].name = name;
-  ctx->uidStack[ctx->uidCount].uid = uid;
-  ctx->uidStack[ctx->uidCount].depth = ctx->scopeDepth;
-  ctx->uidCount++;
-  return true;
-}
+    Parameter *paramCopy = NULL;
 
-/**
- * @brief Looks up innermost variable UID by name
- *
- * @param ctx Semantic context
- * @param name Variable identifier
- * @return Variable UID or 0 if not found
- */
-static uint32_t ctx_lookup_var_uid(const SemanticContext *ctx,
-                                   const char *name) {
-  for (size_t idx = ctx->uidCount; idx > 0; idx--) {
-    if (strcmp(ctx->uidStack[idx - 1].name, name) == 0) {
-      return ctx->uidStack[idx - 1].uid;
+    // copy parameters so symtable has own data
+    paramCopy = copy_params(functionNode->as.funcDef.params,
+                            functionNode->as.funcDef.paramCount);
+
+    if (!paramCopy && functionNode->as.funcDef.paramCount > 0) {
+      return ERR_INTERNAL;
+    }
+
+    StInsertResult insertResult =
+        st_insert_func(symtable, functionNode->as.funcDef.name,
+                       functionNode->as.funcDef.retType, paramCopy,
+                       functionNode->as.funcDef.paramCount,
+                       functionNode->as.funcDef.isMain, true);
+
+    if (insertResult == ST_INSERT_REDEFINED) {
+      return ERR_REDEFINITION;
+    }
+    if (insertResult == ST_INSERT_ERROR) {
+      return ERR_INTERNAL;
+    }
+
+    // validate main function
+    if (functionNode->as.funcDef.isMain) {
+
+      if (checkedMain) {
+        return ERR_REDEFINITION;
+      }
+
+      if (functionNode->as.funcDef.paramCount > 0) {
+        return ERR_INVALID_FUNCTION_PARAMS;
+      }
+
+      if (functionNode->as.funcDef.retType != T_UNIT) {
+        return ERR_WRONG_TYPE;
+      }
+
+      checkedMain = true;
     }
   }
-  return 0;
+
+  // @main missing
+  if (!checkedMain) {
+    return ERR_UNDEFINED_SYMBOL;
+  }
+  return ERR_OK;
 }
 
-/**
- * @brief Removes variable UIDs belonging to scopes deeper than current
- *
- * @param ctx Semantic context
- */
-static void ctx_pop_scope_uids(SemanticContext *ctx) {
-  while (ctx->uidCount > 0 &&
-         ctx->uidStack[ctx->uidCount - 1].depth > ctx->scopeDepth) {
-    ctx->uidCount--;
+/// @brief Analyzes all function bodies
+/// @param symtable symbol table
+/// @param functionNode Function AST node
+/// @return Semantic error type
+static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
+
+  // insert parameters to new scope for each function and analyze body
+  for (size_t i = 0; i < root->as.program.count; i++) {
+
+    AstNode *functionNode = root->as.program.functions[i];
+    if (!st_push_scope(symtable)) {
+      return ERR_INTERNAL;
+    }
+
+    // Add params from function
+    for (uint16_t paramIdx = 0; paramIdx < functionNode->as.funcDef.paramCount;
+         paramIdx++) {
+      Parameter param = functionNode->as.funcDef.params[paramIdx];
+
+      uint32_t newUid = ++uidCounter;
+      functionNode->as.funcDef.params[paramIdx].uid = newUid;
+      StInsertResult stResult =
+          st_insert_var(symtable, param.name, param.type, false, newUid);
+      if (stResult == ST_INSERT_REDEFINED) {
+        st_pop_scope(symtable);
+        return ERR_REDEFINITION;
+      }
+      if (stResult == ST_INSERT_ERROR) {
+        st_pop_scope(symtable);
+        return ERR_INTERNAL;
+      }
+    }
+
+    AstNode *body = functionNode->as.funcDef.body;
+
+    if (!body) {
+      st_pop_scope(symtable);
+      return ERR_OTHER;
+    }
+
+    DataType retType = functionNode->as.funcDef.retType;
+    currentFuncRetType = retType;
+    currentFuncHasReturnType = functionNode->as.funcDef.hasReturnType;
+
+    DataType bodyType = T_UNIT;
+    bool hasReturn = false;
+
+    if (body->type != AST_BLOCK) {
+      // one-line function
+      hasReturn = always_returns(body);
+      SemanticError errCode =
+          analyze_statement(symtable, body, hasReturn ? NULL : &bodyType);
+      if (errCode != ERR_OK) {
+        st_pop_scope(symtable);
+        return errCode;
+      }
+    } else if (body->as.block.count > 0) {
+      // analyze all statements except the last one
+      for (size_t j = 0; j < body->as.block.count - 1; j++) {
+        SemanticError errCode =
+            analyze_statement(symtable, body->as.block.stmts[j], NULL);
+        if (errCode != ERR_OK) {
+          st_pop_scope(symtable);
+          return errCode;
+        }
+      }
+
+      // analyze the last statement (provides return value unless it always
+      // returns)
+      AstNode *lastStmt = body->as.block.stmts[body->as.block.count - 1];
+      hasReturn = always_returns(lastStmt);
+      SemanticError errCode =
+          analyze_statement(symtable, lastStmt, hasReturn ? NULL : &bodyType);
+      if (errCode != ERR_OK) {
+        st_pop_scope(symtable);
+        return errCode;
+      }
+    }
+
+    // non-Unit function without guaranteed return must match bodyType
+    if (retType != T_UNIT && !hasReturn && bodyType != retType &&
+        !(bodyType == T_INT && retType == T_DOUBLE)) {
+      st_pop_scope(symtable);
+      return ERR_WRONG_TYPE;
+    }
+
+    st_pop_scope(symtable);
   }
+
+  return ERR_OK;
 }
 
-/**
- * @brief Helper for creating parameter arrays for built-in function definitions
- *
- * @param count Number of parameters
- * @return Dynamically allocated array of Parameter structs
- */
-static Parameter *create_builtin_params(size_t count, ...) {
-  if (count == 0) {
-    return NULL;
+/// @brief Analyzes one statement of a function body
+/// @param symtable symbol table
+/// @param stmt statement AST node
+/// @return Semantic error type
+static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
+                                       DataType *out) {
+
+  SemanticError error = ERR_OK;
+  if (out) {
+    *out = T_UNIT;
   }
 
-  Parameter *params = calloc(count, sizeof(Parameter));
-  if (!params) {
-    return NULL;
+  if (!stmt) {
+    return ERR_OK;
   }
 
-  va_list args;
-  va_start(args, count);
-  for (size_t idx = 0; idx < count; idx++) {
-    params[idx].name = strdup("param");
-    params[idx].type = va_arg(args, DataType);
-    params[idx].uid = 0;
+  switch (stmt->type) {
+  case AST_BLOCK: {
+
+    if (stmt->as.block.count == 0) {
+      stmt->evalType = T_UNIT;
+      break;
+    }
+
+    if (!st_push_scope(symtable)) {
+      return ERR_INTERNAL;
+    }
+
+    for (size_t i = 0; i < stmt->as.block.count; i++) {
+
+      error = analyze_statement(symtable, stmt->as.block.stmts[i], NULL);
+      if (error != ERR_OK) {
+        st_pop_scope(symtable);
+        return error;
+      }
+    }
+
+    error = analyze_statement(
+        symtable, stmt->as.block.stmts[stmt->as.block.count - 1], out);
+    if (error != ERR_OK) {
+      st_pop_scope(symtable);
+      return error;
+    }
+
+    st_pop_scope(symtable);
+
+    // only anotate AST node with type if it is needed
+    if (out) {
+      stmt->evalType = *out;
+    }
+    break;
   }
-  va_end(args);
-  return params;
+
+  case AST_EXPR_STATEMENT: {
+    DataType exprType = T_UNIT;
+    error =
+        analyze_expression(symtable, stmt->as.exprStatement.expr, &exprType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    stmt->evalType = exprType;
+    if (out) {
+      *out = exprType;
+    }
+    break;
+  }
+
+  case AST_WHILE: {
+
+    // analyze condition
+    DataType conditionType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.whileStatement.cond,
+                               &conditionType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (conditionType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    // analyze statement
+    error =
+        analyze_statement(symtable, stmt->as.whileStatement.bodyBlock, NULL);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    break;
+  }
+
+  case AST_IF: {
+
+    // if data type is needed, the statement is a one line expression
+    if (out) {
+      return analyze_expression(symtable, stmt, out);
+    }
+
+    // analyze condition
+    DataType conditionType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.ifStatement.condition,
+                               &conditionType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (conditionType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    // analyze statement
+    error = analyze_statement(symtable, stmt->as.ifStatement.thenBlock, NULL);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (stmt->as.ifStatement.elseBlock) {
+      error = analyze_statement(symtable, stmt->as.ifStatement.elseBlock, NULL);
+      if (error != ERR_OK) {
+        return error;
+      }
+    }
+
+    break;
+  }
+
+  case AST_VAR_DECL: {
+    // evaluate the right side of var declaration
+    DataType rightSideDatatype = T_UNIT;
+    if (stmt->as.varDecl.initExpr) // null check
+    {
+      error = analyze_expression(symtable, stmt->as.varDecl.initExpr,
+                                 &rightSideDatatype);
+      if (error != ERR_OK) {
+        return error;
+      }
+    }
+
+    if (stmt->as.varDecl.hasDeclaredType) {
+      if (rightSideDatatype == stmt->as.varDecl.declaredType) {
+        stmt->evalType = rightSideDatatype;
+      }
+
+      // implicit conversion of int to double
+      else if (stmt->as.varDecl.declaredType == T_DOUBLE &&
+               rightSideDatatype == T_INT) {
+        stmt->as.varDecl.initExpr =
+            new_implicit_conversion(stmt->as.varDecl.initExpr);
+        if (!stmt->as.varDecl.initExpr) {
+          return ERR_INTERNAL;
+        }
+        stmt->evalType = T_DOUBLE;
+      }
+
+      // incompatible data types
+      else {
+        return ERR_WRONG_TYPE;
+      }
+    } else {
+      stmt->evalType = rightSideDatatype;
+    }
+
+    // assign new uid and insert to symtable
+    uint32_t newUid = ++uidCounter;
+    stmt->uid = newUid;
+    StInsertResult stResult =
+        st_insert_var(symtable, stmt->as.varDecl.name, stmt->evalType,
+                      stmt->as.varDecl.isModifiable, newUid);
+    if (stResult == ST_INSERT_REDEFINED) {
+      return ERR_REDEFINITION;
+    }
+    if (stResult == ST_INSERT_ERROR) {
+      return ERR_INTERNAL;
+    }
+
+    break;
+  }
+
+  case AST_ASSIGN: {
+
+    Symbol *symbol = st_get(symtable, stmt->as.assign.name);
+    if (symbol == NULL || symbol->type != ST_VAR) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
+
+    if (!symbol->data.var.modifiable) {
+      return ERR_IMMUTABLE;
+    }
+
+    DataType valueDataType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.assign.value, &valueDataType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (valueDataType != symbol->data.var.type) {
+
+      // convert int to double
+      if (symbol->data.var.type == T_DOUBLE && valueDataType == T_INT) {
+        stmt->as.assign.value = new_implicit_conversion(stmt->as.assign.value);
+        if (!stmt->as.assign.value) {
+          return ERR_INTERNAL;
+        }
+      }
+
+      else {
+        return ERR_WRONG_TYPE;
+      }
+    }
+
+    stmt->uid = symbol->data.var.uid;
+    stmt->evalType = symbol->data.var.type;
+    break;
+  }
+
+  case AST_RETURN: {
+    DataType retType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.ret.expr, &retType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    // unit function
+    if (currentFuncRetType == T_UNIT) {
+      stmt->evalType = T_UNIT;
+      break;
+    }
+
+    if (retType != currentFuncRetType) {
+
+      // convert int to double
+      if (currentFuncRetType == T_DOUBLE && retType == T_INT) {
+        stmt->as.ret.expr = new_implicit_conversion(stmt->as.ret.expr);
+        if (!stmt->as.ret.expr) {
+          return ERR_INTERNAL;
+        }
+      }
+
+      else {
+        return ERR_WRONG_TYPE;
+      }
+    }
+
+    stmt->evalType = currentFuncRetType;
+    break;
+  }
+
+  // CONTROL extension
+  case AST_FOR: {
+
+    // validate range
+    DataType fromType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.forStatement.from, &fromType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    DataType toType = T_UNIT;
+    error = analyze_expression(symtable, stmt->as.forStatement.to, &toType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (fromType != T_INT || toType != T_INT) {
+      return ERR_WRONG_TYPE;
+    }
+
+    // validate step
+    if (stmt->as.forStatement.step) {
+      DataType stepType = T_UNIT;
+      error =
+          analyze_expression(symtable, stmt->as.forStatement.step, &stepType);
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      if (stepType != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+
+      if (stmt->as.forStatement.step->type == AST_LITERAL_INT &&
+          stmt->as.forStatement.step->as.intValue == 0) {
+        return ERR_OTHER;
+      }
+    }
+
+    // required by assignement
+    if (!st_push_scope(symtable)) {
+      return ERR_INTERNAL;
+    }
+
+    // register loop variable
+    uint32_t newUid = ++uidCounter;
+    stmt->as.forStatement.varUid = newUid;
+
+    StInsertResult stResult = st_insert_var(
+        symtable, stmt->as.forStatement.varName, T_INT, false, newUid);
+    if (stResult == ST_INSERT_REDEFINED) {
+      st_pop_scope(symtable);
+      return ERR_REDEFINITION;
+    }
+    if (stResult == ST_INSERT_ERROR) {
+      st_pop_scope(symtable);
+      return ERR_INTERNAL;
+    }
+
+    for (size_t i = 0; i < stmt->as.forStatement.guardCount; i++) {
+      DataType guardType = T_UNIT;
+      error = analyze_expression(symtable, stmt->as.forStatement.guards[i],
+                                 &guardType);
+
+      if (error != ERR_OK) {
+        st_pop_scope(symtable);
+        return error;
+      }
+
+      // guards must be of boolean evaluation type
+      if (guardType != T_BOOLEAN) {
+        st_pop_scope(symtable);
+        return ERR_WRONG_TYPE;
+      }
+    }
+
+    // analyze body
+    error = analyze_statement(symtable, stmt->as.forStatement.body, NULL);
+    st_pop_scope(symtable);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (out) {
+      *out = T_UNIT;
+    }
+    stmt->evalType = T_UNIT;
+    break;
+  }
+
+  default: {
+    // one-line functions
+
+    DataType exprType = T_UNIT;
+    error = analyze_expression(symtable, stmt, &exprType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    if (out) {
+      *out = exprType;
+    }
+
+    break;
+  }
+  }
+
+  return ERR_OK;
 }
 
-/**
- * @brief Registers all built-in functions into symtable matching codegen.c
- *
- * @param symtable Global symbol table
- * @return ERR_SEM_OK on success or error code
- */
-static SemanticError register_builtins(Symtable *symtable) {
-
-  //  print(value: Any): Unit
-  Parameter *printParams = create_builtin_params(1, T_ANY);
-  if (!st_insert_func(symtable, "print", T_UNIT, printParams, 1, false, true)) {
-    return ERR_INTERNAL;
+/// @brief Analyzes expression and annotates its evaluation type
+/// @param symtable symbol table
+/// @param expr expression to analyze
+/// @param out assigned by fucntion, data type of expression
+/// @return ERR_OK or encounterd error
+static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
+                                        DataType *out) {
+  if (expr == NULL) {
+    *out = T_UNIT;
+    return ERR_OK;
   }
 
-  // readLine(): String
-  if (!st_insert_func(symtable, "readLine", T_STRING, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }
+  SemanticError error = ERR_OK;
 
-  // readInt(): Int
-  if (!st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }
-
-  // readDouble(): Double
-  if (!st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true)) {
-    return ERR_INTERNAL;
-  }
-
-  // toStr(value: Any): String
-  Parameter *toStrParams = create_builtin_params(1, T_ANY);
-  if (!st_insert_func(symtable, "toStr", T_STRING, toStrParams, 1, false,
-                      true)) {
-    return ERR_INTERNAL;
-  }
-
-  // toInt(value: Double): Int
-  Parameter *toIntParams = create_builtin_params(1, T_DOUBLE);
-  if (!st_insert_func(symtable, "toInt", T_INT, toIntParams, 1, false, true)) {
-    return ERR_INTERNAL;
-  }
-
-  // strLength(value: String): Int
-  Parameter *lenParams = create_builtin_params(1, T_STRING);
-  if (!st_insert_func(symtable, "strLength", T_INT, lenParams, 1, false,
-                      true)) {
-    return ERR_INTERNAL;
-  }
-
-  // subStr(value: String, start: Int, end: Int): String
-  Parameter *subParams = create_builtin_params(3, T_STRING, T_INT, T_INT);
-  if (!st_insert_func(symtable, "subStr", T_STRING, subParams, 3, false,
-                      true)) {
-    return ERR_INTERNAL;
-  }
-
-  // ord(value: String, index: Int): Int
-  Parameter *ordParams = create_builtin_params(2, T_STRING, T_INT);
-  if (!st_insert_func(symtable, "ord", T_INT, ordParams, 2, false, true)) {
-    return ERR_INTERNAL;
-  }
-
-  // chr(code: Int): String
-  Parameter *chrParams = create_builtin_params(1, T_INT);
-  if (!st_insert_func(symtable, "chr", T_STRING, chrParams, 1, false, true)) {
-    return ERR_INTERNAL;
-  }
-
-  // Extensions
-
-  // readBoolean(): Boolean
-  if (!st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false,
-                      true)) {
-    return ERR_INTERNAL;
-  }
-
-  return ERR_SEM_OK;
-}
-
-/**
- * @brief Analyzes expressions and sets node evalType and uid
- *
- * @param ctx Semantic context
- * @param node Expression AST node
- * @param outType Output parameter for deduced DataType
- * @return SemanticError status code
- */
-static SemanticError analyze_expr(SemanticContext *ctx, AstNode *node,
-                                  DataType *outType) {
-  if (!node) {
-    *outType = T_UNIT;
-    return ERR_SEM_OK;
-  }
-
-  SemanticError err = ERR_SEM_OK;
-
-  switch (node->type) {
+  switch (expr->type) {
   case AST_LITERAL_INT:
-    node->evalType = T_INT;
+    expr->evalType = T_INT;
     break;
-
   case AST_LITERAL_DOUBLE:
-    node->evalType = T_DOUBLE;
+    expr->evalType = T_DOUBLE;
     break;
-
   case AST_LITERAL_STRING:
-    node->evalType = T_STRING;
+    expr->evalType = T_STRING;
     break;
-
   case AST_LITERAL_BOOL:
-    node->evalType = T_BOOLEAN;
+    expr->evalType = T_BOOLEAN;
     break;
-
   case AST_LITERAL_UNIT:
-    node->evalType = T_UNIT;
+    expr->evalType = T_UNIT;
     break;
 
   case AST_IDENTIFIER: {
-    Symbol *sym = st_get(ctx->symtable, node->as.identif);
-    if (!sym || sym->type != ST_VAR) {
-      return ERR_SEM_UNDEFINED_SYMBOL;
+    Symbol *symbol = st_get(symtable, expr->as.identif);
+    if (symbol == NULL || symbol->type != ST_VAR) {
+      return ERR_UNDEFINED_SYMBOL;
     }
-    node->evalType = sym->data.var.type;
-    node->uid = ctx_lookup_var_uid(ctx, node->as.identif);
+
+    expr->evalType = symbol->data.var.type;
+    expr->uid = symbol->data.var.uid;
     break;
   }
 
   case AST_BINARY: {
-    DataType leftT = T_UNIT;
-    DataType rightT = T_UNIT;
+    DataType leftType = T_UNIT;
+    DataType rightType = T_UNIT;
+    BinaryOperation operation = expr->as.binary.operation;
 
-    err = analyze_expr(ctx, node->as.binary.left, &leftT);
-    if (err != ERR_SEM_OK) {
-      return err;
+    error = analyze_expression(symtable, expr->as.binary.left, &leftType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    error = analyze_expression(symtable, expr->as.binary.right, &rightType);
+    if (error != ERR_OK) {
+      return error;
     }
 
-    err = analyze_expr(ctx, node->as.binary.right, &rightT);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
+    switch (operation) {
+    case OP_ADD:
+      // concat strings
+      if (leftType == T_STRING && rightType == T_STRING) {
+        expr->evalType = T_STRING;
+        break;
+      }
 
-    BinaryOperation operation = node->as.binary.operation;
-    if (operation == OP_LT || operation == OP_LE || operation == OP_GT ||
-        operation == OP_GE || operation == OP_EQ || operation == OP_NEQ) {
-      if (leftT != rightT) {
-        if (!((leftT == T_INT && rightT == T_DOUBLE) ||
-              (leftT == T_DOUBLE && rightT == T_INT))) {
-          return ERR_SEM_WRONG_TYPE;
+      // convert types (if numeric)
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
+      if (error != ERR_OK) {
+        return error;
+      }
+      expr->evalType = leftType;
+      break;
+
+    case OP_SUB:
+    case OP_MUL:
+    case OP_DIV:
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
+      if (error != ERR_OK) {
+        return error;
+      }
+      expr->evalType = leftType;
+      break;
+
+    case OP_LT:
+    case OP_LE:
+    case OP_GT:
+    case OP_GE:
+      // string compare
+      if (leftType == T_STRING && rightType == T_STRING) {
+        expr->evalType = T_BOOLEAN;
+        break;
+      }
+      // convert types (if numeric)
+      error = resolve_binary_operands_type(expr, &leftType, &rightType);
+      if (error != ERR_OK) {
+        return error;
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    case OP_EQ:
+    case OP_NEQ:
+      // types must be equal or convertable to same type
+      if (leftType != rightType) {
+        error = resolve_binary_operands_type(expr, &leftType, &rightType);
+        if (error != ERR_OK) {
+          return error;
         }
       }
-      node->evalType = T_BOOLEAN;
-    } else {
-      if (leftT == T_STRING && rightT == T_STRING && operation == OP_ADD) {
-        node->evalType = T_STRING;
-      } else if ((leftT == T_INT || leftT == T_DOUBLE) &&
-                 (rightT == T_INT || rightT == T_DOUBLE)) {
-        node->evalType =
-            (leftT == T_DOUBLE || rightT == T_DOUBLE) ? T_DOUBLE : T_INT;
-      } else {
-        return ERR_SEM_WRONG_TYPE;
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    case OP_AND:
+    case OP_OR:
+      if (leftType != T_BOOLEAN || rightType != T_BOOLEAN) {
+        return ERR_WRONG_TYPE;
       }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    default:
+      return ERR_INTERNAL;
     }
     break;
   }
 
   case AST_UNARY: {
-    DataType operandT = T_UNIT;
-    err = analyze_expr(ctx, node->as.unary.operand, &operandT);
-    if (err != ERR_SEM_OK) {
-      return err;
+    DataType operandType = T_UNIT;
+    error = analyze_expression(symtable, expr->as.unary.operand, &operandType);
+    if (error != ERR_OK) {
+      return error;
     }
 
-    if (node->as.unary.op == OP_UNARY_MINUS) {
-      if (operandT != T_INT && operandT != T_DOUBLE) {
-        return ERR_SEM_WRONG_TYPE;
+    switch (expr->as.unary.op) {
+    case OP_UNARY_MINUS:
+      if (!is_numeric_type(operandType)) {
+        return ERR_WRONG_TYPE;
       }
-      node->evalType = operandT;
+      expr->evalType = operandType;
+      break;
+
+    case OP_UNARY_NOT:
+      if (operandType != T_BOOLEAN) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_BOOLEAN;
+      break;
+
+    case OP_UNARY_INT2DOUBLE:
+      if (operandType != T_INT) {
+        return ERR_WRONG_TYPE;
+      }
+      expr->evalType = T_DOUBLE;
+      break;
+    default:
+      return ERR_INTERNAL;
     }
     break;
   }
 
   case AST_FUNC_CALL: {
 
-    // left side of =
-    const char *funcName = node->as.funcCall.funcName;
-    Symbol *funcSym = st_get(ctx->symtable, funcName);
-    if (!funcSym || funcSym->type != ST_FUNC) {
-      return ERR_SEM_UNDEFINED_SYMBOL;
+    // Verify that function and parameters are same as in symtable
+    Symbol *sym = st_get(symtable, expr->as.funcCall.funcName);
+    if (!sym || sym->type != ST_FUNC) {
+      return ERR_UNDEFINED_SYMBOL;
+    }
+    if (sym->data.func.paramCount != expr->as.funcCall.argCount) {
+      return ERR_INVALID_FUNCTION_PARAMS;
     }
 
-    if (node->as.funcCall.argCount != funcSym->data.func.paramCount) {
-      return ERR_SEM_FUNCTION_PARAMS;
-    }
-
-    for (size_t idx = 0; idx < node->as.funcCall.argCount; idx++) {
-      DataType argT = T_UNIT;
-      err = analyze_expr(ctx, node->as.funcCall.args[idx], &argT);
-      if (err != ERR_SEM_OK) {
-        return err;
+    // Analyze parameters
+    for (size_t i = 0; i < expr->as.funcCall.argCount; i++) {
+      AstNode *arg = expr->as.funcCall.args[i];
+      DataType resolvedType;
+      error = analyze_expression(symtable, arg, &resolvedType);
+      if (error != ERR_OK) {
+        return error;
       }
 
-      DataType paramT = funcSym->data.func.parameters[idx].type;
-      if (paramT != T_ANY && argT != paramT) {
-        if (paramT == T_DOUBLE && argT == T_INT) {
-          node->as.funcCall.args[idx] =
-              promote_int_to_double(node->as.funcCall.args[idx]);
+      // Compare type from symtable and aplly conversions
+      DataType paramType = sym->data.func.parameters[i].type;
+      if (paramType != T_ANY && resolvedType != paramType) {
+        if (paramType == T_DOUBLE && resolvedType == T_INT) {
+          AstNode *converted = new_implicit_conversion(arg);
+          if (!converted) {
+            return ERR_INTERNAL;
+          }
+          expr->as.funcCall.args[i] = converted;
         } else {
-          return ERR_SEM_FUNCTION_PARAMS;
+          return ERR_INVALID_FUNCTION_PARAMS;
         }
       }
     }
 
-    node->evalType = funcSym->data.func.returnType;
+    expr->evalType = sym->data.func.returnType;
+    break;
+  }
+
+  // CONTROL extension
+  case AST_IF: {
+    // evaluate if condition valid
+    DataType condType;
+    error =
+        analyze_expression(symtable, expr->as.ifStatement.condition, &condType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    if (condType != T_BOOLEAN) {
+      return ERR_WRONG_TYPE;
+    }
+
+    if (!expr->as.ifStatement.elseBlock) {
+      DataType thenType = T_UNIT;
+      error =
+          analyze_statement(symtable, expr->as.ifStatement.thenBlock, &thenType);
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      if (thenType != T_UNIT &&
+          !(currentFuncHasReturnType && currentFuncRetType == T_UNIT)) {
+        return ERR_WRONG_TYPE;
+      }
+
+      expr->evalType = T_UNIT;
+      break;
+    }
+
+    DataType thenType = T_UNIT;
+    DataType elseType = T_UNIT;
+    // most of the time it will probably be an expression, but it can be block
+    // also, so we need to call analyze statement
+    error =
+        analyze_statement(symtable, expr->as.ifStatement.thenBlock, &thenType);
+    if (error != ERR_OK) {
+      return error;
+    }
+    error =
+        analyze_statement(symtable, expr->as.ifStatement.elseBlock, &elseType);
+    if (error != ERR_OK) {
+      return error;
+    }
+
+    // check if the types are valid
+    if (thenType == elseType) {
+      expr->evalType = thenType;
+    } else if (is_numeric_type(thenType) && is_numeric_type(elseType)) {
+      // codegen hadnles the conversion, because we cannot wrap a block node
+      expr->evalType = T_DOUBLE;
+    } else {
+      return ERR_WRONG_TYPE;
+    }
+
     break;
   }
 
   default:
-    return ERR_SEM_OTHER;
+    return ERR_OTHER;
   }
 
-  *outType = node->evalType;
-  return ERR_SEM_OK;
+  *out = expr->evalType;
+  return ERR_OK;
 }
 
-/**
- * @brief Analyzes a block or single statement and checks return value if needed
- *
- * @param ctx Semantic context
- * @param body Block or statement AST node
- * @param isFuncBody True if body belongs directly to a function definition
- * @param expectedRet Expected return type of the enclosing function
- * @return SemanticError status code
- */
-static SemanticError analyze_block_body(SemanticContext *ctx, AstNode *body,
-                                        bool isFuncBody, DataType expectedRet) {
+/// @brief Registeres all IFJcode26 built-in functions into symbol table
+/// @param symtable symbol table
+/// @return semantic error type
+static SemanticError register_builtin_functions(Symtable *symtable) {
 
-  // empty function
-  if (!body) {
-    // def f(): T_UNIT
-    if (isFuncBody && expectedRet != T_UNIT) {
-      return ERR_SEM_WRONG_TYPE;
-    }
-    return ERR_SEM_OK;
+  Parameter *paramCopy;
+
+  // print(val: any)
+  const Parameter paramPrint = {"val", T_ANY, 0};
+  paramCopy = copy_params(&paramPrint, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "print", T_UNIT, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
   }
 
-  // one line function
-  if (body->type != AST_BLOCK) {
-    SemanticError err = analyze_node(ctx, body);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    // body ends with value, check its type
-    if (isFuncBody && expectedRet != T_UNIT && body->type != AST_RETURN &&
-        !always_returns(body)) {
-
-      AstNode *exprNode = (body->type == AST_EXPR_STATEMENT)
-                              ? body->as.exprStatement.expr
-                              : body; // def f(): INT = while ...? in one line
-
-      DataType actualRet = exprNode->evalType;
-      if (body->type == AST_VAR_DECL || body->type == AST_ASSIGN ||
-          body->type == AST_WHILE || body->type == AST_IF) {
-        actualRet = T_UNIT;
-      }
-
-      if (actualRet != expectedRet) {
-        if (expectedRet == T_DOUBLE && actualRet == T_INT &&
-            body->type == AST_EXPR_STATEMENT) {
-
-          body->as.exprStatement.expr = promote_int_to_double(exprNode);
-        } else {
-
-          return ERR_SEM_WRONG_TYPE;
-        }
-      }
-    }
-    return ERR_SEM_OK;
+  // readLine(): String
+  if (st_insert_func(symtable, "readLine", T_STRING, NULL, 0, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
   }
 
-  // inside if, else ...
-  if (!isFuncBody) {
-    if (!st_push_scope(ctx->symtable)) {
+  // readInt(): Int
+  if (st_insert_func(symtable, "readInt", T_INT, NULL, 0, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // readDouble(): Double
+  if (st_insert_func(symtable, "readDouble", T_DOUBLE, NULL, 0, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // toStr(value: Any): String
+  const Parameter paramToStr = {"value", T_ANY, 0};
+  paramCopy = copy_params(&paramToStr, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "toStr", T_STRING, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // toInt(value: Double): Int
+  const Parameter paramToInt = {"value", T_DOUBLE, 0};
+  paramCopy = copy_params(&paramToInt, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "toInt", T_INT, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // strLength(value: String): Int
+  const Parameter paramStrLength = {"value", T_STRING, 0};
+  paramCopy = copy_params(&paramStrLength, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "strLength", T_INT, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // subStr(value: String, start: Int, end: Int): String
+  const Parameter paramSubStr[3] = {
+      {"value", T_STRING, 0},
+      {"start", T_INT, 0},
+      {"end", T_INT, 0},
+  };
+  paramCopy = copy_params(paramSubStr, 3);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "subStr", T_STRING, paramCopy, 3, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // ord(value: String, index: Int): Int
+  const Parameter paramOrd[2] = {
+      {"value", T_STRING, 0},
+      {"index", T_INT, 0},
+  };
+  paramCopy = copy_params(paramOrd, 2);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "ord", T_INT, paramCopy, 2, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // chr(code: Int): String
+  const Parameter paramChr = {"code", T_INT, 0};
+  paramCopy = copy_params(&paramChr, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "chr", T_STRING, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // readBool(): Boolean
+  if (st_insert_func(symtable, "readBoolean", T_BOOLEAN, NULL, 0, false,
+                     true) != ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  // floor(val: Double): Double
+  const Parameter paramFloor = {"value", T_DOUBLE, 0};
+  paramCopy = copy_params(&paramFloor, 1);
+  if (!paramCopy) {
+    return ERR_INTERNAL;
+  }
+  if (st_insert_func(symtable, "$floor", T_DOUBLE, paramCopy, 1, false, true) !=
+      ST_INSERT_OK) {
+    return ERR_INTERNAL;
+  }
+
+  return ERR_OK;
+}
+
+/// @brief Creates a deep copy of Parameter list, of n elements
+/// @param src parameter array
+/// @param count number of elements to copy
+/// @return copy of parameter array
+static Parameter *copy_params(const Parameter *src, uint16_t count) {
+  if (count == 0) {
+    return NULL;
+  }
+
+  Parameter *dst = calloc(count, sizeof(Parameter));
+  if (!dst) {
+    return NULL;
+  }
+
+  // copy names
+  for (uint16_t i = 0; i < count; i++) {
+    dst[i].name = strdup(src[i].name);
+
+    // failed copy, free all previous parameters
+    if (!dst[i].name) {
+      for (uint16_t j = 0; j < i; j++) {
+        free(dst[j].name);
+      }
+      free(dst);
+      return NULL;
+    }
+
+    dst[i].type = src[i].type;
+    dst[i].uid = src[i].uid;
+  }
+
+  return dst;
+}
+
+/// @brief Generates a new AST node for implicit int->double conversion and
+/// automatically connects it to expression
+/// @param operand AST node of expression to convert
+/// @return new AST node
+static AstNode *new_implicit_conversion(AstNode *operand) {
+  if (!operand) {
+    return NULL;
+  }
+
+  AstNode *newNode = ast_new_unary(OP_UNARY_INT2DOUBLE, operand, operand->line);
+  if (!newNode) {
+    return NULL;
+  }
+  newNode->evalType = T_DOUBLE;
+
+  return newNode;
+}
+
+/// @brief Determines if the type is of T_INT or T_DOUBLE
+/// @param type data type
+/// @return true if numeric, false otherwise
+static bool is_numeric_type(DataType type) {
+  return (bool)(type == T_INT || type == T_DOUBLE);
+}
+
+/// @brief Checks type compatibility and handles implicit conversion of int ->
+/// double
+/// @param expr AST node of expression
+/// @param leftType data type of left operand
+/// @param rightType data type of right operand
+/// @return ERR_OK or encountered semantic error
+static SemanticError resolve_binary_operands_type(AstNode *expr,
+                                                  DataType *leftType,
+                                                  DataType *rightType) {
+  if (!is_numeric_type(*leftType) || !is_numeric_type(*rightType)) {
+    return ERR_WRONG_TYPE;
+  }
+
+  // int + int or double + double
+  if (*leftType == *rightType) {
+    return ERR_OK;
+  }
+
+  // int + double
+  if (*leftType == T_INT) {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.left);
+    if (!converted) {
       return ERR_INTERNAL;
     }
-    ctx->scopeDepth++;
+    expr->as.binary.left = converted;
+    *leftType = T_DOUBLE;
   }
 
-  SemanticError err = ERR_SEM_OK;
-  for (size_t idx = 0; idx < body->as.block.count; idx++) {
-    err = analyze_node(ctx, body->as.block.stmts[idx]);
-    if (err != ERR_SEM_OK) {
-      if (!isFuncBody) {
-        st_pop_scope(ctx->symtable);
-        ctx->scopeDepth--;
-        ctx_pop_scope_uids(ctx);
-      }
-      return err;
+  // double + int
+  else {
+    AstNode *converted = new_implicit_conversion(expr->as.binary.right);
+    if (!converted) {
+      return ERR_INTERNAL;
     }
+    expr->as.binary.right = converted;
+    *rightType = T_DOUBLE;
   }
 
-  if (isFuncBody && expectedRet != T_UNIT) {
-    if (body->as.block.count == 0) {
-      return ERR_SEM_WRONG_TYPE;
-    }
-
-    // body ends with value, check its type
-    AstNode *last = body->as.block.stmts[body->as.block.count - 1];
-    if (last->type != AST_RETURN && !always_returns(last)) {
-
-      AstNode *exprNode =
-          (last->type == AST_EXPR_STATEMENT)
-              ? last->as.exprStatement.expr // y*2
-              : last; // for example x = 5, usually ends like T_UNIT
-
-      // from specification: these things should return as T_UNIT
-      DataType actualRet = exprNode->evalType;
-      if (last->type == AST_VAR_DECL || last->type == AST_ASSIGN ||
-          last->type == AST_WHILE || last->type == AST_IF) {
-        actualRet = T_UNIT;
-      }
-
-      if (actualRet != expectedRet) {
-        if (expectedRet == T_DOUBLE && actualRet == T_INT &&
-            last->type == AST_EXPR_STATEMENT) {
-          last->as.exprStatement.expr = promote_int_to_double(exprNode);
-        } else {
-          return ERR_SEM_WRONG_TYPE;
-        }
-      }
-    }
-  }
-
-  if (!isFuncBody) {
-    st_pop_scope(ctx->symtable);
-    ctx->scopeDepth--;
-    ctx_pop_scope_uids(ctx);
-  }
-
-  return ERR_SEM_OK;
+  return ERR_OK;
 }
 
-/**
- * @brief Analyzes statements in block or function body
- *
- * @param ctx Semantic context
- * @param node Statement or expression AST node
- * @return SemanticError status code
- */
-static SemanticError analyze_node(SemanticContext *ctx, AstNode *node) {
-  if (!node) {
-    return ERR_SEM_OK;
-  }
-
-  SemanticError err = ERR_SEM_OK;
-
-  switch (node->type) {
-  case AST_BLOCK:
-    return analyze_block_body(ctx, node, false, T_UNIT);
-
-  case AST_VAR_DECL: {
-    DataType initT = T_UNIT;
-    if (node->as.varDecl.initExpr) {
-      err = analyze_expr(ctx, node->as.varDecl.initExpr, &initT);
-      if (err != ERR_SEM_OK) {
-        return err;
-      }
-    }
-
-    DataType varT = node->as.varDecl.hasDeclaredType
-                        ? node->as.varDecl.declaredType
-                        : initT;
-
-    if (node->as.varDecl.hasDeclaredType && node->as.varDecl.initExpr) {
-      if (varT != initT) {
-        if (varT == T_DOUBLE && initT == T_INT) {
-          node->as.varDecl.initExpr =
-              promote_int_to_double(node->as.varDecl.initExpr);
-        } else {
-          return ERR_SEM_WRONG_TYPE;
-        }
-      }
-    }
-
-    uint32_t newUid = ++(ctx->varUidCounter);
-    node->uid = newUid;
-
-    if (!st_insert_var(ctx->symtable, node->as.varDecl.name, varT,
-                       node->as.varDecl.isModifiable)) {
-      return ERR_SEM_REDEFINITION;
-    }
-
-    if (!ctx_push_var_uid(ctx, node->as.varDecl.name, newUid)) {
-      return ERR_SEM_OTHER;
-    }
-
-    node->evalType = varT;
-    break;
-  }
-
-  case AST_ASSIGN: {
-    Symbol *sym = st_get(ctx->symtable, node->as.assign.name);
-    if (!sym || sym->type != ST_VAR) {
-      return ERR_SEM_UNDEFINED_SYMBOL;
-    }
-    if (!sym->data.var.modifiable) {
-      return ERR_SEM_IMMUTABLE;
-    }
-
-    DataType valT = T_UNIT;
-    err = analyze_expr(ctx, node->as.assign.value, &valT);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    if (sym->data.var.type != valT) {
-      if (sym->data.var.type == T_DOUBLE && valT == T_INT) {
-        node->as.assign.value = promote_int_to_double(node->as.assign.value);
-      } else {
-        return ERR_SEM_WRONG_TYPE;
-      }
-    }
-
-    node->uid = ctx_lookup_var_uid(ctx, node->as.assign.name);
-    node->evalType = sym->data.var.type;
-    break;
-  }
-
-  case AST_IF: {
-    DataType condT = T_UNIT;
-    err = analyze_expr(ctx, node->as.ifStatement.condition, &condT);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    if (condT != T_BOOLEAN) {
-      return ERR_SEM_WRONG_TYPE;
-    }
-
-    err = analyze_node(ctx, node->as.ifStatement.thenBlock);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    err = analyze_node(ctx, node->as.ifStatement.elseBlock);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    if (node->as.ifStatement.thenBlock && node->as.ifStatement.elseBlock) {
-      DataType thenT = node->as.ifStatement.thenBlock->evalType;
-      DataType elseT = node->as.ifStatement.elseBlock->evalType;
-      if (thenT == elseT) {
-        node->evalType = thenT;
-      } else if ((thenT == T_INT && elseT == T_DOUBLE) ||
-                 (thenT == T_DOUBLE && elseT == T_INT)) {
-        node->evalType = T_DOUBLE;
-      } else {
-        node->evalType = T_UNIT;
-      }
-    } else {
-      node->evalType = T_UNIT;
-    }
-    break;
-  }
-
-  case AST_WHILE: {
-    DataType condT = T_UNIT;
-    err = analyze_expr(ctx, node->as.whileStatement.cond, &condT);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-
-    if (condT != T_BOOLEAN) {
-      return ERR_SEM_WRONG_TYPE;
-    }
-
-    err = analyze_node(ctx, node->as.whileStatement.bodyBlock);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-    node->evalType = T_UNIT;
-    break;
-  }
-
-  case AST_RETURN: {
-    DataType exprT = T_UNIT;
-
-    if (node->as.ret.expr) {
-      err = analyze_expr(ctx, node->as.ret.expr, &exprT);
-      if (err != ERR_SEM_OK) {
-        return err;
-      }
-    }
-
-    if (ctx->currentRetType != T_UNIT) {
-      if (!node->as.ret.expr) {
-        return ERR_SEM_WRONG_TYPE;
-      }
-
-      if (ctx->currentRetType != exprT) {
-        if (ctx->currentRetType == T_DOUBLE && exprT == T_INT) {
-          node->as.ret.expr = promote_int_to_double(node->as.ret.expr);
-        } else {
-          return ERR_SEM_WRONG_TYPE;
-        }
-      }
-    }
-
-    node->evalType = exprT;
-    break;
-  }
-
-  case AST_EXPR_STATEMENT: {
-    DataType exprT = T_UNIT;
-    err = analyze_expr(ctx, node->as.exprStatement.expr, &exprT);
-    if (err != ERR_SEM_OK) {
-      return err;
-    }
-    node->evalType = exprT;
-    break;
-  }
-
-  default:
-    return analyze_expr(ctx, node, &(node->evalType));
-  }
-
-  return ERR_SEM_OK;
-}
-
-SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
-  if (!symtable || !root || root->type != AST_PROGRAM) {
-    return ERR_SEM_OTHER;
-  }
-
-  SemanticError err = register_builtins(symtable);
-  if (err != ERR_SEM_OK) {
-    return err;
-  }
-
-  int mainCount = 0;
-  // loop through functions
-  for (size_t idx = 0; idx < root->as.program.count; idx++) {
-
-    AstNode *fnNode = root->as.program.functions[idx];
-    if (fnNode->type != AST_FUNC_DEF) {
-      return ERR_SEM_OTHER;
-    }
-
-    Parameter *params = NULL;
-    if (fnNode->as.funcDef.paramCount > 0) {
-      params = calloc(fnNode->as.funcDef.paramCount, sizeof(Parameter));
-      if (!params) {
-        return ERR_INTERNAL;
-      }
-
-      for (uint16_t parIdx = 0; parIdx < fnNode->as.funcDef.paramCount;
-           parIdx++) {
-        params[parIdx].name = strdup(fnNode->as.funcDef.params[parIdx].name);
-        params[parIdx].type = fnNode->as.funcDef.params[parIdx].type;
-        params[parIdx].uid = 0; // temporary
-      }
-    }
-
-    if (!st_insert_func(symtable, fnNode->as.funcDef.name,
-                        fnNode->as.funcDef.retType, params,
-                        fnNode->as.funcDef.paramCount,
-                        fnNode->as.funcDef.isMain, true)) {
-      return ERR_SEM_REDEFINITION;
-    }
-
-    if (fnNode->as.funcDef.isMain) {
-      mainCount++;
-
-      if (mainCount > 1) {
-        return ERR_SEM_REDEFINITION;
-      }
-
-      if (fnNode->as.funcDef.paramCount > 0) {
-        return ERR_SEM_FUNCTION_PARAMS;
-      }
-
-      if (fnNode->as.funcDef.retType != T_UNIT) {
-        return ERR_SEM_WRONG_TYPE;
-      }
-    }
-  }
-
-  if (mainCount == 0) {
-    return ERR_SEM_UNDEFINED_SYMBOL;
-  }
-
-  SemanticContext ctx = {.symtable = symtable,
-                         .currentRetType = T_UNIT,
-                         .varUidCounter = 0,
-                         .scopeDepth = 0,
-                         .uidStack = NULL,
-                         .uidCount = 0,
-                         .uidCapacity = 0,
-                         .inMain = false};
-
-  for (size_t idx = 0; idx < root->as.program.count; idx++) {
-    AstNode *fnNode = root->as.program.functions[idx];
-    ctx.currentRetType = fnNode->as.funcDef.retType;
-    ctx.inMain = fnNode->as.funcDef.isMain;
-
-    if (!st_push_scope(symtable)) {
-      free(ctx.uidStack);
-      return ERR_SEM_OTHER;
-    }
-    ctx.scopeDepth = 1;
-
-    for (uint16_t parIdx = 0; parIdx < fnNode->as.funcDef.paramCount;
-         parIdx++) {
-      uint32_t paramUid = ++(ctx.varUidCounter);
-      fnNode->as.funcDef.params[parIdx].uid = paramUid;
-
-      if (!st_insert_var(symtable, fnNode->as.funcDef.params[parIdx].name,
-                         fnNode->as.funcDef.params[parIdx].type, false)) {
-        st_pop_scope(symtable);
-        free(ctx.uidStack);
-        return ERR_SEM_REDEFINITION;
-      }
-
-      if (!ctx_push_var_uid(&ctx, fnNode->as.funcDef.params[parIdx].name,
-                            paramUid)) {
-        st_pop_scope(symtable);
-        free(ctx.uidStack);
-        return ERR_SEM_OTHER;
-      }
-    }
-
-    err = analyze_block_body(&ctx, fnNode->as.funcDef.body, true,
-                             fnNode->as.funcDef.retType);
-    st_pop_scope(symtable);
-    ctx.scopeDepth = 0;
-    ctx_pop_scope_uids(&ctx);
-
-    if (err != ERR_SEM_OK) {
-      free(ctx.uidStack);
-      return err;
-    }
-  }
-
-  free(ctx.uidStack);
-  return ERR_SEM_OK;
-}
-
-/**
- * @brief Helper function that checks if all branches end with return statement
- */
+/// @brief Helper function that checks if all branches end with return
+/// statement
+/// @param node statement AST node
+/// @return true if every path ends with return statement, else otherwise
 static bool always_returns(AstNode *node) {
   if (!node) {
     return false;
@@ -799,14 +1092,13 @@ static bool always_returns(AstNode *node) {
 
   case AST_BLOCK:
     if (node->as.block.count == 0) {
-      return true;
+      return false;
     }
     return always_returns(node->as.block.stmts[node->as.block.count - 1]);
 
   case AST_IF:
-    bool result = always_returns(node->as.ifStatement.thenBlock) &&
-                  always_returns(node->as.ifStatement.elseBlock);
-    return result;
+    return (bool)(always_returns(node->as.ifStatement.thenBlock) &&
+                  always_returns(node->as.ifStatement.elseBlock));
 
   default:
     return false;

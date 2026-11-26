@@ -29,7 +29,7 @@ static SemanticError analyze_main_body(AstNode **statements, size_t count) {
 
   AstNode *body = ast_new_block(owned_statements, count, 1);
   AstNode *main =
-      ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, body, 1);
+      ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0, body, 1);
   AstNode **functions = malloc(sizeof(*functions));
   assert(functions != NULL);
   functions[0] = main;
@@ -41,6 +41,55 @@ static SemanticError analyze_main_body(AstNode **statements, size_t count) {
   return err;
 }
 
+static SemanticError analyze_with_helper(AstNode *helper) {
+  Symtable symtable;
+  assert(st_init(&symtable) == true);
+
+  AstNode *mainBody = ast_new_block(NULL, 0, 1);
+  AstNode *main =
+      ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0, mainBody, 1);
+  AstNode **functions = malloc(2 * sizeof(*functions));
+  assert(functions != NULL);
+  functions[0] = helper;
+  functions[1] = main;
+  AstNode *program = ast_new_program(functions, 2, 1);
+
+  SemanticError err = analyze_semantics(&symtable, program);
+  ast_free(program);
+  st_free(&symtable);
+  return err;
+}
+
+static void test_if_without_else_in_explicit_unit_function(void) {
+  AstNode *thenExpr = ast_new_expr_statement(ast_new_int(TEST_INT_VAL, 1), 1);
+  AstNode *conditional = ast_new_if(ast_new_bool(true, 1), thenExpr, NULL, 1);
+  AstNode *helper = ast_new_func_def(strdup("helper"), false, T_UNIT, true,
+                                     NULL, 0, conditional, 1);
+
+  assert(analyze_with_helper(helper) == ERR_OK);
+  printf("Test: If without else in explicit Unit function Passed\n");
+}
+
+static void test_if_without_else_inferred_unit_function(void) {
+  AstNode *thenExpr = ast_new_expr_statement(ast_new_unit(1), 1);
+  AstNode *conditional = ast_new_if(ast_new_bool(true, 1), thenExpr, NULL, 1);
+  AstNode *helper = ast_new_func_def(strdup("helper"), false, T_UNIT, false,
+                                     NULL, 0, conditional, 1);
+
+  assert(analyze_with_helper(helper) == ERR_OK);
+  printf("Test: Unit inference for if without else Passed\n");
+}
+
+static void test_if_without_else_non_unit_inferred_function(void) {
+  AstNode *thenExpr = ast_new_expr_statement(ast_new_int(TEST_INT_VAL, 1), 1);
+  AstNode *conditional = ast_new_if(ast_new_bool(true, 1), thenExpr, NULL, 1);
+  AstNode *helper = ast_new_func_def(strdup("helper"), false, T_UNIT, false,
+                                     NULL, 0, conditional, 1);
+
+  assert(analyze_with_helper(helper) == ERR_WRONG_TYPE);
+  printf("Test: Non-Unit if without else cannot be inferred Passed\n");
+}
+
 static void test_valid_assignment(void) {
   AstNode *decl = ast_new_var_decl(strdup("x"), true, T_INT, true, NULL, 1);
   AstNode *val = ast_new_int(TEST_INT_VAL, 1);
@@ -48,7 +97,7 @@ static void test_valid_assignment(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_OK);
+  assert(err == ERR_OK);
 
   printf("Test: Semantically valid assignment Passed\n");
 }
@@ -59,7 +108,7 @@ static void test_undefined_variable(void) {
   AstNode *statements[] = {assign};
 
   SemanticError err = analyze_main_body(statements, 1);
-  assert(err == ERR_SEM_UNDEFINED_SYMBOL);
+  assert(err == ERR_UNDEFINED_SYMBOL);
 
   printf("Test: Undefined variable Passed\n");
 }
@@ -71,7 +120,7 @@ static void test_type_mismatch(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_WRONG_TYPE);
+  assert(err == ERR_WRONG_TYPE);
 
   printf("Test: Type mismatch Passed\n");
 }
@@ -83,7 +132,7 @@ static void test_int_to_double_implicit_conversion(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_OK);
+  assert(err == ERR_OK);
 
   printf("Test: Implicit conversion Int to Double Passed\n");
 }
@@ -96,7 +145,7 @@ static void test_readonly_variable_assign(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_IMMUTABLE);
+  assert(err == ERR_IMMUTABLE);
 
   printf("Test: Assignment to constant (val) Passed\n");
 }
@@ -108,5 +157,8 @@ void test_semantic(void) {
   test_type_mismatch();
   test_int_to_double_implicit_conversion();
   test_readonly_variable_assign();
+  test_if_without_else_in_explicit_unit_function();
+  test_if_without_else_inferred_unit_function();
+  test_if_without_else_non_unit_inferred_function();
   printf("Semantic tests completed\n");
 }

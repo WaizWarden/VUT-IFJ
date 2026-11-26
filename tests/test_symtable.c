@@ -30,7 +30,7 @@ static void test_insert_get_var(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
 
-  assert(st_insert_var(&symtable, "count", T_INT, true) == true);
+  assert(st_insert_var(&symtable, "count", T_INT, true, 1) == ST_INSERT_OK);
 
   Symbol *found = st_get(&symtable, "count");
   assert(found != NULL);
@@ -39,7 +39,8 @@ static void test_insert_get_var(void) {
   assert(found->data.var.modifiable == true);
 
   // redefining the same name in one scope must leave the original symbol intact
-  assert(st_insert_var(&symtable, "count", T_DOUBLE, false) == false);
+  assert(st_insert_var(&symtable, "count", T_DOUBLE, false, 2) ==
+         ST_INSERT_REDEFINED);
   found = st_get(&symtable, "count");
   assert(found->data.var.type == T_INT);
   assert(found->data.var.modifiable == true);
@@ -52,10 +53,10 @@ static void test_insert_get_var(void) {
 static void test_nested_scope_shadowing(void) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
-  assert(st_insert_var(&symtable, "value", T_INT, true) == true);
+  assert(st_insert_var(&symtable, "value", T_INT, true, 1) == ST_INSERT_OK);
 
   assert(st_push_scope(&symtable) == true);
-  assert(st_insert_var(&symtable, "value", T_STRING, false) == true);
+  assert(st_insert_var(&symtable, "value", T_STRING, false, 2) == ST_INSERT_OK);
 
   Symbol *local = st_get(&symtable, "value");
   assert(local != NULL);
@@ -89,7 +90,7 @@ static void test_insert_get_function(void) {
   assert(parameters[1].name != NULL);
 
   assert(st_insert_func(&symtable, "combine", T_DOUBLE, parameters, 2, false,
-                        true) == true);
+                        true) == ST_INSERT_OK);
 
   Symbol *found = st_get(&symtable, "combine");
   assert(found != NULL);
@@ -113,7 +114,7 @@ static void test_function_is_global(void) {
 
   // function definitions always belong to the global scope
   assert(st_insert_func(&symtable, "globalFunction", T_UNIT, NULL, 0, false,
-                        true) == true);
+                        true) == ST_INSERT_OK);
   st_pop_scope(&symtable);
 
   Symbol *found = st_get(&symtable, "globalFunction");
@@ -136,8 +137,8 @@ static void test_redefinition_cleanup(void) {
   first[0].name = strdup("value");
   first[0].type = T_INT;
   assert(first[0].name != NULL);
-  assert(st_insert_func(&symtable, "duplicate", T_INT, first, 1, false,
-                        true) == true);
+  assert(st_insert_func(&symtable, "duplicate", T_INT, first, 1, false, true) ==
+         ST_INSERT_OK);
 
   Parameter *duplicate = calloc(1, sizeof(*duplicate));
   assert(duplicate != NULL);
@@ -147,7 +148,7 @@ static void test_redefinition_cleanup(void) {
 
   // failed insertion must not replace the existing function or leak its params
   assert(st_insert_func(&symtable, "duplicate", T_STRING, duplicate, 1, false,
-                        true) == false);
+                        true) == ST_INSERT_REDEFINED);
 
   Symbol *found = st_get(&symtable, "duplicate");
   assert(found != NULL);

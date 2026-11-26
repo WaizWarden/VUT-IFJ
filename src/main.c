@@ -21,7 +21,7 @@ int main(void) {
   }
 
   SemanticError error = analyze_semantics(&symtable, program);
-  if (error != ERR_SEM_OK) {
+  if (error != ERR_OK) {
     fprintf(stderr, "Semantic error: %d\n", (int)error);
     st_free(&symtable);
     ast_free(program);

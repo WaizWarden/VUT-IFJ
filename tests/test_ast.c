@@ -6,6 +6,7 @@
 
 #include "test_ast.h"
 #include "../src/ast.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,31 @@ static char *dup_str(const char *string) {
   char *copy = malloc(strlen(string) + 1);
   memcpy(copy, string, len);
   return copy;
+}
+
+static void assert_member_desugars_to(const char *member,
+                                      const char *expected) {
+  AstNode *receiver = ast_new_int(5, 1);
+  AstNode *node = ast_new_member_call(receiver, dup_str(member), 1);
+
+  assert(node != NULL);
+  assert(node->type == AST_FUNC_CALL);
+  assert(strcmp(node->as.funcCall.funcName, expected) == 0);
+  assert(node->as.funcCall.argCount == 1);
+  assert(node->as.funcCall.args[0] == receiver);
+
+  ast_free(node);
+}
+
+static void test_valmem_member_desugaring(void) {
+  assert_member_desugars_to("toString", "toStr");
+  assert_member_desugars_to("toInt", "toInt");
+  assert_member_desugars_to("floor", "$floor");
+  assert_member_desugars_to("length", "strLength");
+  assert_member_desugars_to("mojeFunkce", "$valmem_unknown");
+  assert_member_desugars_to("notAMember", "$valmem_unknown");
+
+  printf("Test: VALMEM member desugaring Passed\n");
 }
 
 void test_ast(void) {
@@ -64,9 +90,9 @@ void test_ast(void) {
   mainBody[3] = ast_new_return(NULL, 13);
 
   AstNode **funcs = (AstNode **)malloc(2 * sizeof(AstNode *));
-  funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, params, 1,
-                              ast_new_block(funcBody, 4, 1), 1);
-  funcs[1] = ast_new_func_def(dup_str("run"), true, T_UNIT, NULL, 0,
+  funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, true, params,
+                              1, ast_new_block(funcBody, 4, 1), 1);
+  funcs[1] = ast_new_func_def(dup_str("run"), true, T_UNIT, true, NULL, 0,
                               ast_new_block(mainBody, 4, 9), 9);
 
   AstNode *program = ast_new_program(funcs, 2, 0);
@@ -78,7 +104,7 @@ void test_ast(void) {
   extra[1] = ast_new_expr_statement(ast_new_unit(15), 15);
   AstNode *extraBlock = ast_new_block(extra, 2, 14);
   AstNode **funcs2 = (AstNode **)malloc(sizeof(AstNode *));
-  funcs2[0] = ast_new_func_def(dup_str("extra"), false, T_UNIT, NULL, 0,
+  funcs2[0] = ast_new_func_def(dup_str("extra"), false, T_UNIT, true, NULL, 0,
                                extraBlock, 14);
   AstNode *program2 = ast_new_program(funcs2, 1, 0);
 
@@ -89,4 +115,5 @@ void test_ast(void) {
 
   ast_free(program);
   ast_free(program2);
+  test_valmem_member_desugaring();
 }

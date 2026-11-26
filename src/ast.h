@@ -31,7 +31,7 @@ typedef enum {
   AST_LITERAL_DOUBLE,
   AST_LITERAL_STRING,
   AST_LITERAL_BOOL,
-  AST_LITERAL_UNIT
+  AST_LITERAL_UNIT,
 } AstNodeType;
 
 typedef enum {
@@ -46,10 +46,14 @@ typedef enum {
   OP_GT,
   OP_GE,
   OP_AND,
-  OP_OR
+  OP_OR,
 } BinaryOperation;
 
-typedef enum { OP_UNARY_MINUS, OP_UNARY_NOT } UnaryOperation;
+typedef enum {
+  OP_UNARY_MINUS,
+  OP_UNARY_NOT,
+  OP_UNARY_INT2DOUBLE
+} UnaryOperation;
 
 typedef struct AstNode {
   AstNodeType type;
@@ -95,6 +99,7 @@ typedef struct AstNode {
       char *name;
       bool isMain;
       DataType retType;
+      bool hasReturnType;
       Parameter *params;
       uint16_t paramCount;
       struct AstNode *body;
@@ -159,8 +164,8 @@ AstNode *ast_new_assign(char *name, AstNode *value, int line);
 
 AstNode *ast_new_program(AstNode **functions, size_t count, int line);
 AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
-                          Parameter *params, uint16_t paramCount, AstNode *body,
-                          int line);
+                          bool hasReturnType, Parameter *params,
+                          uint16_t paramCount, AstNode *body, int line);
 AstNode *ast_new_block(AstNode **stmts, size_t count, int line);
 AstNode *ast_new_var_decl(char *name, bool isModifiable, DataType declaredType,
                           bool hasDeclaredType, AstNode *initExpr, int line);
