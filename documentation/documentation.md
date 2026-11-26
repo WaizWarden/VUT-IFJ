@@ -24,11 +24,7 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 - **xsirmat00** – semantic analysis, code generator (secondary developer), dropped out
 
 #### Explanation of percent distribution
-**xsirmat00**
-
-While reviewing his code, we found a lot of signs of very high AI usage. When we asked him about the AI, he said we can give him zero percent and he will retake the course next year.
-
-Other issues contributed to this decision as well. Such as little commit count with high line count, not following git conventions we set as team.
+**xsirmat00** dropped out and will retake the course; per his agreement with the team he receives 0 %.
 
 # Team collaboration
 - Each module has its own unit tests
@@ -56,11 +52,7 @@ The parsing architecture is divided into two segments:
 
 ## Recursive descent algoritm
 
-This part processes the program structure using recursive descent. Each parser function handles one syntactic construct (function definitions, variable declarations, the prolog, loops, conditions). Based on the current token it decides which rule to apply and what to expect next.
-
-### How parser communicates with scanner
-
-Helper functions expect a specific token type or keyword and load the next token. If the input does not match the expected syntax, the parser exits with a syntax error (exit code 2).
+This part processes the program structure using recursive descent. Each parser function handles one syntactic construct (function definitions, variable declarations, the prolog, loops, conditions). Based on the current token it decides which rule to apply and what to expect next. Helper functions expect a specific token type or keyword and load the next token. If the input does not match the expected syntax, the parser exits with a syntax error (exit code 2).
 
 ### Prolog, Program and definition of functions
 
@@ -155,7 +147,6 @@ Precedence table distinguishes 4 types of relations:
 
 On reduction the analysis pops elements up to the `<` marker. If they match a reduction rule, they are replaced by one nonterminal carrying the new AST node. No new input token is loaded during a reduction.
 
-Analysis ends correctly only if the input symbol is the ending `"$"` and on the stack remains only the stack bottom and one nonterminal that represents the whole parsed expression.
 
 ### Construction of the precedence table (from 6x6 to 13x13)
 
@@ -169,61 +160,6 @@ Relation operators and comparators are non-associative. Because of this chaining
 
 The result is a table containing 13 columns and 13 rows with symbols: +- ,  */ ,  u- , !,  rel ,  ==!= , &&, || , ., ( ,  ) ,  i ,  $
 
-#### The conversion from 6x6 to 13x13
-
-Reduction rules:
-  - E -> i (term)
-  - E -> (E)
-  - E -> E +- E (for + and -)
-  - E -> E */ E (for * and /)
-  - E → E rel E  (for <, <=, >, >=)
-  - E → E ==!= E (covers == and !=)
-  - E -> -E(Unary minus)
-  - E -> ( ) (unit literal)
-  - E -> E && E
-  - E -> E || E
-  - E -> !E - negation (ast_new_unary(OP_UNARY_NOT))
-  - E → E . i
-
-For every reduction rule exist a sematic rule that creates AST
-
-1) Expansion for unary minus (-u) 6x6 to 7x7
-  - I had to add a new symbol into the table `-u`
-  - Column (`u-` on the input): `<` for all operators, `(`
-    and `$`, `>` for `)`, `i` and `.` - the operand of a
-    unary operator is shifted from the right
-  - The line is the same like for */
-2) Expansion for rel
-  - Column (`rel` on the input): `<` for `(` and `$`,
-    `>` otherwise. Empty for `rel` and `==!=` - relational
-    operators cannot chain (`a < b < c` is a syntax error)
-  - Line (`rel` on the stack): `<` for all higher-priority
-    symbols and `i`, `(`, `.`; `>` for `&&`, `||`, `)`, `$`;
-    empty for `rel` and `==!=`
-3) Expansion for `==` and `!=`
-  - The lowest priority level, built the same way as `rel`
-    (identical line and column)
-4) Expansion for `!` - unary negation
-  - It is new prefix operator, with the same priority as `u-`
-  - New line and column are identical to the `u-`
-    - The two symbols differ only in the reduction rules
-5) Expansion for `&&` - logical and
-  - A new lowest priority level (so far)
-  - Left-associative: `&&` vs `&&` is `>`, so `a && b && c` reduces left to right
-  - Column: `<` for `(` and `$`, otherwise `>` - when `&&` arrives on the input, the sub-expression on the stack is reduced first
-  - Line: `>` only for `&&`, `||`, `)` and `$`, `<` for all higher-priority symbols - the operator binds weaker than everything before it
-6) Expansion for `||` - logical or
-  - Another level below `&&`
-  - Left-associative, same construction as `&&`
-  - Column: `<` for `(` and `$`, otherwise `>`
-  - Line: `>` only for `||`, `)` and `$`. The `&&` column is `<`, so `a && b || c` correctly parses as `(a && b) || c`
-7) Expansion for `.` - extension for VALMEM
-  - The highest priority operator in the whole table
-  - Column (`.` on the input): `<` for all operators, `(` and `$` - the dot is shifted as part of the operand being built. `>` for `.`, `)` and `i`, `(` is empty
-  - Line (`.` on top of the stack): `<` only for `i`, which is shifted as the member name. `>` for everything else, `(` is empty - a method call with arguments `a.f(x)` is not handled by precedence, the parser resolves it
-  - New special reduction rule:
-    - The right operand MUST be a identifier
-    - Identifier is copied and the node is desugared into AST_FUNC_CALL of a builtin function.
 ### Precedence table
 
 |      | +- | */ | u- | !  | rel | ==!= | && | \|\| | .  | (  | )  | i  | $  |
@@ -355,49 +291,6 @@ The parser is implemented using a recursive descent that uses an LL grammar cove
 Non terminals are written using brackets `<>`. Terminals are written as tokens (`NEWLINE, INDENT, DEDENT,..`)
 Expressions themselves are handled by the precedence parser and appear as a single terminal `<expr>`.
 
-```
-<program>      → <prolog> NEWLINE <funcList>
-<prolog>       → import ifj26 . *
-<funcList>     → <funcDef> <funcList> | ε
-<funcDef>      → [ @ main ] def id ( <paramList> ) [ : <type> ] = <funcBody>
-<funcBody>     → NEWLINE INDENT <block> DEDENT | <exprOrCall>
-<paramList>    → <param> <paramRest> | ε
-<paramRest>    → , <param> <paramRest> | ε
-<param>        → id : <type>
-<type>         → Int | Double | String | Unit | Boolean
-
-<block>        → <stmtSeq>
-<stmtSeq>      → <statement> <stmtTail>
-<stmtTail>     → <sep> <stmtSeq> | <sep>
-<sep>          → NEWLINE | ;
-
-<statement>    → <varDecl> | <ifStmt> | <while> | <for> | <return>
-               | <idStmt> | <exprStmt>
-<varDecl>      → ( var | val ) id [ : <type> ] = <exprOrCall>
-<idStmt>       → id = <exprOrCall>
-               | id ( <argList> )
-               | id <exprTail>
-<return>       → return [ <exprOrCall> ]
-<exprStmt>     → <expr>
-
-<ifStmt>       → if <expr> then <body> [ else <elsePart> ]
-<elsePart>     → <ifStmt> | <body>
-<ifExpr>       → if <expr> then <body> else <elsePart>
-<while>        → while <expr> do NEWLINE INDENT <block> DEDENT
-<for>          → for <forHeader> do <body>
-<forHeader>    → id <- <expr> ( to | until ) <expr> [ by <expr> ] <guards>
-               | NEWLINE INDENT id <- <expr> ( to | until ) <expr>
-                 [ by <expr> ] <mlGuards> DEDENT
-<guards>       → if <expr> <guards> | ε
-<mlGuards>     → NEWLINE if <expr> <mlGuards> | NEWLINE
-<body>         → NEWLINE INDENT <block> DEDENT | <statement>
-
-<exprOrCall>   → <ifExpr> | id ( <argList> ) | <expr>
-<argList>      → <arg> <argRest> | ε
-<argRest>      → , <arg> <argRest> | ε
-<arg>          → <term> ( . id )*
-```
-
 Precedence grammar for `<expr>` (not part of the LL grammar):
 
 ```
@@ -520,42 +413,6 @@ The `for` header and function calls:
 | **arg** | 55 | | | | | | | 55 |
 | **term** | 56 | | | | | | | 56 |
 
-#### How to read the table
-
-The LL table acts as a map for the parser: standing on a
-non-terminal (row) and seeing a token on the input (column), the parser applies the rule whose number is stored in the cell.
-An empty cell marks a combination that can never occur.
-If it is reached, it means a syntax error.
-
-Example walkthrough for `def f(): Int = 5`: `<program>` on
-`import` applies rule 1, `<funcList>` on `def` applies rule 3,
-`<funcDef>` on `def` applies rule 5. Inside it, `<paramList>` sees
-`)` and applies the empty rule 9, `<type>` on `Int` applies rule
-13, and `<funcBody>` on an expr-start token applies rule 7, which
-hands the expression over to the precedence parser. After the last
-function `<funcList>` on `EOF` applies rule 4 and parsing ends.
-
-Cells with multiple rule numbers and `*` mark places where the grammar is not strictly LL(1) - the parser resolves them by
-looking one token further ahead:
-
-  - rule 29: after `id` the next token decides
-    (`=` assign, `(` call, otherwise an expression)
-  - rule 31: `return` decides on NEWLINE/DEDENT
-  - rule 34: the presence of `else` is known only after the
-    `then` body is parsed
-  - rule 44: after NEWLINE the parser checks for `if`
-  - rule 49: `id` plus a lookahead for `(`
-
-Each table row corresponds to the dispatch inside one parser
-function - e.g. the `<statement>` row is the switch in
-`parse_statement`.
-
-
-
-
-
-
-
 
 # Modules description
 
@@ -628,4 +485,3 @@ Daniel J. Bernstein. *djb2 hash*. <https://theartincode.stanis.me/008-djb2/>
 
 # AI usage
 - We agreed at a team meeting to document every use of AI and to briefly describe what it was used for, as required by the assignment.
-

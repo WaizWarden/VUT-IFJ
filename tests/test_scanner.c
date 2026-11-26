@@ -846,4 +846,250 @@ void indentation_flow_tests(void) {
   // END OF AI USAGE
 }
 
+void interp_tests(void) {
+  /* AI USAGE - claude
+  AI wrote tests for me
+  'Write me tests for nested interpolation'
+  */
+
+  scanner_destroy();
+  char *interp16 = "s\"${\"abc\"}$name\"";
+  TokenType expectedInterp16[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("A1 plain string in ${}, then $name", interp16,
+                    expectedInterp16,
+                    sizeof(expectedInterp16) / sizeof(expectedInterp16[0]));
+
+  scanner_destroy();
+  char *interp17 = "s\"${\"$name\"}\"";
+  TokenType expectedInterp17[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_STRING, TOKEN_INTERP_END,
+                                  TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("A2 plain string in ${} does not interpolate", interp17,
+                    expectedInterp17,
+                    sizeof(expectedInterp17) / sizeof(expectedInterp17[0]));
+
+  scanner_destroy();
+  char *interp18 = "s\"\"\"${\"abc\"} tail\"\"\"";
+  TokenType expectedInterp18[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_STRING, TOKEN_INTERP_END,
+                                  TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("A3 plain string in multi-line ${} is single-line",
+                    interp18, expectedInterp18,
+                    sizeof(expectedInterp18) / sizeof(expectedInterp18[0]));
+
+  scanner_destroy();
+  char *interp19 = "s\"${s\"$name\"} tail $n\"";
+  TokenType expectedInterp19[] = {
+      TOKEN_STRING,       TOKEN_INTERP_START, TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_INTERP_END,   TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_EOF};
+  run_sequence_test("A4 outer stays interpolated after nested s\"\"", interp19,
+                    expectedInterp19,
+                    sizeof(expectedInterp19) / sizeof(expectedInterp19[0]));
+
+  scanner_destroy();
+  char *interp20 = "s\"${s\"\"\"$a\"\"\"} $b\"";
+  TokenType expectedInterp20[] = {
+      TOKEN_STRING,       TOKEN_INTERP_START, TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_INTERP_END,   TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_EOF};
+  run_sequence_test("A5 multi-line s in single-line ${}", interp20,
+                    expectedInterp20,
+                    sizeof(expectedInterp20) / sizeof(expectedInterp20[0]));
+
+  scanner_destroy();
+  char *interp21 = "s\"\"\"${s\"$a\"} $b\"\"\"";
+  TokenType expectedInterp21[] = {
+      TOKEN_STRING,       TOKEN_INTERP_START, TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_INTERP_END,   TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_EOF};
+  run_sequence_test("A6 single-line s in multi-line ${}", interp21,
+                    expectedInterp21,
+                    sizeof(expectedInterp21) / sizeof(expectedInterp21[0]));
+
+  scanner_destroy();
+  char *interp22 = "s\"${\"\"\"x\"\"\"} $b\"";
+  TokenType expectedInterp22[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("A7 plain multi-line string in ${}", interp22,
+                    expectedInterp22,
+                    sizeof(expectedInterp22) / sizeof(expectedInterp22[0]));
+
+  scanner_destroy();
+  char *interp23 = "s\"$s\"";
+  TokenType expectedInterp23[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("B1 $s at end of string", interp23, expectedInterp23,
+                    sizeof(expectedInterp23) / sizeof(expectedInterp23[0]));
+
+  scanner_destroy();
+  char *interp24 = "s\"$s$s\"";
+  TokenType expectedInterp24[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("B2 $s$s", interp24, expectedInterp24,
+                    sizeof(expectedInterp24) / sizeof(expectedInterp24[0]));
+
+  scanner_destroy();
+  char *interp25 = "s\"$true tail\"";
+  TokenType expectedInterp25[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_ERROR};
+  run_sequence_test("C1 $true is error", interp25, expectedInterp25,
+                    sizeof(expectedInterp25) / sizeof(expectedInterp25[0]));
+
+  scanner_destroy();
+  char *interp26 = "s\"$if\"";
+  TokenType expectedInterp26[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_ERROR};
+  run_sequence_test("C2 $keyword is error", interp26, expectedInterp26,
+                    sizeof(expectedInterp26) / sizeof(expectedInterp26[0]));
+
+  scanner_destroy();
+  char *interp27 = "s\"${true}\"";
+  TokenType expectedInterp27[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_BOOL,   TOKEN_INTERP_END,
+                                  TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("C3 ${true} is valid", interp27, expectedInterp27,
+                    sizeof(expectedInterp27) / sizeof(expectedInterp27[0]));
+
+  scanner_destroy();
+  char *interp28 = "s\"${1";
+  TokenType expectedInterp28[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_INT,
+                                  TOKEN_ERROR};
+  run_sequence_test("D1 EOF in ${", interp28, expectedInterp28,
+                    sizeof(expectedInterp28) / sizeof(expectedInterp28[0]));
+
+  scanner_destroy();
+  char *interp29 = "s\"${";
+  TokenType expectedInterp29[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_ERROR};
+  run_sequence_test("D2 EOF right after ${", interp29, expectedInterp29,
+                    sizeof(expectedInterp29) / sizeof(expectedInterp29[0]));
+
+  scanner_destroy();
+  char *interp30 = "s\"\"\"${x";
+  TokenType expectedInterp30[] = {TOKEN_STRING, TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_ERROR};
+  run_sequence_test("D3 EOF in multi-line ${", interp30, expectedInterp30,
+                    sizeof(expectedInterp30) / sizeof(expectedInterp30[0]));
+
+  scanner_destroy();
+  char *interp31 = "s\"${x}}\"";
+  TokenType expectedInterp31[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_STRING,     TOKEN_EOF};
+  run_sequence_test("R1 second } is string text", interp31, expectedInterp31,
+                    sizeof(expectedInterp31) / sizeof(expectedInterp31[0]));
+
+  scanner_destroy();
+  char *interp32 = "s\"${\"a\"}\"\nx";
+  TokenType expectedInterp32[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_NEWLINE,      TOKEN_IDENTIFIER, TOKEN_EOF};
+  run_sequence_test("R2 normal code after nested string", interp32,
+                    expectedInterp32,
+                    sizeof(expectedInterp32) / sizeof(expectedInterp32[0]));
+
+  scanner_destroy();
+  char *interp33 = "s\"\"\"${1 +\n  2} tail\"\"\"";
+  TokenType expectedInterp33[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_INT,    TOKEN_PLUS,
+      TOKEN_INT,    TOKEN_INTERP_END,   TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("N1 newline in multi-line ${}", interp33, expectedInterp33,
+                    sizeof(expectedInterp33) / sizeof(expectedInterp33[0]));
+
+  scanner_destroy();
+  char *interp34 = "s\"${1 +\n2}\"";
+  TokenType expectedInterp34[] = {TOKEN_STRING, TOKEN_INTERP_START, TOKEN_INT,
+                                  TOKEN_PLUS, TOKEN_ERROR};
+  run_sequence_test("N2 newline in single-line ${}", interp34, expectedInterp34,
+                    sizeof(expectedInterp34) / sizeof(expectedInterp34[0]));
+
+  // 5: nested ${ inside ${
+  scanner_destroy();
+  char *interp35 = "s\"${s\"${n + 1}\"}\"";
+  TokenType expectedInterp35[] = {
+      TOKEN_STRING,     TOKEN_INTERP_START, TOKEN_STRING, TOKEN_INTERP_START,
+      TOKEN_IDENTIFIER, TOKEN_PLUS,         TOKEN_INT,    TOKEN_INTERP_END,
+      TOKEN_STRING,     TOKEN_INTERP_END,   TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("A8 ${ inside ${", interp35, expectedInterp35,
+                    sizeof(expectedInterp35) / sizeof(expectedInterp35[0]));
+
+  scanner_destroy();
+  char *interp36 = "s\"${s\"${x}\"} $y\"";
+  TokenType expectedInterp36[] = {
+      TOKEN_STRING,       TOKEN_INTERP_START, TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_INTERP_END,   TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_EOF};
+  run_sequence_test("A9 outer continues after nested ${}", interp36,
+                    expectedInterp36,
+                    sizeof(expectedInterp36) / sizeof(expectedInterp36[0]));
+
+  scanner_destroy();
+  char *interp37 = "s\"\"\"${s\"${x}\"} $y\"\"\"";
+  TokenType expectedInterp37[] = {
+      TOKEN_STRING,       TOKEN_INTERP_START, TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_INTERP_END,   TOKEN_STRING,
+      TOKEN_INTERP_START, TOKEN_IDENTIFIER,   TOKEN_INTERP_END,
+      TOKEN_STRING,       TOKEN_EOF};
+  run_sequence_test("A10 nested ${} in multi-line", interp37, expectedInterp37,
+                    sizeof(expectedInterp37) / sizeof(expectedInterp37[0]));
+
+  scanner_destroy();
+  char *interp38 = "s\"${s\"${s\"${x}\"}\"}\"";
+  TokenType expectedInterp38[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING,     TOKEN_INTERP_START,
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_END,   TOKEN_STRING,     TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("A11 three levels of ${", interp38, expectedInterp38,
+                    sizeof(expectedInterp38) / sizeof(expectedInterp38[0]));
+
+  scanner_destroy();
+  char *interp39 = "s\"\"\"${s\"\"\"${1 +\n2}\"\"\"}\"\"\"";
+  TokenType expectedInterp39[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING, TOKEN_INTERP_START,
+      TOKEN_INT,    TOKEN_PLUS,         TOKEN_INT,    TOKEN_INTERP_END,
+      TOKEN_STRING, TOKEN_INTERP_END,   TOKEN_STRING, TOKEN_EOF};
+  run_sequence_test("N3 newline in nested multi-line ${}", interp39,
+                    expectedInterp39,
+                    sizeof(expectedInterp39) / sizeof(expectedInterp39[0]));
+
+  scanner_destroy();
+  char *interp40 = "s\"\"\"${s\"${1 +\n2}\"}\"\"\"";
+  TokenType expectedInterp40[] = {
+      TOKEN_STRING, TOKEN_INTERP_START, TOKEN_STRING, TOKEN_INTERP_START,
+      TOKEN_INT,    TOKEN_PLUS,         TOKEN_ERROR};
+  run_sequence_test("N4 newline in single-line ${} nested in multi-line",
+                    interp40, expectedInterp40,
+                    sizeof(expectedInterp40) / sizeof(expectedInterp40[0]));
+
+  scanner_destroy();
+  char *interp41 = "s\"${x}\" }";
+  TokenType expectedInterp41[] = {TOKEN_STRING,     TOKEN_INTERP_START,
+                                  TOKEN_IDENTIFIER, TOKEN_INTERP_END,
+                                  TOKEN_STRING,     TOKEN_ERROR};
+  run_sequence_test("R3 } after closed string is error", interp41,
+                    expectedInterp41,
+                    sizeof(expectedInterp41) / sizeof(expectedInterp41[0]));
+
+  // END OF AI USAGE
+}
+
 // NOLINTEND

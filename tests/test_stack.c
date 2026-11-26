@@ -19,23 +19,24 @@
  */
 
 static void test_push_and_top(void) {
+  Stack stack;
   StackItem item;
 
-  stack_init();
+  stack_init(&stack);
   item.symbol = SYM_DOLLAR;
   item.token = TOKEN_EOF;
   item.node = NULL;
-  stack_push(item);
+  stack_push(&stack, item);
 
   // Getting the Top item
-  StackItem *top = stack_top();
+  StackItem *top = stack_top(&stack);
 
   assert(top != NULL);
   assert(top->symbol == SYM_DOLLAR);
   assert(top->token == TOKEN_EOF);
   assert(top->node == NULL);
 
-  stack_free();
+  stack_free(&stack);
 }
 
 // End of collaboration with Devin AI
@@ -44,7 +45,8 @@ static void test_push_and_top(void) {
  * @brief Testing the correct order of elements in stack
  */
 static void test_lifo_order(void) {
-  stack_init();
+  Stack stack;
+  stack_init(&stack);
 
   // Creation of 3 different Items
   StackItem item0;
@@ -62,31 +64,31 @@ static void test_lifo_order(void) {
   item2.token = TOKEN_INT;
   item2.node = NULL;
 
-  stack_push(item0);
-  stack_push(item1);
-  stack_push(item2);
+  stack_push(&stack, item0);
+  stack_push(&stack, item1);
+  stack_push(&stack, item2);
 
-  StackItem popped = stack_pop();
+  StackItem popped = stack_pop(&stack);
 
   // Checking after first popping
   assert(popped.symbol == SYM_TERM);
   assert(popped.token == TOKEN_INT);
   assert(popped.node == NULL);
 
-  popped = stack_pop();
+  popped = stack_pop(&stack);
   // Checking if he item1 is availible at the correct pos
   assert(popped.symbol == SYM_PLUS_MINUS);
   assert(popped.token == TOKEN_PLUS);
   assert(popped.node == NULL);
 
-  popped = stack_pop();
+  popped = stack_pop(&stack);
   // Last check
   assert(popped.symbol == SYM_DOLLAR);
   assert(popped.token == TOKEN_EOF);
   assert(popped.node == NULL);
 
   // freeing of memory
-  stack_free();
+  stack_free(&stack);
 }
 
 /**
@@ -94,7 +96,8 @@ static void test_lifo_order(void) {
  * E", the top should be '+'
  */
 static void test_top_terminal(void) {
-  stack_init();
+  Stack stack;
+  stack_init(&stack);
 
   // Creation of 4 items in stack
   StackItem item0;
@@ -117,12 +120,12 @@ static void test_top_terminal(void) {
   item3.token = TOKEN_EOF;
   item3.node = NULL;
 
-  stack_push(item0);
-  stack_push(item1);
-  stack_push(item2);
-  stack_push(item3);
+  stack_push(&stack, item0);
+  stack_push(&stack, item1);
+  stack_push(&stack, item2);
+  stack_push(&stack, item3);
 
-  StackItem *topTerminal = stack_top_terminal();
+  StackItem *topTerminal = stack_top_terminal(&stack);
 
   assert(topTerminal != NULL);
   assert(topTerminal->symbol == SYM_PLUS_MINUS);
@@ -133,23 +136,24 @@ static void test_top_terminal(void) {
   item4.symbol = SYM_TERM;
   item4.token = TOKEN_IDENTIFIER;
   item4.node = NULL;
-  stack_push(item4);
+  stack_push(&stack, item4);
 
-  topTerminal = stack_top_terminal();
+  topTerminal = stack_top_terminal(&stack);
 
   // Verification of item4 values
   assert(topTerminal != NULL);
   assert(topTerminal->symbol == SYM_TERM);
   assert(topTerminal->token == TOKEN_IDENTIFIER);
 
-  stack_free();
+  stack_free(&stack);
 }
 
 /**
  * @brief Testing of resizing the stack (growth)
  */
 static void test_stack_growth(void) {
-  stack_init();
+  Stack stack;
+  stack_init(&stack);
 
   // Setting up the AST nodes - 16x
   AstNode node[16];
@@ -158,7 +162,7 @@ static void test_stack_growth(void) {
     item.symbol = SYM_TERM;
     item.token = TOKEN_INT;
     item.node = &node[i];
-    stack_push(item);
+    stack_push(&stack, item);
   }
 
   // After the ninth element added in the loop above, a realloc should be
@@ -166,43 +170,44 @@ static void test_stack_growth(void) {
   // is 2*n)
 
   for (int i = 15; i >= 0; i--) {
-    StackItem popped = stack_pop();
+    StackItem popped = stack_pop(&stack);
 
     assert(popped.symbol == SYM_TERM);
     assert(popped.token == TOKEN_INT);
     assert(popped.node == &node[i]);
   }
 
-  stack_free();
+  stack_free(&stack);
 }
 
 /**
  * @brief Tests the stack_insert_handle_start() fun.
  */
 static void test_insert_handle_start(void) {
-  stack_init();
+  Stack stack;
+  stack_init(&stack);
 
   StackItem item;
   item.symbol = SYM_DOLLAR;
   item.token = TOKEN_EOF;
   item.node = NULL;
 
-  stack_push(item);
+  stack_push(&stack, item);
 
   item.symbol = SYM_NONTERM;
   item.token = TOKEN_EOF;
   item.node = NULL;
-  stack_push(item);
+  stack_push(&stack, item);
 
-  stack_insert_handle_start();
-  StackItem popped = stack_pop();
+  stack_insert_handle_start(&stack);
+  StackItem popped = stack_pop(&stack);
   assert(popped.symbol == SYM_NONTERM);
-  popped = stack_pop();
+  popped = stack_pop(&stack);
   assert(popped.symbol == SYM_HANDLE_START);
-  popped = stack_pop();
+  popped = stack_pop(&stack);
   assert(popped.symbol == SYM_DOLLAR);
 
-  stack_free();
+  stack_free(&stack);
 }
 /**
  * @brief Main function of test stack.
