@@ -90,8 +90,8 @@ void test_ast(void) {
   mainBody[3] = ast_new_return(NULL, 13);
 
   AstNode **funcs = (AstNode **)malloc(2 * sizeof(AstNode *));
-  funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, true, params, 1,
-                              ast_new_block(funcBody, 4, 1), 1);
+  funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, true, params,
+                              1, ast_new_block(funcBody, 4, 1), 1);
   funcs[1] = ast_new_func_def(dup_str("run"), true, T_UNIT, true, NULL, 0,
                               ast_new_block(mainBody, 4, 9), 9);
 
