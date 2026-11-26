@@ -6,8 +6,11 @@
 #
 #########################
 
-.PHONY: build test valgrind format tidy docs dev pdf
+.PHONY: build test valgrind format tidy docs dev pdf docker docker-build
 CFLAGS = -Wall -Wextra -pedantic
+
+CONTAINER_ENGINE ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
+DOCKER_IMAGE ?= ifj26-dev
 
 SRC_SRCS := $(shell find src -name '*.c')
 SRC_SRCS := $(filter-out src/semantic_old.c, $(SRC_SRCS))
@@ -26,7 +29,11 @@ dev: format tidy build
 
 docs:
 	doxygen Doxyfile
-	xdg-open docs/html/index.html
+	@if [ -n "$$DISPLAY" ] && command -v xdg-open >/dev/null 2>&1; then \
+		xdg-open docs/html/index.html; \
+	else \
+		printf 'Documentation generated at docs/html/index.html\n'; \
+	fi
 
 format:
 	clang-format -i $(ALL_SRCS)
@@ -50,6 +57,20 @@ valgrind: build
 			--errors-for-leak-kinds=definite,indirect --track-origins=yes \
 			--error-exitcode=1 ./Output < "$$source" > /dev/null; \
 	done
+
+docker: docker-build
+	$(CONTAINER_ENGINE) run --rm -it \
+		$(if $(findstring podman,$(notdir $(CONTAINER_ENGINE))),--userns=keep-id,) \
+		--user "$$(id -u):$$(id -g)" \
+		-e HOME=/tmp \
+		--volume "$(CURDIR):/workspace:z" \
+		-w /workspace $(DOCKER_IMAGE) bash
+
+docker-build:
+	@if [ -z "$(CONTAINER_ENGINE)" ]; then \
+		echo "Docker or Podman is required for this target" >&2; exit 127; \
+	fi
+	$(CONTAINER_ENGINE) build -f Dockerfile.dev -t $(DOCKER_IMAGE) .
 
 export: pdf
 	rm -rf result

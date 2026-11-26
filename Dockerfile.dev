@@ -1,0 +1,21 @@
+ARG DEBIAN_IMAGE=debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+FROM ${DEBIAN_IMAGE}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        clang-format \
+        clang-tidy \
+        doxygen \
+        file \
+        git \
+        pandoc \
+        unzip \
+        valgrind \
+        weasyprint \
+        zip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+ENV HOME=/tmp
