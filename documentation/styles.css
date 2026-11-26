@@ -21,3 +21,6 @@ th, td {
     content: "https://github.com/WaizWarden/VUT-IFJ";
   }
 }
+img {
+  max-width: 100%;
+}
