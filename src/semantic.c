@@ -796,8 +796,8 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
 
     if (!expr->as.ifStatement.elseBlock) {
       DataType thenType = T_UNIT;
-      error =
-          analyze_statement(symtable, expr->as.ifStatement.thenBlock, &thenType);
+      error = analyze_statement(symtable, expr->as.ifStatement.thenBlock,
+                                &thenType);
       if (error != ERR_OK) {
         return error;
       }
