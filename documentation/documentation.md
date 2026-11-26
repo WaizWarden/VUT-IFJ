@@ -239,51 +239,51 @@ E → i | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
 ### Numbered rules
 
 ```
- 1 <program>      → <prolog> NL <funcList> EOF
- 2 <prolog>       → import ifj26 . *
- 3 <funcList>     → <funcDef> <funcList>      4  <funcList>     → ε
- 5 <funcDef>      → <mainOpt> def id ( <paramList> ) <typeOpt> = <funcBody>
- 6 <mainOpt>      → @ main                     7  <mainOpt>      → ε
- 8 <typeOpt>      → : type                     9  <typeOpt>      → ε
-10 <funcBody>     → NL IND <block> DED        11  <funcBody>     → <exprOrCall>
-12 <paramList>    → <param> <paramRest>       13  <paramList>    → ε
-14 <paramRest>    → , <param> <paramRest>     15  <paramRest>    → ε
-16 <param>        → id : type
-17 <block>        → <statement> <stmtTail>
-18 <stmtTail>     → NL <moreStmts>            19  <stmtTail>     → ; <moreStmts>
-20 <stmtTail>     → ε
-21 <moreStmts>    → <statement> <stmtTail>    22  <moreStmts>    → ε
-23 <statement>    → <varDecl>                 24  <statement>    → <ifStmt>
-25 <statement>    → <while>                   26  <statement>    → <for>
-27 <statement>    → <return>                  28  <statement>    → <idStmt>
-29 <statement>    → <exprNoId>
-30 <varDecl>      → var id <typeOpt> = <exprOrCall>
-31 <varDecl>      → val id <typeOpt> = <exprOrCall>
-32 <idStmt>       → id <idTail>
-33 <idTail>       → = <exprOrCall>            34  <idTail>       → ( <argList> )
-35 <idTail>       → <exprTail>
-36 <return>       → return <returnTail>
-37 <returnTail>   → <exprOrCall>              38  <returnTail>   → ε
-39 <ifStmt>       → if <expr> then <body> <elseOpt>
-40 <elseOpt>      → else <body>               41  <elseOpt>      → ε
-42 <ifExpr>       → if <expr> then <body> else <body>
-43 <while>        → while <expr> do NL IND <block> DED
-44 <for>          → for <forHeader> do <body>
-45 <forHeader>    → id <- <expr> <range> <expr> <byOpt> <guards>
-46 <forHeader>    → NL IND id <- <expr> <range> <expr> <byOpt> NL <mlGuards> DED
-47 <range>        → to                        48  <range>        → until
-49 <byOpt>        → by <expr>                 50  <byOpt>        → ε
-51 <guards>       → if <expr> <guards>        52  <guards>       → ε
-53 <mlGuards>     → if <expr> NL <mlGuards>   54  <mlGuards>     → ε
-55 <body>         → NL IND <block> DED        56  <body>         → <statement>
-57 <exprOrCall>   → <ifExpr>                  58  <exprOrCall>   → id <exprCallTail>
-59 <exprOrCall>   → <exprNoId>
-60 <exprCallTail> → ( <argList> )             61  <exprCallTail> → <exprTail>
-62 <argList>      → <arg> <argRest>           63  <argList>      → ε
-64 <argRest>      → , <arg> <argRest>         65  <argRest>      → ε
-66 <arg>          → <term> <memberTail>
-67 <memberTail>   → . id <memberTail>         68  <memberTail>   → ε
-69 <term>         → atom                      70  <term>         → ( )
+ 1 <program>       → <prolog> NL <funcList> EOF
+ 2 <prolog>        → import ifj26 . *
+ 3 <funcList>      → <funcDef> <funcList>      4 <funcList>      → ε
+ 5 <funcDef>       → <mainOpt> def id ( <paramList> ) <typeOpt> = <funcBody>
+ 6 <mainOpt>       → @ main                    7 <mainOpt>       → ε
+ 8 <typeOpt>       → : type                    9 <typeOpt>       → ε
+10 <funcBody>      → NL IND <block> DED       11 <funcBody>      → <exprOrCall>
+12 <paramList>     → <param> <paramRest>      13 <paramList>     → ε
+14 <paramRest>     → , <param> <paramRest>    15 <paramRest>     → ε
+16 <param>         → id : type
+17 <block>         → <statement> <stmtTail>
+18 <stmtTail>      → NL <moreStmts>           19 <stmtTail>      → ; <moreStmts>
+20 <stmtTail>      → ε                        22 <moreStmts>     → ε
+21 <moreStmts>     → <statement> <stmtTail>
+23 <statement>     → <varDecl>                24 <statement>     → <ifStmt>
+25 <statement>     → <while>                  26 <statement>     → <for>
+27 <statement>     → <return>                 28 <statement>     → <idStmt>
+29 <statement>     → <exprNoId>
+30 <varDecl>       → var id <typeOpt> = <exprOrCall>
+31 <varDecl>       → val id <typeOpt> = <exprOrCall>
+32 <idStmt>        → id <idTail>
+33 <idTail>        → = <exprOrCall>           34 <idTail>        → ( <argList> )
+35 <idTail>        → <exprTail>
+36 <return>        → return <returnTail>
+37 <returnTail>    → <exprOrCall>             38 <returnTail>    → ε
+39 <ifStmt>        → if <expr> then <body> <elseOpt>
+40 <elseOpt>       → else <body>              41 <elseOpt>       → ε
+42 <ifExpr>        → if <expr> then <body> else <body>
+43 <while>         → while <expr> do NL IND <block> DED
+44 <for>           → for <forHeader> do <body>
+45 <forHeader>     → id <- <expr> <range> <expr> <byOpt> <guards>
+46 <forHeader>     → NL IND id <- <expr> <range> <expr> <byOpt> NL <mlGuards> DED
+47 <range>         → to                       48 <range>         → until
+49 <byOpt>         → by <expr>                50 <byOpt>         → ε
+51 <guards>        → if <expr> <guards>       52 <guards>        → ε
+53 <mlGuards>      → if <expr> NL <mlGuards>  54 <mlGuards>      → ε
+55 <body>          → NL IND <block> DED       56 <body>          → <statement>
+57 <exprOrCall>    → <ifExpr>                 58 <exprOrCall>    → id <exprCallTail>
+59 <exprOrCall>    → <exprNoId>
+60 <exprCallTail>  → ( <argList> )            61 <exprCallTail>  → <exprTail>
+62 <argList>       → <arg> <argRest>          63 <argList>       → ε
+64 <argRest>       → , <arg> <argRest>        65 <argRest>       → ε
+66 <arg>           → <term> <memberTail>
+67 <memberTail>    → . id <memberTail>        68 <memberTail>    → ε
+69 <term>          → atom                     70 <term>          → ( )
 ```
 
 For `id = id` versus `id = id(...)`, the parser reads the identifier and inspects the next token. `(` selects a call, otherwise the identifier is passed to `precedence_parse` as `firstOperand`. Since FUNEXP is not implemented, this syntactic lookahead is sufficient.
