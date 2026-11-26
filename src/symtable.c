@@ -130,8 +130,8 @@ void st_pop_scope(Symtable *symtable) {
   free(toFree);
 }
 
-StInsertResult st_insert_var(Symtable *symtable, const char *name, DataType type,
-                   bool modifiable, uint32_t uid) {
+StInsertResult st_insert_var(Symtable *symtable, const char *name,
+                             DataType type, bool modifiable, uint32_t uid) {
   if (!symtable || !symtable->top || !symtable->top->table || !name) {
     return ST_INSERT_ERROR;
   }

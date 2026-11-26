@@ -325,12 +325,10 @@ static void test_valmem_to_string(void) {
   AstNode *receiver = ast_new_double(1.2345, 1);
   receiver->evalType = T_DOUBLE;
 
-  valmem_node =
-      ast_new_member_call(receiver, strdup("toString"), 1);
+  valmem_node = ast_new_member_call(receiver, strdup("toString"), 1);
   valmem_node->evalType = T_STRING;
 
-  char *output =
-      capture_test_statement(ast_new_expr_statement(valmem_node, 1));
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "PUSHS float@") != NULL);
   assert(strstr(output, "FLOAT2STR") != NULL);
   assert(strstr(output, "PUSHS GF@$tmp1") != NULL);
@@ -346,8 +344,7 @@ static void test_valmem_to_int(void) {
   valmem_node = ast_new_member_call(receiver, strdup("toInt"), 1);
   valmem_node->evalType = T_INT;
 
-  char *output =
-      capture_test_statement(ast_new_expr_statement(valmem_node, 1));
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "PUSHS float@") != NULL);
   assert(strstr(output, "FLOAT2INTS") != NULL);
   free(output);
@@ -362,8 +359,7 @@ static void test_valmem_length(void) {
   valmem_node = ast_new_member_call(receiver, strdup("length"), 1);
   valmem_node->evalType = T_INT;
 
-  char *output =
-      capture_test_statement(ast_new_expr_statement(valmem_node, 1));
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "STRLEN GF@$tmp1 GF@$tmp1") != NULL);
   assert(strstr(output, "PUSHS GF@$tmp1") != NULL);
   free(output);
@@ -375,12 +371,10 @@ static void test_valmem_floor(void) {
   AstNode *negativeReceiver = ast_new_double(-3.75, 1);
   negativeReceiver->evalType = T_DOUBLE;
 
-  valmem_node =
-      ast_new_member_call(negativeReceiver, strdup("floor"), 1);
+  valmem_node = ast_new_member_call(negativeReceiver, strdup("floor"), 1);
   valmem_node->evalType = T_DOUBLE;
 
-  char *output =
-      capture_test_statement(ast_new_expr_statement(valmem_node, 1));
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "FLOAT2INT GF@$tmp2 GF@$tmp1") != NULL);
   assert(strstr(output, "INT2FLOAT GF@$tmp3 GF@$tmp2") != NULL);
   assert(strstr(output, "LT GF@$tmp4 GF@$tmp1 GF@$tmp3") != NULL);
@@ -397,15 +391,13 @@ static void test_valmem_chained_floor_to_int(void) {
   AstNode *receiver = ast_new_double(-3.75, 1);
   receiver->evalType = T_DOUBLE;
 
-  AstNode *floored =
-      ast_new_member_call(receiver, strdup("floor"), 1);
+  AstNode *floored = ast_new_member_call(receiver, strdup("floor"), 1);
   floored->evalType = T_DOUBLE;
 
   valmem_node = ast_new_member_call(floored, strdup("toInt"), 1);
   valmem_node->evalType = T_INT;
 
-  char *output =
-      capture_test_statement(ast_new_expr_statement(valmem_node, 1));
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "FLOAT2INT GF@$tmp2 GF@$tmp1") != NULL);
   assert(strstr(output, "INT2FLOAT GF@$tmp3 GF@$tmp2") != NULL);
   assert(strstr(output, "$floor_end_") != NULL);

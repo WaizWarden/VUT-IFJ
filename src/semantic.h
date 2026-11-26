@@ -28,4 +28,4 @@ typedef enum {
 /// @return ERR_OK if there is no error encountered or apropriate error code
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root);
 
-#endif 
+#endif

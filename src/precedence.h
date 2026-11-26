@@ -13,7 +13,7 @@ typedef enum {
   PRECEDENCE_LESS,
   PRECEDENCE_EQUAL,
   PRECEDENCE_GREATER,
-  PRECEDENCE_EMPTY
+  PRECEDENCE_EMPTY,
 } PrecedenceRelation;
 /**
  * @param stackSymbol highest terminal on stack

@@ -235,7 +235,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
     *out = T_UNIT;
   }
 
-  if(!stmt){
+  if (!stmt) {
     return ERR_OK;
   }
 
@@ -471,7 +471,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
         return ERR_WRONG_TYPE;
       }
     }
-    
+
     stmt->evalType = currentFuncRetType;
     break;
   }

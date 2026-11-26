@@ -26,7 +26,7 @@ typedef enum {
   SYM_TERM,
   SYM_DOLLAR,
   SYM_NONTERM,
-  SYM_HANDLE_START
+  SYM_HANDLE_START,
 } PrecSymbol;
 
 typedef struct {

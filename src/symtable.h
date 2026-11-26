@@ -20,7 +20,7 @@ typedef enum {
   T_STRING,
   T_UNIT,
   T_BOOLEAN,
-  T_ANY // for arguments of internal functions
+  T_ANY, // for arguments of internal functions
 } DataType;
 
 /**
@@ -34,7 +34,7 @@ typedef enum { ST_VAR, ST_FUNC } SymbolType;
 typedef enum {
   ST_INSERT_OK,
   ST_INSERT_REDEFINED,
-  ST_INSERT_ERROR
+  ST_INSERT_ERROR,
 } StInsertResult;
 
 /**
@@ -126,8 +126,8 @@ void st_pop_scope(Symtable *symtable);
  * @param modifiable Whether the variable can be modified.
  * @return Symtable return code.
  */
-StInsertResult st_insert_var(Symtable *symtable, const char *name, DataType type,
-                   bool modifiable, uint32_t uid);
+StInsertResult st_insert_var(Symtable *symtable, const char *name,
+                             DataType type, bool modifiable, uint32_t uid);
 
 /**
  * @brief Insert a function into the symbol table.
