@@ -5,6 +5,9 @@ result/
 xjuricl01.zip
 *.log
 
+.bsp
+.scala-build
+
 # Prerequisites
 *.d
 
@@ -37,7 +40,6 @@ xjuricl01.zip
 
 # Executables
 *.exe
-*.out
 *.app
 *.i*86
 *.x86_64

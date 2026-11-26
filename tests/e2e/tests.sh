@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # AI USAGE - CLAUDE
-# AI assisted me heavily while creating the script
+# Completely created by AI
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 2
 
@@ -98,7 +98,7 @@ run_dir() {
 
 run_dir "basic"
 run_dir "custom"
-#run_dir "extensions"
+run_dir "extensions"
 
 
 rm -rf "$tmpDir"
