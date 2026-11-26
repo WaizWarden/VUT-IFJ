@@ -4,8 +4,9 @@ V tomto archivu najdete několik ukázkových programů v jazyce IFJ26. V adres�
 pro základní zadání, v adresáři `extensions/` je pak jeden příklad pro každé rozšíření. Programy lze
 spustit také ve Scale 3.8.4 s využitím souboru (knihovny) [ifj26.scala](ifj26.scala).
 
-Soubory `.in` a `.out` obsahují ukázkový standardní vstup a očekávaný standardní výstup.
-Prázdný soubor `.in` znamená, že žádný vstup není potřeba.
+Soubory `.in` obsahují ukázkový standardní vstup. Prázdný soubor `.in` znamená, že žádný vstup
+není potřeba. Cíl `make e2e` generuje očekávaný výstup spuštěním ukázky ve Scale přes
+`ifj26.scala`; testy očekávající chybu kompilátoru mají vedle `.scala` soubor `.err` s kódem chyby.
 
 V příkladech pro základní zadání jsou k dispozici také soubory `.ifjcode`, které implementují stejný 
 algoritmus v IFJcode26. 

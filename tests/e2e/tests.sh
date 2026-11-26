@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # AI USAGE - CLAUDE
-# AI assisted me heavily while creating the script
+# Completely created by AI
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 2
 
@@ -15,6 +15,9 @@ Interpreter not found or missing permissions: $interp
 First download it from elearning and add it to /tests/e2e
 Add execute permissions
 "; exit 1; }
+hasScala=0
+command -v scala >/dev/null 2>&1 && hasScala=1
+skip=0
 
 pass=0; fail=0; failed=()
 
@@ -60,18 +63,42 @@ run_dir() {
     # Interpreter
     "$interp" "$tmpDir/$tmpName.code" < "$input" > "$tmpDir/$tmpName.actual" 2> "$tmpDir/$tmpName.ierr"
     local irc=$?
+
+    # Expected runtime error: file name.rterr contains the expected interpreter exit code
+    if [ -f "$base.rterr" ]; then
+      local expectedIrc
+      expectedIrc="$(tr -d '[:space:]' < "$base.rterr")"
+      if [ "$irc" = "$expectedIrc" ]; then
+        echo "PASS $name (runtime error $irc)"
+        pass=$((pass + 1))
+      else
+        echo "FAIL $name: interpreter rc=$irc, expected $expectedIrc"
+        fail=$((fail + 1)); failed+=("$name")
+      fi
+      continue
+    fi
+
     if [ $irc -ne 0 ]; then
       echo "FAIL $name: interpreter rc=$irc ($(head -n1 "$tmpDir/$tmpName.ierr"))"
       fail=$((fail + 1)); failed+=("$name")
       continue
     fi
 
-    # Compare
+        # Compare
     local expected="$base.out"
     if [ ! -f "$expected" ]; then
-      echo "FAIL $name: missing $expected"
-      fail=$((fail + 1)); failed+=("$name")
-      continue
+      if [ $hasScala -eq 1 ]; then
+        expected="$tmpDir/$tmpName.out"
+        if ! scala run ifj26.scala "$src" < "$input" > "$expected" 2> "$tmpDir/$tmpName.scalaerr"; then
+          echo "FAIL $name: Scala reference program failed"
+          fail=$((fail + 1)); failed+=("$name")
+          continue
+        fi
+      else
+        echo "SKIP $name: no $base.out and Scala not installed"
+        skip=$((skip + 1))
+        continue
+      fi
     fi
     if ! diff -q "$tmpDir/$tmpName.actual" "$expected" > /dev/null; then
       echo "FAIL $name: output differs"
@@ -86,10 +113,10 @@ run_dir() {
 
 run_dir "basic"
 run_dir "custom"
-#run_dir "extensions"
+run_dir "extensions"
 
 
-rm -rf "$tmpDir"
+#rm -rf "$tmpDir"
 echo "passed: $pass, failed: $fail"
 if [ $fail -ne 0 ]; then
   printf '  - %s\n' "${failed[@]}"

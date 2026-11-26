@@ -1,0 +1,6 @@
+import ifj26.*
+@main def run(): Unit =
+  if 1 then
+    ()
+  else
+    ()
