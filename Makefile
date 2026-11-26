@@ -42,7 +42,7 @@ tidy:
 	clang-tidy $(ALL_SRCS) -- $(CFLAGS)
 
 pdf:
-	pandoc documentation/documentation.md -o documentation/dokumentace.pdf --pdf-engine=weasyprint --css=documentation/styles.css
+	pandoc documentation/documentation.md -o documentation/dokumentace.pdf --pdf-engine=weasyprint --css=documentation/styles.css --resource-path=documentation
 
 e2e: build
 	bash tests/e2e/tests.sh

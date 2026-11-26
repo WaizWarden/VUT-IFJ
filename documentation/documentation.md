@@ -132,12 +132,7 @@ Reduction rules:
 
 Precedence table distinguishes 4 types of relations: 
 
-| Relation | Action |
-   |---|---|
-   | `<` | Inserts a handle-start marker `<`, shifts the input symbol and loads the next token |
-   | `=` | Inserts input symbol on the stack and loads next token without insertion of start sign|
-   | `>` | Does the reduction of the part of stack depending on the correct reduction rule. |
-   | Empty | Syntax error. |
+![Precedence relation actions](documentation/img/precedence-actions.png)
 
 On reduction the analysis pops elements up to the `<` marker. If they match a reduction rule, they are replaced by one nonterminal carrying the new AST node. No new input token is loaded during a reduction.
 
@@ -145,21 +140,7 @@ Reduction links AST subtrees into new nodes.
 
 ### Precedence table
 
-|      | +- | */ | u- | !  | rel | ==!= | && | \|\| | .  | (  | )  | i  | $  |
-|------|----|----|----|----|-----|------|----|----|----|----|----|----|----|
-| +-   | >  | <  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
-| */   | >  | >  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
-| u-   | >  | >  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
-| !    | >  | >  | <  | <  | >   | >    | >  | >  | <  | <  | >  | <  | >  |
-| rel  | <  | <  | <  | <  |     |      | >  | >  | <  | <  | >  | <  | >  |
-| ==!= | <  | <  | <  | <  |     |      | >  | >  | <  | <  | >  | <  | >  |
-| &&   | <  | <  | <  | <  | <   | <    | >  | >  | <  | <  | >  | <  | >  |
-| \|\| | <  | <  | <  | <  | <   | <    | <  | >  | <  | <  | >  | <  | >  |
-| .    | >  | >  | >  | >  | >   | >    | >  | >  | >  |    | >  | <  | >  |
-| (    | <  | <  | <  | <  | <   | <    | <  | <  | <  | <  | =  | <  |    |
-| )    | >  | >  | >  | >  | >   | >    | >  | >  | >  |    | >  |    | >  |
-| i    | >  | >  | >  | >  | >   | >    | >  | >  | >  |    | >  |    | >  |
-| $    | <  | <  | <  | <  | <   | <    | <  | <  | <  | <  |    | <  |    |
+![Precedence table](documentation/img/precedence-table.png)
 
 Row = the topmost terminal on the stack, column = input terminal. An empty cell means a syntax error.
 
@@ -320,65 +301,23 @@ Empty cell means syntax error.
 
 Program, functions and parameters:
 
-| | import | @ | def | id | ) | , | : | = | NL | EOF | if | e |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **program** | 1 | | | | | | | | | | | |
-| **prolog** | 2 | | | | | | | | | | | |
-| **funcList** | | 3 | 3 | | | | | | | 4 | | |
-| **funcDef** | | 5 | 5 | | | | | | | | | |
-| **mainOpt** | | 6 | 7 | | | | | | | | | |
-| **typeOpt** | | | | | | | 8 | 9 | | | | |
-| **funcBody** | | | | 11 | | | | | 10 | | 11 | 11 |
-| **paramList** | | | | 12 | 13 | | | | | | | |
-| **paramRest** | | | | | 15 | 14 | | | | | | |
-| **param** | | | | 16 | | | | | | | | |
+![LL table: program, functions and parameters](documentation/img/ll-table-program.png)
 
 Blocks and statements:
 
-| | id | var | val | if | while | for | return | e | NL | ; | DED | else | = | ( | et |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **block** | 17 | 17 | 17 | 17 | 17 | 17 | 17 | 17 | | | | | | | |
-| **stmtTail** | | | | | | | | | 18 | 19 | 20 | | | | |
-| **moreStmts** | 21 | 21 | 21 | 21 | 21 | 21 | 21 | 21 | | | 22 | | | | |
-| **statement** | 28 | 23 | 23 | 24 | 25 | 26 | 27 | 29 | | | | | | | |
-| **varDecl** | | 30 | 31 | | | | | | | | | | | | |
-| **idStmt** | 32 | | | | | | | | | | | | | | |
-| **idTail** | | | | | | | | | | | | | 33 | 34 | 35 |
-| **return** | | | | | | | 36 | | | | | | | | |
-| **returnTail** | 37 | | | 37 | | | | 37 | 38 | 38 | 38 | 38 | | | |
+![LL table: blocks and statements](documentation/img/ll-table-statements.png)
 
 Control flow and loop bodies:
 
-| | if | else | while | for | NL | ; | DED | id | var | val | return | e |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **ifStmt** | 39 | | | | | | | | | | | |
-| **elseOpt** | | 40 | | | 41 | 41 | 41 | | | | | |
-| **ifExpr** | 42 | | | | | | | | | | | |
-| **while** | | | 43 | | | | | | | | | |
-| **for** | | | | 44 | | | | | | | | |
-| **body** | 56 | | 56 | 56 | 55 | | | 56 | 56 | 56 | 56 | 56 |
+![LL table: control flow and loop bodies](documentation/img/ll-table-control.png)
 
 The `for` header:
 
-| | id | NL | to | until | by | if | do | DED |
-|---|---|---|---|---|---|---|---|---|
-| **forHeader** | 45 | 46 | | | | | | |
-| **range** | | | 47 | 48 | | | | |
-| **byOpt** | | 50 | | | 49 | 50 | 50 | |
-| **guards** | | | | | | 51 | 52 | |
-| **mlGuards** | | | | | | 53 | | 54 |
+![LL table: the for header](documentation/img/ll-table-for.png)
 
 Function calls and arguments:
 
-| | id | if | e | a | ( | ) | , | . | et |
-|---|---|---|---|---|---|---|---|---|---|
-| **exprOrCall** | 58 | 57 | 59 | | | | | | |
-| **exprCallTail** | | | | | 60 | | | | 61 |
-| **argList** | | | | 62 | 62 | 63 | | | |
-| **argRest** | | | | | | 65 | 64 | | |
-| **arg** | | | | 66 | 66 | | | | |
-| **memberTail** | | | | | | 68 | 68 | 67 | |
-| **term** | | | | 69 | 70 | | | | |
+![LL table: function calls and arguments](documentation/img/ll-table-calls.png)
 
 `to`, `until` and `by` are not reserved words. In the `for` header they are recognized by the value of an identifier token, outside this context they remain normal identifiers. An `else` belongs to the nearest unmatched `if`.
 
