@@ -306,7 +306,7 @@ Function calls and arguments:
 
 `to`, `until` and `by` are not reserved words. In the `for` header they are recognized by the value of an identifier token, outside this context they remain normal identifiers. An `else` belongs to the nearest unmatched `if`.
 
-# Modules description
+# Other modules
 
 ## Code generator (codegen)
 
