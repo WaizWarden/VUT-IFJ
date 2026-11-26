@@ -41,8 +41,6 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 
 # Syntax Analysis
 
-Syntax analysis is the process in which tokens produced by the lexical analyzer are analysed and an AST (abstract syntax tree) is built.
-
 ## Architecture
 
 The parsing architecture is divided into two segments:
@@ -59,14 +57,6 @@ This part processes the program structure using recursive descent. Each parser f
 At the start, the parser skips any leading newlines and expects the prolog. The prolog must be exactly `import ifj26.*` - otherwise it is a syntax error.
 
 The parser then processes function definitions one by one until it reaches EOF. The resulting nodes are stored in the root AST node that represents the whole program.
-
-#### What is processed for every function
-
-- Whether the function is the main function (annotation `@main`)
-- The name of the function
-- The parameter list (names and types)
-- The explicit return type, if any
-- The function body after the `=` symbol
 
 #### How is the function body defined
 
@@ -89,20 +79,6 @@ Inside a block, the parser processes statements and stores the AST nodes in a li
 Simple statements are separated by a newline or a semicolon.
 A block must contain at least one statement.
 
-Supported block constructions:
-
-- Variable declarations with `var` or `val`
-- Assignments to declared variables
-- Function calls
-- Return statements
-- `if`/`else` statements
-- `while` loops
-- `for` loops
-- Plain expression statements
-
-Nested constructs are processed recursively.
-For example, when parsing a loop body, the parser may encounter an `if` and process its entire block first; that block can itself contain further nested blocks.
-
 #### Distinguishing expressions and function calls
 
 Standalone expressions are not handled by `parser.c` itself but are passed to `precedence.c`.
@@ -118,7 +94,7 @@ When handing the expression over to precedence analysis, the parser also passes 
 
 Call arguments are parsed as a comma-separated list of terms, not as general expressions.
 
-Inside call arguments, member access `arg.member` is supported (VALMEM). After every argument, a `while` loop consumes any number of `. identifier` pairs and wraps the argument in `ast_new_member_call`, which desugars it into a builtin function call.
+Inside call arguments, member access `arg.member` is supported (VALMEM).
 
 ## Operator-Precedence Parsing
 
@@ -144,21 +120,7 @@ Precedence table distinguishes 4 types of relations:
    | `>` | Does the reduction of the part of stack depending on the correct reduction rule. |
    | Empty | Syntax error. |
 
-
 On reduction the analysis pops elements up to the `<` marker. If they match a reduction rule, they are replaced by one nonterminal carrying the new AST node. No new input token is loaded during a reduction.
-
-
-### Construction of the precedence table (from 6x6 to 13x13)
-
-The base of precedence table was created using the lecture`s
-table that featured 6x6 relations. This table contains these 
-operations: `*` and `+`. Because operators with the same associativity and same priority has identical lines and columns, they are not directly in the table and are grouped into two sections: (+,-) and (*,/)
-
-Because the specification requires unary minus (u-), the 6x6 table cannot distinguish between normal and unary minus. Also there were more operations and comparators that required the expansion of the original table (like `<`, `<=`, or `==` and `!=`)
-
-Relation operators and comparators are non-associative. Because of this chaining like "a<b<c<d" or "a<b == c" is not permited by the specification.
-
-The result is a table containing 13 columns and 13 rows with symbols: +- ,  */ ,  u- , !,  rel ,  ==!= , &&, || , ., ( ,  ) ,  i ,  $
 
 ### Precedence table
 
@@ -182,8 +144,6 @@ Row = the topmost terminal on the stack, column = input terminal. An empty cell 
 
 ### How does the expression end
 
-The IFJ26 does not have a special ending symbol, precedence cannot determine the end until the input symbol is `$`
-
 Upon conversion of tokens to precedence symbols are on $ mapped like:
   - NEWLINE - End of an expression statement or initializer
   - SEMICOLON - Statement separator inside a block
@@ -201,18 +161,11 @@ Two requirements for successful ending of expression:
   - Input symbol is `$`
   - The stack contains exactly `$` and one non-terminal (`E`)
 
-If `$` arrives in the middle of construction process, it ends with an error.
-
 ### Stop identifiers
 
 The issue is, that `to`, `until` and `by` are not a keywords (for example expression: `for i <- 0 to 10 by 2 do`) and scanner returns them as a plain identifiers, but the headers have a important function.
 
-Precedence parser can distinguish terminals of expressions only with the context of token type (NEWLINE, `then`, `do`). Upon parsing "0 to 10", precedence reads `0` and then identifier `to`, normally it would result in two operands in a row (`i i`), this would be a syntax error.
-
-Solution to the problem:
 To solve this issue, `precedence_parse` accepts an an additional parameter `stopIdents`, a NULL-terminated array of identifier names.
-
-During the conversion of a token into the precedence symbol, every TOKEN_IDENTIFIER is first compared with these names (strcmp).
 
 If a name matches, the token is converted to symbol `$` instead of identifier `i`, so the expression ends  like with any other terminator. The token is not consumed and stays in `currentToken` for the parser.
 
@@ -220,17 +173,6 @@ The parser defines two such lists inside `parse_for`:
   - `{"to", "until", NULL}` - terminates the lower bound expression 
   - `{"by", NULL}` - terminates the upper bound expression
 Upon the end of the parser expression, parser inspects the identifier left in `currentToken`: `to` marks the inclusive bound, `until` the exclusive one, and `by` introduces the optional step.
-
-Why not use keywords?
-Making `to`, `until` and `by` reserved keywords was not an option, because they remain valid identifier names outside of a `for` header.
-
-### The `for` loop
-- The loop variable `id` and the arrow `<-` are handled by the parser.
-- Bounds and step are parsed by `precedence_parse` using the `stopIdents` (See the section above - Stop identifiers)
-- `to` = inclusive bound, `until` = exclusive bound
-  - `by` sets the needed step
-- Zero or more guards `if <expr>` follow. Each guard is a boolean expression stored in the `guards` array of the AST_FOR. 
-- The header also exists in a multi-line form. After `for` a NEWLINE + INDENT may follow, the generator and each guard stays on their own line and the header closes with closing DEDENT before `do`.
 
 ### The `if` statement (expression and statement - BOOLTHEN)
 
@@ -241,14 +183,6 @@ Making `to`, `until` and `by` reserved keywords was not an option, because they 
     - `else if` is desugared into a nested `if` inside the else branch.
       - No additional AST node is created
 
-### Loop and branches bodies
-
-The parse body `parse_body` is shared by `if`/`else` branches and the `for` body.
-
-Accepted forms
-  - NEWLINE INDENT block DEDENT
-  - A single-line statement on the same line (example: `if x then y = 1`)
-
 ## Abstract Syntax Tree (AST)
 
 In the ast.c and ast.h a single struct is defined with the name `AstNode`. This is used by the entire compiler, not just the parser. All 19 node kinds (AST_PROGRAM, AST_FUNC_DEF,AST_BLOCK, AST_VAR_DECL, AST_ASSIGN, AST_IF, AST_WHILE, AST_FOR, AST_RETURN, AST_FUNC_CALL, AST_EXPR_STATEMENT, AST_BINARY, AST_UNARY, AST_IDENTIFIER and the five literals) share one tagged union `as`, so any subtree is passed around as a plain `AstNode *`.
@@ -258,8 +192,6 @@ Every node kind has its own constructor `ast_new_*`. Constructors take ownership
 What is also carried by each node
   - `line` - the source line number, used for error reporting
   - `uid` and `evalType` - initialized to `0`/`T_UNIT` by the parser and filled in later by semantic analysis
-
-`ast_print` provides a debug helper of the tree to stderr.
 
 A special constructor is `ast_new_member_call`. It does not create a new node kind but desugars `receiver.member` into an AST_FUNC_CALL of a builtin function (VALMEM), with the receiver as the first argument.
 
@@ -276,11 +208,7 @@ Stack supports operations like push/pop/top plus two created for the precedence 
   - `stack_top_terminal` - returns the topmost terminal, skipping nonterminals and handle markers
   - `stack_insert_handle_start` - inserts the `<` marker after the topmost terminal
 
-The array starts at capacity 8 and doubles on every realloc. Allocation failures and pops from an empty stack end with `exit(99)`.
-
 ## LL Grammar
-
-An LL grammar is a context-free grammar that can be parsed top-down by scanning input from Left to right and constructing a Leftmost derivation.
 
 conventions: 
   - Parameters `id`, `type` and `expr` are a non-terminal lists. 
