@@ -484,7 +484,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       return error;
     }
 
-    if (fromType != T_INT || fromType != T_INT) {
+    if (fromType != T_INT || toType != T_INT) {
       return ERR_WRONG_TYPE;
     }
 
@@ -501,13 +501,10 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
         return ERR_WRONG_TYPE;
       }
 
-      if (stepType == T_INT) {
-        if (stmt->as.forStatement.step->as.intValue == 0) {
-          return ERR_OTHER;
-        }
+      if (stmt->as.forStatement.step->type == AST_LITERAL_INT &&
+          stmt->as.forStatement.step->as.intValue == 0) {
+        return ERR_OTHER;
       }
-
-      // todo - error 40 or something idk
     }
 
     // required by assignement
@@ -521,13 +518,12 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
 
     StInsertResult stResult = st_insert_var(
         symtable, stmt->as.forStatement.varName, T_INT, false, newUid);
-
-    if (error != ERR_OK) {
+    if (stResult == ST_INSERT_REDEFINED) {
       st_pop_scope(symtable);
-      return error;
+      return ERR_REDEFINITION;
     }
-
-    if (stResult == ST_INSERT_ERROR) {
+    if(stResult == ST_INSERT_ERROR)
+    {
       st_pop_scope(symtable);
       return ERR_INTERNAL;
     }
@@ -535,14 +531,17 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
     for (size_t i = 0; i < stmt->as.forStatement.guardCount; i++) {
       DataType guardType = T_UNIT;
       error =
-          analyze_expression(symtable, stmt->as.forStatement.step, &guardType);
+          analyze_expression(symtable, stmt->as.forStatement.guards[i], &guardType);
 
       if (error != ERR_OK) {
+        st_pop_scope(symtable);
         return error;
       }
 
-      if (error != T_BOOLEAN) {
-        return error;
+      // guards must be of boolean evaluation type
+      if (guardType != T_BOOLEAN) {
+        st_pop_scope(symtable);
+        return ERR_WRONG_TYPE;
       }
     }
 
