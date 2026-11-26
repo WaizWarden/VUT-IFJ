@@ -46,8 +46,8 @@ static SemanticError analyze_with_helper(AstNode *helper) {
   assert(st_init(&symtable) == true);
 
   AstNode *mainBody = ast_new_block(NULL, 0, 1);
-  AstNode *main =
-      ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0, mainBody, 1);
+  AstNode *main = ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0,
+                                   mainBody, 1);
   AstNode **functions = malloc(2 * sizeof(*functions));
   assert(functions != NULL);
   functions[0] = helper;

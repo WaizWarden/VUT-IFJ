@@ -2,6 +2,7 @@ docs/
 .idea/
 Output
 result/
+tests/e2e/tmp/*
 xjuricl01.zip
 *.log
 
