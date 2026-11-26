@@ -37,6 +37,8 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 
 # Block diagram
 
+![diagram](documentation/img/Block-diagram.png)
+
 # FSM of lexical analysis
 
 # Syntax Analysis
