@@ -562,6 +562,16 @@ static AstNode **parse_call_arguments(size_t *outCount) {
     case TOKEN_BOOL:
       argument = ast_new_bool(pToken.value.boolean, pToken.line);
       break;
+    case TOKEN_OPENING_BRACKET:
+      int line = pToken.line;
+      advance();
+
+      if (pToken.type != TOKEN_CLOSING_BRACKET) {
+        exit(2);
+      }
+
+      argument = ast_new_unit(line);
+      break;
     default:
       exit(2);
     }
