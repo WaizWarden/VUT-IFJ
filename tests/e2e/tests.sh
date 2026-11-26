@@ -63,6 +63,21 @@ run_dir() {
     # Interpreter
     "$interp" "$tmpDir/$tmpName.code" < "$input" > "$tmpDir/$tmpName.actual" 2> "$tmpDir/$tmpName.ierr"
     local irc=$?
+
+    # Expected runtime error: file name.rterr contains the expected interpreter exit code
+    if [ -f "$base.rterr" ]; then
+      local expectedIrc
+      expectedIrc="$(tr -d '[:space:]' < "$base.rterr")"
+      if [ "$irc" = "$expectedIrc" ]; then
+        echo "PASS $name (runtime error $irc)"
+        pass=$((pass + 1))
+      else
+        echo "FAIL $name: interpreter rc=$irc, expected $expectedIrc"
+        fail=$((fail + 1)); failed+=("$name")
+      fi
+      continue
+    fi
+
     if [ $irc -ne 0 ]; then
       echo "FAIL $name: interpreter rc=$irc ($(head -n1 "$tmpDir/$tmpName.ierr"))"
       fail=$((fail + 1)); failed+=("$name")
