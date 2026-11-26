@@ -5,6 +5,7 @@ result/
 tests/e2e/tmp/*
 xjuricl01.zip
 *.log
+*.pdf
 
 .bsp
 .scala-build
