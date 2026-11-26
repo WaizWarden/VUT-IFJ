@@ -811,8 +811,8 @@ static AstNode *parse_fun_definition(void) {
     }
   }
 
-  return ast_new_func_def(name, isMain, returnType, hasReturnType, parameters, paramCount,
-                          body, line);
+  return ast_new_func_def(name, isMain, returnType, hasReturnType, parameters,
+                          paramCount, body, line);
 }
 
 AstNode *parser_parse(FILE *fileInput) {
