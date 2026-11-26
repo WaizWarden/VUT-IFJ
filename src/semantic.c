@@ -6,8 +6,8 @@
  * @note Main principles and architecture are inspired by "demo-cvičení" on
  * semantic analysis.
  *
- * @note Current AI use: As a second keyboard (writing repetetive code
- * continuaton)
+ * @note AI use: As a second keyboard (writing repetetive code
+ * continuaton), static code analysis
  */
 
 #include "semantic.h"
