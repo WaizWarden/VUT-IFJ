@@ -260,20 +260,18 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       }
     }
 
-    st_pop_scope(symtable);
-
-    DataType lastType = T_UNIT;
     error = analyze_statement(
-        symtable, stmt->as.block.stmts[stmt->as.block.count - 1], &lastType);
+        symtable, stmt->as.block.stmts[stmt->as.block.count - 1], out);
     if (error != ERR_OK) {
       st_pop_scope(symtable);
       return error;
     }
 
+    st_pop_scope(symtable);
+
     // only anotate AST node with type if it is needed
     if (out) {
-      stmt->evalType = lastType;
-      *out = lastType;
+      stmt->evalType = *out;
     }
     break;
   }
@@ -320,11 +318,8 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
   case AST_IF: {
 
     // if data type is needed, the statement is a one line expression
-    if (!out) {
-      error = analyze_expression(symtable, stmt, out);
-      if (error != ERR_OK) {
-        return error;
-      }
+    if (out) {
+      return analyze_expression(symtable, stmt, out);
     }
 
     // analyze condition

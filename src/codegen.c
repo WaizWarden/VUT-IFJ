@@ -367,6 +367,10 @@ static void cg_gen_statement(const AstNode *stmt, DataType funcRetType) {
 
   switch (stmt->type) {
 
+  case AST_BLOCK:
+    cg_gen_block(stmt, false, funcRetType);
+    break;
+
   case AST_VAR_DECL:
     if (stmt->as.varDecl.initExpr) {
       cg_gen_expr(stmt->as.varDecl.initExpr);
