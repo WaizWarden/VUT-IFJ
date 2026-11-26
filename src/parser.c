@@ -562,6 +562,16 @@ static AstNode **parse_call_arguments(size_t *outCount) {
     case TOKEN_BOOL:
       argument = ast_new_bool(pToken.value.boolean, pToken.line);
       break;
+    case TOKEN_OPENING_BRACKET:
+      int line = pToken.line;
+      advance();
+
+      if (pToken.type != TOKEN_CLOSING_BRACKET) {
+        exit(2);
+      }
+
+      argument = ast_new_unit(line);
+      break;
     default:
       exit(2);
     }
@@ -777,8 +787,11 @@ static AstNode *parse_fun_definition(void) {
   expect_type(TOKEN_CLOSING_BRACKET);
 
   DataType returnType = T_UNIT;
+  bool hasReturnType = false;
+
   if (accept_type(TOKEN_COLON)) {
     returnType = check_type();
+    hasReturnType = true;
   }
 
   expect_type(TOKEN_ASSIGN);
@@ -798,7 +811,7 @@ static AstNode *parse_fun_definition(void) {
     }
   }
 
-  return ast_new_func_def(name, isMain, returnType, parameters, paramCount,
+  return ast_new_func_def(name, isMain, returnType, hasReturnType, parameters, paramCount,
                           body, line);
 }
 

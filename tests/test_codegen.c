@@ -65,7 +65,7 @@ static char *capture_test_statement(AstNode *statement) {
   statements[1] = ast_new_return(ast_new_int(0, 1), 1);
   AstNode *body = ast_new_block(statements, 2, 1);
   AstNode *mainFunction =
-      ast_new_func_def(strdup("main"), true, T_INT, NULL, 0, body, 1);
+      ast_new_func_def(strdup("main"), true, T_INT, true, NULL, 0, body, 1);
 
   AstNode **functions = malloc(sizeof(*functions));
   assert(functions != NULL);
@@ -300,7 +300,7 @@ static void test_control_for_prepass(void) {
   mainStatements[0] = loop;
   AstNode *mainBody = ast_new_block(mainStatements, 1, 1);
   AstNode *mainFunction =
-      ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, mainBody, 1);
+      ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0, mainBody, 1);
 
   AstNode **functions = malloc(sizeof(*functions));
   assert(functions != NULL);
@@ -432,7 +432,7 @@ static void test_normal_boolean_program(void) {
 
   AstNode *mainBody = ast_new_block(mainStatements, 3, 1);
   AstNode *mainFunction =
-      ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, mainBody, 1);
+      ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0, mainBody, 1);
 
   AstNode **functions = malloc(sizeof(*functions));
   assert(functions != NULL);

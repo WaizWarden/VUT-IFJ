@@ -230,94 +230,95 @@ void ast_print(const AstNode *node, int indent) {
   }
 
   for (int i = 0; i < indent; i++) {
-    printf(" ");
+    fprintf(stderr, " ");
   }
 
   switch (node->type) {
   case AST_BINARY:
-    printf("Binary %d\n", node->as.binary.operation);
+    fprintf(stderr, "Binary %d\n", node->as.binary.operation);
     ast_print(node->as.binary.left, indent + 1);
     ast_print(node->as.binary.right, indent + 1);
     break;
   case AST_UNARY:
-    printf("Unary %d\n", node->as.unary.op);
+    fprintf(stderr, "Unary %d\n", node->as.unary.op);
     ast_print(node->as.unary.operand, indent + 1);
     break;
   case AST_LITERAL_INT:
-    printf("Literal Int %d\n", node->as.intValue);
+    fprintf(stderr, "Literal Int %d\n", node->as.intValue);
     break;
   case AST_LITERAL_DOUBLE:
-    printf("Literal double %f\n", node->as.doubleValue);
+    fprintf(stderr, "Literal double %f\n", node->as.doubleValue);
     break;
   case AST_IDENTIFIER:
-    printf("Identifier %s\n", node->as.identif);
+    fprintf(stderr, "Identifier %s\n", node->as.identif);
     break;
   case AST_ASSIGN:
-    printf("Assign %s\n", node->as.assign.name);
+    fprintf(stderr, "Assign %s\n", node->as.assign.name);
     ast_print(node->as.assign.value, indent + 1);
     break;
   case AST_PROGRAM:
-    printf("Program (%zu functions)\n", node->as.program.count);
+    fprintf(stderr, "Program (%zu functions)\n", node->as.program.count);
     for (size_t i = 0; i < node->as.program.count; i++) {
       ast_print(node->as.program.functions[i], indent + 1);
     }
     break;
   case AST_FUNC_DEF:
-    printf("FuncDef %s retType=%d isMain=%d params=%u\n", node->as.funcDef.name,
-           node->as.funcDef.retType, (int)node->as.funcDef.isMain,
-           node->as.funcDef.paramCount);
+    fprintf(stderr, "FuncDef %s retType=%d isMain=%d params=%u\n",
+            node->as.funcDef.name, node->as.funcDef.retType,
+            (int)node->as.funcDef.isMain, node->as.funcDef.paramCount);
     ast_print(node->as.funcDef.body, indent + 1);
     break;
   case AST_BLOCK:
-    printf("Block (%zu stmts)\n", node->as.block.count);
+    fprintf(stderr, "Block (%zu stmts)\n", node->as.block.count);
     for (size_t i = 0; i < node->as.block.count; i++) {
       ast_print(node->as.block.stmts[i], indent + 1);
     }
     break;
   case AST_VAR_DECL:
-    printf("VarDecl %s %s\n", node->as.varDecl.name,
-           (int)node->as.varDecl.isModifiable ? "var" : "val");
+    fprintf(stderr, "VarDecl %s %s\n", node->as.varDecl.name,
+            (int)node->as.varDecl.isModifiable ? "var" : "val");
     ast_print(node->as.varDecl.initExpr, indent + 1);
     break;
   case AST_IF:
-    printf("If\n");
+    fprintf(stderr, "If\n");
     ast_print(node->as.ifStatement.condition, indent + 1);
     ast_print(node->as.ifStatement.thenBlock, indent + 1);
     ast_print(node->as.ifStatement.elseBlock, indent + 1);
     break;
   case AST_WHILE:
-    printf("While\n");
+    fprintf(stderr, "While\n");
     ast_print(node->as.whileStatement.cond, indent + 1);
     ast_print(node->as.whileStatement.bodyBlock, indent + 1);
     break;
   case AST_RETURN:
-    printf("Return\n");
+    fprintf(stderr, "Return\n");
     ast_print(node->as.ret.expr, indent + 1);
     break;
   case AST_FUNC_CALL:
-    printf("Call %s (%zu args)\n", node->as.funcCall.funcName,
-           node->as.funcCall.argCount);
+    fprintf(stderr, "Call %s (%zu args)\n", node->as.funcCall.funcName,
+            node->as.funcCall.argCount);
     for (size_t i = 0; i < node->as.funcCall.argCount; i++) {
       ast_print(node->as.funcCall.args[i], indent + 1);
     }
     break;
   case AST_EXPR_STATEMENT:
-    printf("ExprStmt\n");
+    fprintf(stderr, "ExprStmt\n");
     ast_print(node->as.exprStatement.expr, indent + 1);
     break;
   case AST_LITERAL_STRING:
-    printf("Literal String \"%s\"\n", node->as.stringValue);
+    fprintf(stderr, "Literal String \"%s\"\n", node->as.stringValue);
     break;
   case AST_LITERAL_BOOL:
-    printf("Literal Bool %s\n", (int)node->as.boolValue ? "true" : "false");
+    fprintf(stderr, "Literal Bool %s\n",
+            (int)node->as.boolValue ? "true" : "false");
     break;
   case AST_LITERAL_UNIT:
-    printf("Literal Unit ()\n");
+    fprintf(stderr, "Literal Unit ()\n");
     break;
   case AST_FOR:
-    printf("For %s inclusive=%d guards=%zu\n", node->as.forStatement.varName,
-           (int)node->as.forStatement.inclusive,
-           node->as.forStatement.guardCount);
+    fprintf(stderr, "For %s inclusive=%d guards=%zu\n",
+            node->as.forStatement.varName, (int)node->as.forStatement.inclusive,
+            node->as.forStatement.guardCount);
     ast_print(node->as.forStatement.from, indent + 1);
     ast_print(node->as.forStatement.to, indent + 1);
     ast_print(node->as.forStatement.step, indent + 1);
@@ -393,8 +394,8 @@ AstNode *ast_new_program(AstNode **functions, size_t count, int line) {
  * @return AstNode*
  */
 AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
-                          Parameter *params, uint16_t paramCount, AstNode *body,
-                          int line) {
+                          bool hasReturnType, Parameter *params,
+                          uint16_t paramCount, AstNode *body, int line) {
 
   AstNode *node = ast_allocate(AST_FUNC_DEF, line);
   node->as.funcDef.name = name;
@@ -402,6 +403,7 @@ AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
   node->as.funcDef.paramCount = paramCount;
   node->as.funcDef.params = params;
   node->as.funcDef.retType = retType;
+  node->as.funcDef.hasReturnType = hasReturnType;
   node->as.funcDef.body = body;
 
   return node;
