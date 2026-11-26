@@ -37,6 +37,7 @@ static uint32_t uidCounter;
 
 /// @brief global return data type tracker
 static DataType currentFuncRetType = T_UNIT;
+static bool currentFuncHasReturnType;
 
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root) {
   if (root == NULL || root->type != AST_PROGRAM) {
@@ -174,6 +175,7 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
 
     DataType retType = functionNode->as.funcDef.retType;
     currentFuncRetType = retType;
+    currentFuncHasReturnType = functionNode->as.funcDef.hasReturnType;
 
     DataType bodyType = T_UNIT;
     bool hasReturn = false;
@@ -792,9 +794,21 @@ static SemanticError analyze_expression(Symtable *symtable, AstNode *expr,
       return ERR_WRONG_TYPE;
     }
 
-    // else branch is mandatory
     if (!expr->as.ifStatement.elseBlock) {
-      return ERR_OTHER;
+      DataType thenType = T_UNIT;
+      error =
+          analyze_statement(symtable, expr->as.ifStatement.thenBlock, &thenType);
+      if (error != ERR_OK) {
+        return error;
+      }
+
+      if (thenType != T_UNIT &&
+          !(currentFuncHasReturnType && currentFuncRetType == T_UNIT)) {
+        return ERR_WRONG_TYPE;
+      }
+
+      expr->evalType = T_UNIT;
+      break;
     }
 
     DataType thenType = T_UNIT;
