@@ -56,39 +56,27 @@ static AstNode *for_zero_step_node;
 static AstNode *for_prepass_node;
 static AstNode *valmem_node;
 
-static void generate_not(void) { cg_gen_expr(bool_not_node); }
-
-static void generate_and(void) { cg_gen_expr(and_node); }
-
-static void generate_or(void) { cg_gen_expr(or_node); }
-
-static void generate_else_less_if(void) {
-  cg_gen_if(else_less_if, false, T_UNIT);
-}
-
-static void generate_else_if(void) { cg_gen_if(else_if_chain, false, T_UNIT); }
-
-static void generate_if_expression(void) { cg_gen_expr(if_expression); }
-
-static void generate_comparison(void) { cg_gen_expr(comparison_node); }
-
-static void generate_while(void) { cg_gen_while(while_node, T_UNIT); }
-
 static void generate_program(void) { cg_gen_program(program_node); }
 
-static void generate_for_default(void) {
-  cg_gen_for(for_default_node, T_UNIT);
-}
+static char *capture_test_statement(AstNode *statement) {
+  AstNode **statements = malloc(2 * sizeof(*statements));
+  assert(statements != NULL);
+  statements[0] = statement;
+  statements[1] = ast_new_return(ast_new_int(0, 1), 1);
+  AstNode *body = ast_new_block(statements, 2, 1);
+  AstNode *mainFunction =
+      ast_new_func_def(strdup("main"), true, T_INT, NULL, 0, body, 1);
 
-static void generate_for_negative_guard(void) {
-  cg_gen_for(for_negative_guard_node, T_UNIT);
-}
+  AstNode **functions = malloc(sizeof(*functions));
+  assert(functions != NULL);
+  functions[0] = mainFunction;
+  program_node = ast_new_program(functions, 1, 1);
 
-static void generate_for_zero_step(void) {
-  cg_gen_for(for_zero_step_node, T_UNIT);
+  char *output = capture_expression(generate_program);
+  ast_free(program_node);
+  program_node = NULL;
+  return output;
 }
-
-static void generate_valmem(void) { cg_gen_expr(valmem_node); }
 
 static AstNode *bool_block(bool value) {
   AstNode **statements = malloc(sizeof(*statements));
@@ -109,12 +97,11 @@ static void test_unary_not(void) {
   bool_not_node = ast_new_unary(OP_UNARY_NOT, ast_new_bool(false, 1), 1);
   bool_not_node->evalType = T_BOOLEAN;
 
-  char *output = capture_expression(generate_not);
+  char *output =
+      capture_test_statement(ast_new_expr_statement(bool_not_node, 1));
   assert(strstr(output, "PUSHS bool@false") != NULL);
   assert(strstr(output, "NOTS") != NULL);
   free(output);
-  ast_free(bool_not_node);
-
   printf("Test: BOOLTHEN unary not codegen Passed\n");
 }
 
@@ -124,14 +111,12 @@ static void test_short_circuit_and(void) {
       ast_new_binary(OP_AND, ast_new_bool(false, 1), ast_new_bool(true, 1), 1);
   and_node->evalType = T_BOOLEAN;
 
-  char *output = capture_expression(generate_and);
+  char *output = capture_test_statement(ast_new_expr_statement(and_node, 1));
   assert(strstr(output, "$and_false_") != NULL);
   assert(strstr(output, "$and_end_") != NULL);
   assert(strstr(output, "PUSHS bool@false") != NULL);
   assert(strstr(output, "ANDS") == NULL);
   free(output);
-  ast_free(and_node);
-
   printf("Test: BOOLTHEN short-circuit AND codegen Passed\n");
 }
 
@@ -141,14 +126,12 @@ static void test_short_circuit_or(void) {
       ast_new_binary(OP_OR, ast_new_bool(true, 1), ast_new_bool(false, 1), 1);
   or_node->evalType = T_BOOLEAN;
 
-  char *output = capture_expression(generate_or);
+  char *output = capture_test_statement(ast_new_expr_statement(or_node, 1));
   assert(strstr(output, "$or_true_") != NULL);
   assert(strstr(output, "$or_end_") != NULL);
   assert(strstr(output, "PUSHS bool@true") != NULL);
   assert(strstr(output, "ORS") == NULL);
   free(output);
-  ast_free(or_node);
-
   printf("Test: BOOLTHEN short-circuit OR codegen Passed\n");
 }
 
@@ -156,12 +139,10 @@ static void test_else_less_if(void) {
   // A statement-style if with no else must not push a value
   else_less_if = ast_new_if(ast_new_bool(true, 1), bool_block(true), NULL, 1);
 
-  char *output = capture_expression(generate_else_less_if);
+  char *output = capture_test_statement(else_less_if);
   assert(strstr(output, "$if_else_") != NULL);
   assert(strstr(output, "$if_end_") != NULL);
   free(output);
-  ast_free(else_less_if);
-
   printf("Test: BOOLTHEN else-less if codegen Passed\n");
 }
 
@@ -172,12 +153,10 @@ static void test_else_if(void) {
   else_if_chain =
       ast_new_if(ast_new_bool(false, 1), bool_block(false), nested, 1);
 
-  char *output = capture_expression(generate_else_if);
+  char *output = capture_test_statement(else_if_chain);
   assert(strstr(output, "$if_else_") != NULL);
   assert(strstr(output, "$if_end_") != NULL);
   free(output);
-  ast_free(else_if_chain);
-
   printf("Test: BOOLTHEN else-if codegen Passed\n");
 }
 
@@ -190,13 +169,12 @@ static void test_if_expression(void) {
                  int_expression_block(elseValue), 1);
   if_expression->evalType = T_INT;
 
-  char *output = capture_expression(generate_if_expression);
+  char *output =
+      capture_test_statement(ast_new_expr_statement(if_expression, 1));
   assert(strstr(output, "PUSHS int@1") != NULL);
   assert(strstr(output, "PUSHS int@2") != NULL);
   assert(strstr(output, "PUSHS nil@nil") == NULL);
   free(output);
-  ast_free(if_expression);
-
   printf("Test: BOOLTHEN if-expression codegen Passed\n");
 }
 
@@ -206,30 +184,25 @@ static void test_boolean_comparison(void) {
       ast_new_binary(OP_LT, ast_new_int(1, 1), ast_new_int(2, 1), 1);
   comparison_node->evalType = T_BOOLEAN;
 
-  char *output = capture_expression(generate_comparison);
+  char *output =
+      capture_test_statement(ast_new_expr_statement(comparison_node, 1));
   assert(strstr(output, "PUSHS int@1") != NULL);
   assert(strstr(output, "PUSHS int@2") != NULL);
   assert(strstr(output, "LTS") != NULL);
   free(output);
-  ast_free(comparison_node);
-
   printf("Test: BOOLTHEN comparison codegen Passed\n");
 }
 
 static void test_boolean_while(void) {
   // A while condition is generated the same way as an if condition.
-  while_node = ast_new_while(
-      ast_new_bool(true, 1),
-      ast_new_block(NULL, 0, 1),
-      1);
+  while_node =
+      ast_new_while(ast_new_bool(true, 1), ast_new_block(NULL, 0, 1), 1);
 
-  char *output = capture_expression(generate_while);
+  char *output = capture_test_statement(while_node);
   assert(strstr(output, "$while_start_") != NULL);
   assert(strstr(output, "$while_end_") != NULL);
   assert(strstr(output, "PUSHS bool@false") != NULL);
   free(output);
-  ast_free(while_node);
-
   printf("Test: BOOLTHEN while-condition codegen Passed\n");
 }
 
@@ -238,11 +211,11 @@ static void test_control_default_step(void) {
   // iteration. This small program exercises both setup and the loop boundary.
   AstNode *body = ast_new_block(NULL, 0, 1);
   for_default_node =
-      ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(5, 1), NULL,
-                  true, NULL, 0, body, 1);
+      ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(5, 1), NULL, true,
+                  NULL, 0, body, 1);
   for_default_node->as.forStatement.varUid = 42;
 
-  char *output = capture_expression(generate_for_default);
+  char *output = capture_test_statement(for_default_node);
   assert(strstr(output, "PUSHS int@1") != NULL);
   assert(strstr(output, "POPS LF@i$42") != NULL);
   assert(strstr(output, "POPS LF@%end$42") != NULL);
@@ -255,17 +228,14 @@ static void test_control_default_step(void) {
   assert(strstr(output, "LF@%step$42") != NULL);
   assert(strstr(output, "JUMP $for_start_") != NULL);
   free(output);
-  ast_free(for_default_node);
-
   printf("Test: CONTROL inclusive for with default step Passed\n");
 }
 
 static void test_control_negative_until_guards(void) {
   // A negative step makes the loop run backwards. The guard must skip the
   // body for one iteration while the loop variable is still advanced.
-  AstNode *guard =
-      ast_new_binary(OP_GT, ast_new_identifier(strdup("i"), 1),
-                     ast_new_int(0, 1), 1);
+  AstNode *guard = ast_new_binary(OP_GT, ast_new_identifier(strdup("i"), 1),
+                                  ast_new_int(0, 1), 1);
   guard->evalType = T_BOOLEAN;
   AstNode **guards = malloc(sizeof(*guards));
   assert(guards != NULL);
@@ -277,7 +247,7 @@ static void test_control_negative_until_guards(void) {
                   ast_new_int(-2, 1), false, guards, 1, body, 1);
   for_negative_guard_node->as.forStatement.varUid = 43;
 
-  char *output = capture_expression(generate_for_negative_guard);
+  char *output = capture_test_statement(for_negative_guard_node);
   assert(strstr(output, "PUSHS int@-2") != NULL);
   assert(strstr(output, "$for_negative_") != NULL);
   assert(strstr(output, "LT LF@%cond$43") != NULL);
@@ -288,8 +258,6 @@ static void test_control_negative_until_guards(void) {
   assert(strstr(output, "LF@i$43") != NULL);
   assert(strstr(output, "LF@%step$43") != NULL);
   free(output);
-  ast_free(for_negative_guard_node);
-
   printf("Test: CONTROL descending until loop with guard Passed\n");
 }
 
@@ -302,23 +270,20 @@ static void test_control_zero_step(void) {
                   ast_new_int(0, 1), true, NULL, 0, body, 1);
   for_zero_step_node->as.forStatement.varUid = 44;
 
-  char *output = capture_expression(generate_for_zero_step);
+  char *output = capture_test_statement(for_zero_step_node);
   assert(strstr(output, "JUMPIFEQ $for_zero_") != NULL);
   assert(strstr(output, "LF@%step$44 int@0") != NULL);
   assert(strstr(output, "LABEL $for_zero_") != NULL);
   assert(strstr(output, "EXIT int@40") != NULL);
   free(output);
-  ast_free(for_zero_step_node);
-
   printf("Test: CONTROL zero-step loop exits with error 40 Passed\n");
 }
 
 static void test_control_for_prepass(void) {
   // The prepass must declare the loop variable and internal FOR helpers,
   // including declarations found inside the loop body.
-  AstNode *innerDecl =
-      ast_new_var_decl(strdup("value"), true, T_INT, true,
-                       ast_new_int(7, 1), 1);
+  AstNode *innerDecl = ast_new_var_decl(strdup("value"), true, T_INT, true,
+                                        ast_new_int(7, 1), 1);
   innerDecl->uid = 45;
 
   AstNode **bodyStatements = malloc(sizeof(*bodyStatements));
@@ -326,9 +291,8 @@ static void test_control_for_prepass(void) {
   bodyStatements[0] = innerDecl;
   AstNode *body = ast_new_block(bodyStatements, 1, 1);
 
-  AstNode *loop =
-      ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(3, 1), NULL,
-                  true, NULL, 0, body, 1);
+  AstNode *loop = ast_new_for(strdup("i"), ast_new_int(1, 1), ast_new_int(3, 1),
+                              NULL, true, NULL, 0, body, 1);
   loop->as.forStatement.varUid = 46;
 
   AstNode **mainStatements = malloc(sizeof(*mainStatements));
@@ -361,17 +325,14 @@ static void test_valmem_to_string(void) {
   AstNode *receiver = ast_new_double(1.2345, 1);
   receiver->evalType = T_DOUBLE;
 
-  valmem_node =
-      ast_new_member_call(receiver, strdup("toString"), 1);
+  valmem_node = ast_new_member_call(receiver, strdup("toString"), 1);
   valmem_node->evalType = T_STRING;
 
-  char *output = capture_expression(generate_valmem);
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "PUSHS float@") != NULL);
   assert(strstr(output, "FLOAT2STR") != NULL);
   assert(strstr(output, "PUSHS GF@$tmp1") != NULL);
   free(output);
-  ast_free(valmem_node);
-
   printf("Test: VALMEM toString codegen Passed\n");
 }
 
@@ -383,12 +344,10 @@ static void test_valmem_to_int(void) {
   valmem_node = ast_new_member_call(receiver, strdup("toInt"), 1);
   valmem_node->evalType = T_INT;
 
-  char *output = capture_expression(generate_valmem);
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "PUSHS float@") != NULL);
   assert(strstr(output, "FLOAT2INTS") != NULL);
   free(output);
-  ast_free(valmem_node);
-
   printf("Test: VALMEM toInt codegen Passed\n");
 }
 
@@ -400,12 +359,10 @@ static void test_valmem_length(void) {
   valmem_node = ast_new_member_call(receiver, strdup("length"), 1);
   valmem_node->evalType = T_INT;
 
-  char *output = capture_expression(generate_valmem);
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "STRLEN GF@$tmp1 GF@$tmp1") != NULL);
   assert(strstr(output, "PUSHS GF@$tmp1") != NULL);
   free(output);
-  ast_free(valmem_node);
-
   printf("Test: VALMEM length codegen Passed\n");
 }
 
@@ -414,11 +371,10 @@ static void test_valmem_floor(void) {
   AstNode *negativeReceiver = ast_new_double(-3.75, 1);
   negativeReceiver->evalType = T_DOUBLE;
 
-  valmem_node =
-      ast_new_member_call(negativeReceiver, strdup("floor"), 1);
+  valmem_node = ast_new_member_call(negativeReceiver, strdup("floor"), 1);
   valmem_node->evalType = T_DOUBLE;
 
-  char *output = capture_expression(generate_valmem);
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "FLOAT2INT GF@$tmp2 GF@$tmp1") != NULL);
   assert(strstr(output, "INT2FLOAT GF@$tmp3 GF@$tmp2") != NULL);
   assert(strstr(output, "LT GF@$tmp4 GF@$tmp1 GF@$tmp3") != NULL);
@@ -426,8 +382,6 @@ static void test_valmem_floor(void) {
   assert(strstr(output, "SUB GF@$tmp3 GF@$tmp3 float@0x1p+0") != NULL);
   assert(strstr(output, "PUSHS GF@$tmp3") != NULL);
   free(output);
-  ast_free(valmem_node);
-
   printf("Test: VALMEM floor codegen Passed\n");
 }
 
@@ -437,29 +391,25 @@ static void test_valmem_chained_floor_to_int(void) {
   AstNode *receiver = ast_new_double(-3.75, 1);
   receiver->evalType = T_DOUBLE;
 
-  AstNode *floored =
-      ast_new_member_call(receiver, strdup("floor"), 1);
+  AstNode *floored = ast_new_member_call(receiver, strdup("floor"), 1);
   floored->evalType = T_DOUBLE;
 
   valmem_node = ast_new_member_call(floored, strdup("toInt"), 1);
   valmem_node->evalType = T_INT;
 
-  char *output = capture_expression(generate_valmem);
+  char *output = capture_test_statement(ast_new_expr_statement(valmem_node, 1));
   assert(strstr(output, "FLOAT2INT GF@$tmp2 GF@$tmp1") != NULL);
   assert(strstr(output, "INT2FLOAT GF@$tmp3 GF@$tmp2") != NULL);
   assert(strstr(output, "$floor_end_") != NULL);
   assert(strstr(output, "FLOAT2INTS") != NULL);
   free(output);
-  ast_free(valmem_node);
-
   printf("Test: VALMEM chained floor.toInt codegen Passed\n");
 }
 
 static void test_normal_boolean_program(void) {
   // Exercise declaration, assignment, READ, comparison and print in one AST.
-  AstNode *enabledDecl =
-      ast_new_var_decl(strdup("enabled"), true, T_BOOLEAN, true,
-                       ast_new_bool(true, 1), 1);
+  AstNode *enabledDecl = ast_new_var_decl(strdup("enabled"), true, T_BOOLEAN,
+                                          true, ast_new_bool(true, 1), 1);
   enabledDecl->uid = 1;
 
   AstNode *enabledAssign =
@@ -471,8 +421,7 @@ static void test_normal_boolean_program(void) {
   readArgs[0] = ast_new_func_call(strdup("readBoolean"), NULL, 0, 3);
   readArgs[0]->evalType = T_BOOLEAN;
 
-  AstNode *printCall =
-      ast_new_func_call(strdup("print"), readArgs, 1, 3);
+  AstNode *printCall = ast_new_func_call(strdup("print"), readArgs, 1, 3);
   printCall->evalType = T_UNIT;
 
   AstNode **mainStatements = malloc(3 * sizeof(*mainStatements));
@@ -481,8 +430,7 @@ static void test_normal_boolean_program(void) {
   mainStatements[1] = enabledAssign;
   mainStatements[2] = ast_new_expr_statement(printCall, 3);
 
-  AstNode *mainBody =
-      ast_new_block(mainStatements, 3, 1);
+  AstNode *mainBody = ast_new_block(mainStatements, 3, 1);
   AstNode *mainFunction =
       ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, mainBody, 1);
 

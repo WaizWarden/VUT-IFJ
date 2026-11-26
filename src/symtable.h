@@ -20,13 +20,22 @@ typedef enum {
   T_STRING,
   T_UNIT,
   T_BOOLEAN,
-  T_ANY // for arguments of internal functions
+  T_ANY, // for arguments of internal functions
 } DataType;
 
 /**
  * @brief Kind of symbol stored in the symbol table.
  */
 typedef enum { ST_VAR, ST_FUNC } SymbolType;
+
+/**
+ * @brief Result of insering a function symbol.
+ */
+typedef enum {
+  ST_INSERT_OK,
+  ST_INSERT_REDEFINED,
+  ST_INSERT_ERROR,
+} StInsertResult;
 
 /**
  * @brief Function parameter name and type.
@@ -43,6 +52,7 @@ typedef struct {
 typedef struct {
   DataType type;
   bool modifiable;
+  uint32_t uid;
 } VarInfo;
 
 /**
@@ -114,21 +124,21 @@ void st_pop_scope(Symtable *symtable);
  * @param name Variable name.
  * @param type Variable data type.
  * @param modifiable Whether the variable can be modified.
- * @return true on succes, false if insertion fails.
+ * @return Symtable return code.
  */
-bool st_insert_var(Symtable *symtable, const char *name, DataType type,
-                   bool modifiable);
+StInsertResult st_insert_var(Symtable *symtable, const char *name,
+                             DataType type, bool modifiable, uint32_t uid);
 
 /**
  * @brief Insert a function into the symbol table.
  * @param st Symbol table to update.
  * @param name Function name.
  * @param ret_type Function return type.
- * @return true on succes, false if insertion fails.
+ * @return Symtable return code.
  */
-bool st_insert_func(Symtable *symtable, const char *name, DataType retType,
-                    Parameter *params, uint16_t paramCount, bool isMain,
-                    bool isDefined);
+StInsertResult st_insert_func(Symtable *symtable, const char *name,
+                              DataType retType, Parameter *params,
+                              uint16_t paramCount, bool isMain, bool isDefined);
 
 /**
  * @brief Find a symbol by name, searching the current and parent scopes.

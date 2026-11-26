@@ -541,10 +541,12 @@ AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line) {
   static const struct {
     const char *member;
     const char *builtin;
-  } memberMap[] = {{"toString", "toStr"},
-                   {"toInt", "toInt"},
-                   {"floor", "$floor"},
-                   {"length", "strLength"}};
+  } memberMap[] = {
+      {"toString", "toStr"},
+      {"toInt", "toInt"},
+      {"floor", "$floor"},
+      {"length", "strLength"},
+  };
 
   char *callName = memberName;
 

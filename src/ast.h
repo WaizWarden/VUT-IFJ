@@ -31,7 +31,7 @@ typedef enum {
   AST_LITERAL_DOUBLE,
   AST_LITERAL_STRING,
   AST_LITERAL_BOOL,
-  AST_LITERAL_UNIT
+  AST_LITERAL_UNIT,
 } AstNodeType;
 
 typedef enum {
@@ -46,10 +46,14 @@ typedef enum {
   OP_GT,
   OP_GE,
   OP_AND,
-  OP_OR
+  OP_OR,
 } BinaryOperation;
 
-typedef enum { OP_UNARY_MINUS, OP_UNARY_NOT } UnaryOperation;
+typedef enum {
+  OP_UNARY_MINUS,
+  OP_UNARY_NOT,
+  OP_UNARY_INT2DOUBLE
+} UnaryOperation;
 
 typedef struct AstNode {
   AstNodeType type;

@@ -48,7 +48,7 @@ static void test_valid_assignment(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_OK);
+  assert(err == ERR_OK);
 
   printf("Test: Semantically valid assignment Passed\n");
 }
@@ -59,7 +59,7 @@ static void test_undefined_variable(void) {
   AstNode *statements[] = {assign};
 
   SemanticError err = analyze_main_body(statements, 1);
-  assert(err == ERR_SEM_UNDEFINED_SYMBOL);
+  assert(err == ERR_UNDEFINED_SYMBOL);
 
   printf("Test: Undefined variable Passed\n");
 }
@@ -71,7 +71,7 @@ static void test_type_mismatch(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_WRONG_TYPE);
+  assert(err == ERR_WRONG_TYPE);
 
   printf("Test: Type mismatch Passed\n");
 }
@@ -83,7 +83,7 @@ static void test_int_to_double_implicit_conversion(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_OK);
+  assert(err == ERR_OK);
 
   printf("Test: Implicit conversion Int to Double Passed\n");
 }
@@ -96,7 +96,7 @@ static void test_readonly_variable_assign(void) {
   AstNode *statements[] = {decl, assign};
 
   SemanticError err = analyze_main_body(statements, 2);
-  assert(err == ERR_SEM_IMMUTABLE);
+  assert(err == ERR_IMMUTABLE);
 
   printf("Test: Assignment to constant (val) Passed\n");
 }
