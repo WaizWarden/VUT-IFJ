@@ -392,7 +392,7 @@ AstNode *ast_new_program(AstNode **functions, size_t count, int line) {
  * @param line
  * @return AstNode*
  */
-AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
+AstNode *ast_new_func_def(char *name, bool isMain, DataType retType, bool hasReturnType,
                           Parameter *params, uint16_t paramCount, AstNode *body,
                           int line) {
 
@@ -402,6 +402,7 @@ AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
   node->as.funcDef.paramCount = paramCount;
   node->as.funcDef.params = params;
   node->as.funcDef.retType = retType;
+  node->as.funcDef.hasReturnType = hasReturnType;
   node->as.funcDef.body = body;
 
   return node;

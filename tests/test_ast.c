@@ -90,9 +90,9 @@ void test_ast(void) {
   mainBody[3] = ast_new_return(NULL, 13);
 
   AstNode **funcs = (AstNode **)malloc(2 * sizeof(AstNode *));
-  funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, params, 1,
+  funcs[0] = ast_new_func_def(dup_str("factorial"), false, T_INT, true, params, 1,
                               ast_new_block(funcBody, 4, 1), 1);
-  funcs[1] = ast_new_func_def(dup_str("run"), true, T_UNIT, NULL, 0,
+  funcs[1] = ast_new_func_def(dup_str("run"), true, T_UNIT, true, NULL, 0,
                               ast_new_block(mainBody, 4, 9), 9);
 
   AstNode *program = ast_new_program(funcs, 2, 0);
@@ -104,7 +104,7 @@ void test_ast(void) {
   extra[1] = ast_new_expr_statement(ast_new_unit(15), 15);
   AstNode *extraBlock = ast_new_block(extra, 2, 14);
   AstNode **funcs2 = (AstNode **)malloc(sizeof(AstNode *));
-  funcs2[0] = ast_new_func_def(dup_str("extra"), false, T_UNIT, NULL, 0,
+  funcs2[0] = ast_new_func_def(dup_str("extra"), false, T_UNIT, true, NULL, 0,
                                extraBlock, 14);
   AstNode *program2 = ast_new_program(funcs2, 1, 0);
 

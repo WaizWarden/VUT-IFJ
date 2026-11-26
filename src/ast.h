@@ -99,6 +99,7 @@ typedef struct AstNode {
       char *name;
       bool isMain;
       DataType retType;
+      bool hasReturnType;
       Parameter *params;
       uint16_t paramCount;
       struct AstNode *body;
@@ -162,7 +163,7 @@ AstNode *ast_new_identifier(char *name, int line); // steals `name`
 AstNode *ast_new_assign(char *name, AstNode *value, int line);
 
 AstNode *ast_new_program(AstNode **functions, size_t count, int line);
-AstNode *ast_new_func_def(char *name, bool isMain, DataType retType,
+AstNode *ast_new_func_def(char *name, bool isMain, DataType retType, bool hasReturnType,
                           Parameter *params, uint16_t paramCount, AstNode *body,
                           int line);
 AstNode *ast_new_block(AstNode **stmts, size_t count, int line);

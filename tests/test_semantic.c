@@ -29,7 +29,7 @@ static SemanticError analyze_main_body(AstNode **statements, size_t count) {
 
   AstNode *body = ast_new_block(owned_statements, count, 1);
   AstNode *main =
-      ast_new_func_def(strdup("main"), true, T_UNIT, NULL, 0, body, 1);
+      ast_new_func_def(strdup("main"), true, T_UNIT, true, NULL, 0, body, 1);
   AstNode **functions = malloc(sizeof(*functions));
   assert(functions != NULL);
   functions[0] = main;
