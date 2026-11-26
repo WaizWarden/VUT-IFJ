@@ -1,32 +1,17 @@
-<div class="title-page">
+# Project overview
 
-<h1 style="margin-bottom: 0.5rem;">Project documentation</h1>
-<h4 style="margin-bottom: 0;">Implementation of Scalla compiler</h4>
-<i>Hashtable variant</i>
+**Implemented extensions:** BOOLTHEN, CONTROL, VALMEM, INTERPOLATEDS.
 
-
-<p style="margin-top: 1.3rem; margin-bottom: 0.1rem"><b>Team</b></p>
-<p style="margin: 0; line-height: 1.5;">
-<b> Leader: </b> xjuricl01 (33 %)<br>
-xoramst00 (33 %) - xhorakj01 (34 %) - xsirmat00 (00 %)
-</p>
-
-<p style="margin-top: 1.3rem; margin-bottom: 0.1rem"><b>Extensions</b></p>
-<p style="margin: 0; line-height: 1.5;">
-BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
-</p>
-
-</div>
-# Team distribution
+## Team distribution
 - **xjuricl01** – project coordination, lexical analysis, fixes in semantic analysis
 - **xoramst00** – symbol table, code generator (main developer)
 - **xhorakj01** – parser, AST, precedence analysis, stack
 - **xsirmat00** – semantic analysis, code generator (secondary developer), dropped out
 
-#### Explanation of percent distribution
+### Explanation of percent distribution
 **xsirmat00** dropped out and will retake the course; per his agreement with the team he receives 0 %.
 
-# Team collaboration
+## Team collaboration
 - Each module has its own unit tests
 - Whole compiler is tested by e2e tests
 - Before merging to main we used valgrind to check for memory leaks
@@ -35,11 +20,9 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 - We didn't use PR requests
 
 
-# Block diagram
+## Block diagram
 
-![diagram](documentation/img/Block-diagram.png)
-
-# FSM of lexical analysis
+![Compiler architecture and module interactions](documentation/img/Block-diagram.png)
 
 # Syntax Analysis
 

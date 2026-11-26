@@ -1,0 +1,21 @@
+input-files:
+  - documentation/documentation.md
+output-file: documentation/dokumentace.pdf
+pdf-engine: weasyprint
+css:
+  - documentation/styles.css
+resource-path:
+  - .
+  - documentation
+toc: true
+toc-depth: 2
+number-sections: true
+metadata:
+  title: "IFJ26 Compiler"
+  subtitle: "Project documentation | Hash-table variant"
+  author:
+    - "xjuricl01 (team lead, 33%)"
+    - "xoramst00 (33%)"
+    - "xhorakj01 (34%)"
+    - "xsirmat00 (0%)"
+  lang: en-US
