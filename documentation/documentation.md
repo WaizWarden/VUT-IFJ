@@ -37,9 +37,20 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 
 # Block diagram
 
-  <img src="./documentation/blockDiagram.png" style="width: 40rem; text-align: center;" />
+<img src="./documentation/blockDiagram.png" style="width: 40rem; text-align: center;" />
 
-# FSM of lexical analysis
+# Lexical Analysis
+Lexical analysis is the process of reading human-readable code and convets it to a sequence that a parser can work with.
+In the process, it removes unnecessary parts of the code, such as comments and whitespace.
+
+
+## Architecture
+- `scanner.c` - main process, goes through input and converts it into tokens
+- `scanner_stack.c` - handles indent and dedents of the code
+
+## FSM of scanner
+
+
 
 # Syntax Analysis
 
