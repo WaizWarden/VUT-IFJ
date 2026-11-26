@@ -233,7 +233,11 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
   SemanticError error = ERR_OK;
   if (out) {
     *out = T_UNIT;
-  };
+  }
+
+  if(!stmt){
+    return ERR_OK;
+  }
 
   switch (stmt->type) {
   case AST_BLOCK: {
@@ -258,16 +262,18 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
 
     st_pop_scope(symtable);
 
-    const AstNode *last = stmt->as.block.stmts[stmt->as.block.count - 1];
-
-    if (last->type == AST_EXPR_STATEMENT) {
-      stmt->evalType = last->evalType;
-    } else {
-      stmt->evalType = T_UNIT;
+    DataType lastType = T_UNIT;
+    error = analyze_statement(
+        symtable, stmt->as.block.stmts[stmt->as.block.count - 1], &lastType);
+    if (error != ERR_OK) {
+      st_pop_scope(symtable);
+      return error;
     }
 
+    // only anotate AST node with type if it is needed
     if (out) {
-      *out = stmt->evalType;
+      stmt->evalType = lastType;
+      *out = lastType;
     }
     break;
   }
@@ -312,6 +318,14 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
   }
 
   case AST_IF: {
+
+    // if data type is needed, the statement is a one line expression
+    if (!out) {
+      error = analyze_expression(symtable, stmt, out);
+      if (error != ERR_OK) {
+        return error;
+      }
+    }
 
     // analyze condition
     DataType conditionType = T_UNIT;
@@ -457,13 +471,7 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
         return ERR_WRONG_TYPE;
       }
     }
-
-    // empty return is only allowed if function is T_UNIT
-    if (stmt->as.ret.expr == NULL) {
-      if (currentFuncRetType != T_UNIT) {
-        return ERR_WRONG_TYPE;
-      }
-    }
+    
     stmt->evalType = currentFuncRetType;
     break;
   }
@@ -522,16 +530,15 @@ static SemanticError analyze_statement(Symtable *symtable, AstNode *stmt,
       st_pop_scope(symtable);
       return ERR_REDEFINITION;
     }
-    if(stResult == ST_INSERT_ERROR)
-    {
+    if (stResult == ST_INSERT_ERROR) {
       st_pop_scope(symtable);
       return ERR_INTERNAL;
     }
 
     for (size_t i = 0; i < stmt->as.forStatement.guardCount; i++) {
       DataType guardType = T_UNIT;
-      error =
-          analyze_expression(symtable, stmt->as.forStatement.guards[i], &guardType);
+      error = analyze_expression(symtable, stmt->as.forStatement.guards[i],
+                                 &guardType);
 
       if (error != ERR_OK) {
         st_pop_scope(symtable);
@@ -1016,7 +1023,7 @@ static AstNode *new_implicit_conversion(AstNode *operand) {
 /// @param type data type
 /// @return true if numeric, false otherwise
 static bool is_numeric_type(DataType type) {
-  return type == T_INT || type == T_DOUBLE;
+  return (bool)(type == T_INT || type == T_DOUBLE);
 }
 
 /// @brief Checks type compatibility and handles implicit conversion of int ->
@@ -1081,8 +1088,8 @@ static bool always_returns(AstNode *node) {
     return always_returns(node->as.block.stmts[node->as.block.count - 1]);
 
   case AST_IF:
-    return always_returns(node->as.ifStatement.thenBlock) &&
-           always_returns(node->as.ifStatement.elseBlock);
+    return (bool)(always_returns(node->as.ifStatement.thenBlock) &&
+                  always_returns(node->as.ifStatement.elseBlock));
 
   default:
     return false;

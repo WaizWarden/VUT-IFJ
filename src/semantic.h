@@ -18,7 +18,7 @@ typedef enum {
   ERR_WRONG_TYPE = 6,
   ERR_IMMUTABLE = 7,
   ERR_OTHER = 10,
-  ERR_INTERNAL = 99
+  ERR_INTERNAL = 99,
 } SemanticError;
 
 /// @brief Analyzes all nodes of program AST tree and annotates every node with
@@ -28,4 +28,4 @@ typedef enum {
 /// @return ERR_OK if there is no error encountered or apropriate error code
 SemanticError analyze_semantics(Symtable *symtable, AstNode *root);
 
-#endif
+#endif 
