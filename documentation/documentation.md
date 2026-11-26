@@ -246,130 +246,139 @@ The parser is implemented using a recursive descent that uses an LL grammar cove
 Non terminals are written using brackets `<>`. Terminals are written as tokens (`NEWLINE, INDENT, DEDENT,..`)
 Expressions themselves are handled by the precedence parser and appear as a single terminal `<expr>`.
 
-`<expr>` is an interface symbol handled entirely by precedence analysis
+Expressions are outside the LL grammar and `<expr>` is a complete expression parsed by precedence analysis. Two interface symbols are used at the identifier boundary: `<exprNoId>` is an expression, its first token is not an identifier, and `<exprTail>` is the continuation of an expression after its first identifier has already been consumed by the LL parser.
 
 Precedence grammar for `<expr>` (not part of the LL grammar):
 
 ```
-E → id | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
-  | E && E | E || E | E . i | ( E ) | ( ) 
+E → i | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
+  | E && E | E || E | E . id | ( E ) | ( )
 ```
 
 ### Numbered rules
 
 ```
-1  <program>    → <prolog> NEWLINE <funcList>
-2  <prolog>     → import ifj26 . *
-3  <funcList>   → <funcDef> <funcList>
-4  <funcList>   → ε
-5  <funcDef>    → [@ main] def id ( <paramList> ) [: <type>] = <funcBody>
-6  <funcBody>   → NEWLINE INDENT <block> DEDENT
-7  <funcBody>   → <exprOrCall>
-8  <paramList>  → <param> <paramRest>
-9  <paramList>  → ε
-10 <paramRest>  → , <param> <paramRest>
-11 <paramRest>  → ε
-12 <param>      → id : <type>
-13 <type>       → Int | Double | String | Unit | Boolean
-14 <block>      → <stmtSeq>
-15 <stmtSeq>    → <statement> <sep> <stmtSeq>
-16 <stmtSeq>    → <statement>
-17 <sep>        → NEWLINE
-18 <sep>        → ;
-19 <statement>  → <varDecl>
-20 <statement>  → <ifStmt>
-21 <statement>  → <while>
-22 <statement>  → <for>
-23 <statement>  → <return>
-24 <statement>  → <idStmt>
-25 <statement>  → <exprStmt>
-26 <varDecl>    → (var|val) id [: <type>] = <exprOrCall>
-27 <idStmt>     → id = <exprOrCall>
-28 <idStmt>     → id ( <argList> )
-29 <idStmt>     → id <exprTail>          *
-30 <return>     → return <exprOrCall>
-31 <return>     → return                  *
-32 <exprStmt>   → <expr>
-33 <ifStmt>     → if <expr> then <body>
-34 <ifStmt>     → if <expr> then <body> else <elsePart>   *
-35 <elsePart>   → <ifStmt>
-36 <elsePart>   → <body>
-37 <ifExpr>     → if <expr> then <body> else <elsePart>
-38 <while>      → while <expr> do NEWLINE INDENT <block> DEDENT
-39 <for>        → for <forHeader> do <body>
-40 <forHeader>  → id <- <expr> (to|until) <expr> [by <expr>] <guards>
-41 <forHeader>  → NEWLINE INDENT id <- <expr> (to|until) <expr>
-                  [by <expr>] <mlGuards> DEDENT
-42 <guards>     → if <expr> <guards>
-43 <guards>     → ε
-44 <mlGuards>   → NEWLINE if <expr> <mlGuards>   *
-45 <mlGuards>   → NEWLINE
-46 <body>       → NEWLINE INDENT <block> DEDENT
-47 <body>       → <statement>
-48 <exprOrCall> → <ifExpr>
-49 <exprOrCall> → id ( <argList> )               *
-50 <exprOrCall> → <expr>
-51 <argList>    → <arg> <argRest>
-52 <argList>    → ε
-53 <argRest>    → , <arg> <argRest>
-54 <argRest>    → ε
-55 <arg>        → <term> (. id)*
-56 <term>       → id | int | double | string | bool
+ 1 <program>      → <prolog> NL <funcList> EOF
+ 2 <prolog>       → import ifj26 . *
+ 3 <funcList>     → <funcDef> <funcList>      4  <funcList>     → ε
+ 5 <funcDef>      → <mainOpt> def id ( <paramList> ) <typeOpt> = <funcBody>
+ 6 <mainOpt>      → @ main                     7  <mainOpt>      → ε
+ 8 <typeOpt>      → : type                     9  <typeOpt>      → ε
+10 <funcBody>     → NL IND <block> DED        11  <funcBody>     → <exprOrCall>
+12 <paramList>    → <param> <paramRest>       13  <paramList>    → ε
+14 <paramRest>    → , <param> <paramRest>     15  <paramRest>    → ε
+16 <param>        → id : type
+17 <block>        → <statement> <stmtTail>
+18 <stmtTail>     → NL <moreStmts>            19  <stmtTail>     → ; <moreStmts>
+20 <stmtTail>     → ε
+21 <moreStmts>    → <statement> <stmtTail>    22  <moreStmts>    → ε
+23 <statement>    → <varDecl>                 24  <statement>    → <ifStmt>
+25 <statement>    → <while>                   26  <statement>    → <for>
+27 <statement>    → <return>                  28  <statement>    → <idStmt>
+29 <statement>    → <exprNoId>
+30 <varDecl>      → var id <typeOpt> = <exprOrCall>
+31 <varDecl>      → val id <typeOpt> = <exprOrCall>
+32 <idStmt>       → id <idTail>
+33 <idTail>       → = <exprOrCall>            34  <idTail>       → ( <argList> )
+35 <idTail>       → <exprTail>
+36 <return>       → return <returnTail>
+37 <returnTail>   → <exprOrCall>              38  <returnTail>   → ε
+39 <ifStmt>       → if <expr> then <body> <elseOpt>
+40 <elseOpt>      → else <body>               41  <elseOpt>      → ε
+42 <ifExpr>       → if <expr> then <body> else <body>
+43 <while>        → while <expr> do NL IND <block> DED
+44 <for>          → for <forHeader> do <body>
+45 <forHeader>    → id <- <expr> <range> <expr> <byOpt> <guards>
+46 <forHeader>    → NL IND id <- <expr> <range> <expr> <byOpt> NL <mlGuards> DED
+47 <range>        → to                        48  <range>        → until
+49 <byOpt>        → by <expr>                 50  <byOpt>        → ε
+51 <guards>       → if <expr> <guards>        52  <guards>       → ε
+53 <mlGuards>     → if <expr> NL <mlGuards>   54  <mlGuards>     → ε
+55 <body>         → NL IND <block> DED        56  <body>         → <statement>
+57 <exprOrCall>   → <ifExpr>                  58  <exprOrCall>   → id <exprCallTail>
+59 <exprOrCall>   → <exprNoId>
+60 <exprCallTail> → ( <argList> )             61  <exprCallTail> → <exprTail>
+62 <argList>      → <arg> <argRest>           63  <argList>      → ε
+64 <argRest>      → , <arg> <argRest>         65  <argRest>      → ε
+66 <arg>          → <term> <memberTail>
+67 <memberTail>   → . id <memberTail>         68  <memberTail>   → ε
+69 <term>         → atom                      70  <term>         → ( )
 ```
 
 ### LL table
 
-For readability the table is split into three parts by non-terminal
-groups. `e` = expr-start tokens (literal, `(`, `!`, unary `-`),
-`T` = type keywords (Int, Double, String, Unit, Boolean),
-`kw` = `var`/`val`. An empty cell means a syntax error.
+The table is organized by nonterminal groups.
+  - `e` = expression start other than `id`/`if`
+  - `a` = the `atom` terminal category
+  - `et` = a token that can continue or end `<exprTail>`
 
-Top-level rules:
+Interface symbols `<expr>`, `<exprNoId>` and `<exprTail>` have no rows (these are parser outside of the LL parser)
 
-| | import | @ | def | id | ) | , | : | T | if | NL | EOF | e |
+Empty cell means syntax error.
+
+Program, functions and parameters:
+
+| | import | @ | def | id | ) | , | : | = | NL | EOF | if | e |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **program** | 1 | | | | | | | | | | | |
 | **prolog** | 2 | | | | | | | | | | | |
-| **funcList** | | 3 | 3 | | | | | | | | 4 | |
+| **funcList** | | 3 | 3 | | | | | | | 4 | | |
 | **funcDef** | | 5 | 5 | | | | | | | | | |
-| **funcBody** | | | | 7 | | | | | 7 | 6 | | 7 |
-| **paramList** | | | | 8 | 9 | | | | | | | |
-| **paramRest** | | | | | 11 | 10 | | | | | | |
-| **param** | | | | 12 | | | | | | | | |
-| **type** | | | | | | | | 13 | | | | |
+| **mainOpt** | | 6 | 7 | | | | | | | | | |
+| **typeOpt** | | | | | | | 8 | 9 | | | | |
+| **funcBody** | | | | 11 | | | | | 10 | | 11 | 11 |
+| **paramList** | | | | 12 | 13 | | | | | | | |
+| **paramRest** | | | | | 15 | 14 | | | | | | |
+| **param** | | | | 16 | | | | | | | | |
 
-Statements and bodies:
+Blocks and statements:
 
-| | id | kw | if | else | while | for | return | NL | ; | DEDENT | e |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| **block** | 14 | 14 | 14 | | 14 | 14 | 14 | | | | 14 |
-| **stmtSeq** | 15/16 | 15/16 | 15/16 | | 15/16 | 15/16 | 15/16 | | | | 15/16 |
-| **sep** | | | | | | | | 17 | 18 | | |
-| **statement** | 24 | 19 | 20 | | 21 | 22 | 23 | | | | 25 |
-| **varDecl** | | 26 | | | | | | | | | |
-| **idStmt** | 27/28/29* | | | | | | | | | | |
-| **return** | | | | | | | 30/31* | | | | |
-| **exprStmt** | | | | | | | | | | | 32 |
-| **ifStmt** | | | 33/34* | | | | | | | | |
-| **elsePart** | 36 | 36 | 35 | | 36 | 36 | 36 | 36 | | | 36 |
-| **ifExpr** | | | 37 | | | | | | | | |
-| **while** | | | | | 38 | | | | | | |
-| **for** | | | | | | 39 | | | | | |
-| **body** | 47 | 47 | 47 | | 47 | 47 | 47 | 46 | | | 47 |
+| | id | var | val | if | while | for | return | e | NL | ; | DED | else | = | ( | et |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **block** | 17 | 17 | 17 | 17 | 17 | 17 | 17 | 17 | | | | | | | |
+| **stmtTail** | | | | | | | | | 18 | 19 | 20 | | | | |
+| **moreStmts** | 21 | 21 | 21 | 21 | 21 | 21 | 21 | 21 | | | 22 | | | | |
+| **statement** | 28 | 23 | 23 | 24 | 25 | 26 | 27 | 29 | | | | | | | |
+| **varDecl** | | 30 | 31 | | | | | | | | | | | | |
+| **idStmt** | 32 | | | | | | | | | | | | | | |
+| **idTail** | | | | | | | | | | | | | 33 | 34 | 35 |
+| **return** | | | | | | | 36 | | | | | | | | |
+| **returnTail** | 37 | | | 37 | | | | 37 | 38 | 38 | 38 | 38 | | | |
 
-The `for` header and function calls:
+Control flow and loop bodies:
 
-| | id | ( | ) | , | if | do | NL | e |
+| | if | else | while | for | NL | ; | DED | id | var | val | return | e |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **ifStmt** | 39 | | | | | | | | | | | |
+| **elseOpt** | | 40 | | | 41 | 41 | 41 | | | | | |
+| **ifExpr** | 42 | | | | | | | | | | | |
+| **while** | | | 43 | | | | | | | | | |
+| **for** | | | | 44 | | | | | | | | |
+| **body** | 56 | | 56 | 56 | 55 | | | 56 | 56 | 56 | 56 | 56 |
+
+The `for` header:
+
+| | id | NL | to | until | by | if | do | DED |
 |---|---|---|---|---|---|---|---|---|
-| **forHeader** | 40 | | | | | | 41 | |
-| **guards** | | | | | 42 | 43 | | |
-| **mlGuards** | | | | | | | 44/45* | |
-| **exprOrCall** | 49/50* | 50 | | | 48 | | | 50 |
-| **argList** | 51 | | 52 | | | | | 51 |
-| **argRest** | | | 54 | 53 | | | | |
-| **arg** | 55 | | | | | | | 55 |
-| **term** | 56 | | | | | | | 56 |
+| **forHeader** | 45 | 46 | | | | | | |
+| **range** | | | 47 | 48 | | | | |
+| **byOpt** | | 50 | | | 49 | 50 | 50 | |
+| **guards** | | | | | | 51 | 52 | |
+| **mlGuards** | | | | | | 53 | | 54 |
 
+Function calls and arguments:
+
+| | id | if | e | a | ( | ) | , | . | et |
+|---|---|---|---|---|---|---|---|---|---|
+| **exprOrCall** | 58 | 57 | 59 | | | | | | |
+| **exprCallTail** | | | | | 60 | | | | 61 |
+| **argList** | | | | 62 | 62 | 63 | | | |
+| **argRest** | | | | | | 65 | 64 | | |
+| **arg** | | | | 66 | 66 | | | | |
+| **memberTail** | | | | | | 68 | 68 | 67 | |
+| **term** | | | | 69 | 70 | | | | |
+
+`to`, `until` and `by` are not reserved words. In the `for` header they are recognized by the value of an identifier token, outside this context they remain normal identifiers. An `else` belongs to the nearest unmatched `if`.
 
 # Modules description
 
