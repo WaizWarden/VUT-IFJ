@@ -246,7 +246,7 @@ The parser is implemented using a recursive descent that uses an LL grammar cove
 Non terminals are written using brackets `<>`. Terminals are written as tokens (`NEWLINE, INDENT, DEDENT,..`)
 Expressions themselves are handled by the precedence parser and appear as a single terminal `<expr>`.
 
-Expressions are outside the LL grammar and `<expr>` is a complete expression parsed by precedence analysis. Two interface symbols are used at the identifier boundary: `<exprNoId>` is an expression, its first token is not an identifier, and `<exprTail>` is the continuation of an expression after its first identifier has already been consumed by the LL parser.
+Expressions are outside the LL grammar and `<expr>` is a complete expression parsed by precedence analysis. Two interface symbols are used at the identifier boundary: `<exprNoId>` is an expression, its first token is not an identifier, and `<exprTail>` is the continuation of an expression after its first identifier has already been consumed by the LL parser. `type` denotes any type keyword, `atom` denotes an identifier or a literal.
 
 Precedence grammar for `<expr>` (not part of the LL grammar):
 
@@ -304,6 +304,8 @@ E → i | E +- E | E */ E | u-E | !E | E rel E | E ==!= E
 67 <memberTail>   → . id <memberTail>         68  <memberTail>   → ε
 69 <term>         → atom                      70  <term>         → ( )
 ```
+
+For `id = id` versus `id = id(...)`, the parser reads the identifier and inspects the next token. `(` selects a call, otherwise the identifier is passed to `precedence_parse` as `firstOperand`. Since FUNEXP is not implemented, this syntactic lookahead is sufficient.
 
 ### LL table
 
