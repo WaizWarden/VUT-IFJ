@@ -24,3 +24,8 @@ th, td {
 img {
   max-width: 100%;
 }
+
+pre {
+  font-size: 0.68em;
+  line-height: 1.15;
+}
