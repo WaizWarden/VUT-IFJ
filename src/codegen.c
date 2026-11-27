@@ -71,7 +71,11 @@ static void cg_print_int(int64_t val) { printf("int@%" PRId64, val); }
 static void cg_print_double(double val) { printf("float@%a", val); }
 
 static void cg_print_bool(bool val) {
-  val ? printf("bool@true") : printf("bool@false");
+  if (val) {
+    printf("bool@true");
+  } else {
+    printf("bool@false");
+  }
 }
 
 static void cg_print_unit(void) { printf("nil@nil"); }

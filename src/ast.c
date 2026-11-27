@@ -550,30 +550,26 @@ AstNode *ast_new_member_call(AstNode *receiver, char *memberName, int line) {
       {"length", "strLength"},
   };
 
-  char *callName = memberName;
+  // Unknown members must not become calls to user defined functions.
+  const char *builtinName = "$valmem_unknown";
 
   for (size_t i = 0; i < sizeof(memberMap) / sizeof(memberMap[0]); i++) {
     if (strcmp(memberName, memberMap[i].member) == 0) {
-      callName = strdup(memberMap[i].builtin);
-      free(memberName);
-      if (callName == NULL) {
-        exit(INTERPRET_ERROR);
-      }
+      builtinName = memberMap[i].builtin;
       break;
     }
   }
 
-  // Unknown members must not become calls to user defined functions.
-  if (callName == memberName) {
-    free(memberName);
-    callName = strdup("$valmem_unknown");
-    if (callName == NULL) {
-      exit(INTERPRET_ERROR);
-    }
+  free(memberName);
+
+  char *callName = strdup(builtinName);
+  if (callName == NULL) {
+    exit(INTERPRET_ERROR);
   }
 
   AstNode **args = (AstNode **)malloc(sizeof(*args));
   if (args == NULL) {
+    free(callName);
     exit(INTERPRET_ERROR);
   }
   args[0] = receiver;

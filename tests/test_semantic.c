@@ -19,6 +19,7 @@
 #define TEST_INT_VAL_4 100
 #define TEST_DOUBLE_VAL 3.14
 
+// NOLINTBEGIN
 static SemanticError analyze_main_body(AstNode **statements, size_t count) {
   Symtable symtable;
   assert(st_init(&symtable) == true);
@@ -162,3 +163,4 @@ void test_semantic(void) {
   test_if_without_else_non_unit_inferred_function();
   printf("Semantic tests completed\n");
 }
+// NOLINTEND

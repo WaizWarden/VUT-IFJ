@@ -183,8 +183,11 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
     if (body->type != AST_BLOCK) {
       // one-line function
       hasReturn = always_returns(body);
-      SemanticError errCode =
-          analyze_statement(symtable, body, hasReturn ? NULL : &bodyType);
+      DataType *outType = &bodyType;
+      if (hasReturn) {
+        outType = NULL;
+      }
+      SemanticError errCode = analyze_statement(symtable, body, outType);
       if (errCode != ERR_OK) {
         st_pop_scope(symtable);
         return errCode;
@@ -204,8 +207,11 @@ static SemanticError analyze_functions(Symtable *symtable, AstNode *root) {
       // returns)
       AstNode *lastStmt = body->as.block.stmts[body->as.block.count - 1];
       hasReturn = always_returns(lastStmt);
-      SemanticError errCode =
-          analyze_statement(symtable, lastStmt, hasReturn ? NULL : &bodyType);
+      DataType *outType = &bodyType;
+      if (hasReturn) {
+        outType = NULL;
+      }
+      SemanticError errCode = analyze_statement(symtable, lastStmt, outType);
       if (errCode != ERR_OK) {
         st_pop_scope(symtable);
         return errCode;
