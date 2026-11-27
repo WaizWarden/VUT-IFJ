@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file test_symtable.c
  * @brief Tests variable/function symbols, scopes, and owned parameter storage
  *

@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    scanner_stack.c
  * @author  xjuricl01
  * @brief   Stack using dynamic array used for indent and dedent

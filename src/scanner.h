@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    scanner.h
  * @author  xjuricl01
  * @brief   Scanner header file

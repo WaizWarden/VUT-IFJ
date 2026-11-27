@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file test_codegen.h
  * @brief Public entry point for BOOLTHEN, CONTROL, and VALMEM code-generation
  * tests.

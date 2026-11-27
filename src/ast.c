@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    ast.c
  * @author  xhorakj01
  * @brief   AST implementation

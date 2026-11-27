@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# IFJ26 compiler
+#
 # AI USAGE - CLAUDE
 # Completely created by AI
 

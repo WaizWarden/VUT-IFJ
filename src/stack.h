@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    stack.h
  * @author  xhorakj01
  * @brief   Stack header file.

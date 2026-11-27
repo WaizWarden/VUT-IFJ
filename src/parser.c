@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    parser.c
  * @author  xhorakj01
  * @brief   Implementation of parser

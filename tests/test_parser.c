@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_parser.c
  * @author  xhorakj01
  * @brief   Tests for parser analysis of expressions

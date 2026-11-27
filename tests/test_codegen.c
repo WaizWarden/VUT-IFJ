@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file test_codegen.c
  * @author  xoramst00
  * @brief Checks that BOOLTHEN, CONTROL, and VALMEM constructs become the

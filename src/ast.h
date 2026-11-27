@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    ast.h
  * @author  xhorakj01
  * @brief   AST header file.

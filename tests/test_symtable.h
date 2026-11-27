@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file test_symtable.h
  * @brief Public entry point for symbol table unit tests
  *

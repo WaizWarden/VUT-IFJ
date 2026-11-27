@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    precedence.h
  * @author  xhorakj01
  * @brief   Precedence header file.

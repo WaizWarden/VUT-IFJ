@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    scanner_stack.h
  * @author  xjuricl01
  * @brief   scanenr_stack header file

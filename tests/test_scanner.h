@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_scanner.c
  * @author  xjuricl01
  * @brief   Header file containing test  functions
