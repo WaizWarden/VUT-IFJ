@@ -35,11 +35,11 @@ In the process, it removes unnecessary parts of the code, such as comments and w
 
 ## FSM of scanner
 
-<img src="./documentation/fsmDedents.png"
+<img src="./documentation/img/fsmDedents.png"
      style="width: 100%; height: auto;" />
   
 <div class="landscape" style="text-align: center;">
-  <img src="./documentation/fsm.png"
+  <img src="./documentation/img/fsm.png"
        style="height: 19.8cm; width: auto; max-width: 100%;" />
 </div>
 
