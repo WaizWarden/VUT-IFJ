@@ -314,3 +314,15 @@ pre {
   font-size: 0.68em;
   line-height: 1.15;
 }
+
+
+@page landscape {
+  size: A4 landscape;
+  margin-top: 0.5cm;
+}
+
+.landscape {
+  page: landscape;
+  page-break-before: always;
+  page-break-after: always;
+}
