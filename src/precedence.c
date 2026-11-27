@@ -27,77 +27,215 @@
 static const PrecedenceRelation
     precedenceTable[PRECEDENCE_TERMINAL_COUNT][PRECEDENCE_TERMINAL_COUNT] = {
         // +-
-        {PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // * /
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // u-
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // !
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // rel
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_EMPTY, PRECEDENCE_EMPTY, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // ==!=
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_EMPTY, PRECEDENCE_EMPTY, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // &&
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER, PRECEDENCE_LESS, PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // ||
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_GREATER,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // .   (member access: '<' only for the identifier operand,
         //      '>' reduces E.i once the right operand is formed)
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_EMPTY, PRECEDENCE_GREATER, PRECEDENCE_LESS,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_LESS,
+            PRECEDENCE_GREATER,
+        },
         // (
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EQUAL, PRECEDENCE_LESS,
-         PRECEDENCE_EMPTY},
+        {
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_EQUAL,
+            PRECEDENCE_LESS,
+            PRECEDENCE_EMPTY,
+        },
         // )
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_EMPTY, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+        },
         // i
-        {PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_GREATER, PRECEDENCE_GREATER, PRECEDENCE_GREATER,
-         PRECEDENCE_EMPTY, PRECEDENCE_GREATER, PRECEDENCE_EMPTY,
-         PRECEDENCE_GREATER},
+        {
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_GREATER,
+        },
         // $
-        {PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_LESS,
-         PRECEDENCE_LESS, PRECEDENCE_LESS, PRECEDENCE_EMPTY, PRECEDENCE_LESS,
-         PRECEDENCE_EMPTY}};
+        {
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_LESS,
+            PRECEDENCE_EMPTY,
+            PRECEDENCE_LESS,
+            PRECEDENCE_EMPTY,
+        },
+};
 
 /**
  * @brief
@@ -284,30 +422,26 @@ static int precedence_simplify(Stack *stack) {
   stack_pop(stack);
 
   // Converting i to E
-  if (cnt == 1) {
-    if (handle[0].symbol == SYM_TERM) {
-      StackItem result;
-      result.symbol = SYM_NONTERM;
-      result.token = TOKEN_EOF;
-      result.node = handle[0].node;
+  if (cnt == 1 && handle[0].symbol == SYM_TERM) {
+    StackItem result;
+    result.symbol = SYM_NONTERM;
+    result.token = TOKEN_EOF;
+    result.node = handle[0].node;
 
-      stack_push(stack, result);
-      return 0;
-    }
+    stack_push(stack, result);
+    return 0;
   }
 
   // Converting (E) to E
-  if (cnt == 3) {
-    if (handle[0].symbol == SYM_RPAREN && handle[1].symbol == SYM_NONTERM &&
-        handle[2].symbol == SYM_LPAREN) {
-      StackItem result;
-      result.symbol = SYM_NONTERM;
-      result.token = TOKEN_EOF;
-      result.node = handle[1].node;
+  if (cnt == 3 && handle[0].symbol == SYM_RPAREN &&
+      handle[1].symbol == SYM_NONTERM && handle[2].symbol == SYM_LPAREN) {
+    StackItem result;
+    result.symbol = SYM_NONTERM;
+    result.token = TOKEN_EOF;
+    result.node = handle[1].node;
 
-      stack_push(stack, result);
-      return 0;
-    }
+    stack_push(stack, result);
+    return 0;
   }
 
   if (cnt == 3 && handle[0].symbol == SYM_NONTERM &&

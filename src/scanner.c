@@ -183,7 +183,7 @@ Token get_token(FILE *input) {
       token.type = TOKEN_NEWLINE;
       goto return_token;
 
-    case INDENT_OK:
+    case INDENT_OK: {
       TokenType type = resolve_indent(spaces);
       if (type == TOKEN_ERROR) {
         goto return_error;
@@ -195,6 +195,7 @@ Token get_token(FILE *input) {
         goto return_token;
       }
       break;
+    }
     }
   }
 
@@ -593,51 +594,50 @@ static Token scan_identifier(FILE *input, int currentChar) {
   }
 
   // its id
-  else {
-    if (strcmp(str, "_") == 0) {
-      fprintf(stderr, "Scanner error: %d, '_' is not valid identifier\n",
+
+  if (strcmp(str, "_") == 0) {
+    fprintf(stderr, "Scanner error: %d, '_' is not valid identifier\n",
+            SCANNER_ERROR);
+    free(str);
+    return token;
+  }
+
+  if (strcmp(str, "true") == 0) {
+    if (interpVariable) {
+      fprintf(stderr, "Scanner error: %d, true in interpVariable\n",
               SCANNER_ERROR);
       free(str);
       return token;
     }
-
-    if (strcmp(str, "true") == 0) {
-      if (interpVariable) {
-        fprintf(stderr, "Scanner error: %d, true in interpVariable\n",
-                SCANNER_ERROR);
-        free(str);
-        return token;
-      }
-      token.type = TOKEN_BOOL;
-      token.value.boolean = true;
-      free(str);
-      return token;
-    }
-
-    if (strcmp(str, "false") == 0) {
-      if (interpVariable) {
-        fprintf(stderr, "Scanner error: %d, false interpVariable\n",
-                SCANNER_ERROR);
-        free(str);
-        return token;
-      }
-      token.type = TOKEN_BOOL;
-      token.value.boolean = false;
-      free(str);
-      return token;
-    }
-
-    if (interpVariable) {
-      interpVariable = false;
-      interpResume = true;
-      interpEnd = true;
-    }
-
-    token.type = TOKEN_IDENTIFIER;
-    token.value.identifier = strdup(str);
+    token.type = TOKEN_BOOL;
+    token.value.boolean = true;
     free(str);
     return token;
   }
+
+  if (strcmp(str, "false") == 0) {
+    if (interpVariable) {
+      fprintf(stderr, "Scanner error: %d, false interpVariable\n",
+              SCANNER_ERROR);
+      free(str);
+      return token;
+    }
+    token.type = TOKEN_BOOL;
+    token.value.boolean = false;
+    free(str);
+    return token;
+  }
+
+  if (interpVariable) {
+    interpVariable = false;
+    interpResume = true;
+    interpEnd = true;
+  }
+
+  token.type = TOKEN_IDENTIFIER;
+  token.value.identifier = strdup(str);
+  free(str);
+  return token;
 }
 
 /**
@@ -944,54 +944,49 @@ static Token scan_string(FILE *input, bool interp) {
 
     if (isMultiLine) {
 
-      if (isInterp) {
-        if (currentChar == '$') {
-          int next = next_char(input);
+      if (isInterp && currentChar == '$') {
+        int next = next_char(input);
 
-          if (next == '$') {
-            str[len] = '$';
-            len++;
-            currentChar = next_char(input);
-            continue;
-          }
-
-          // $variable
-          else if (isalpha(next) || next == '_') {
-            interpVariable = true;
-            interpStart = true;
-
-            put_back(next, input);
-            str[len] = '\0';
-            token.type = TOKEN_STRING;
-            token.value.string = strdup(str);
-
-            free(str);
-            return token;
-          }
-
-          // expression inside ${
-          else if (next == '{') {
-            interpStart = true;
-            interpExprDepth++;
-
-            str[len] = '\0';
-            token.type = TOKEN_STRING;
-            token.value.string = strdup(str);
-
-            free(str);
-            return token;
-          }
-
-          else {
-            fprintf(stderr,
-                    "Scanner error: %d, Invalid interpolate character\n",
-                    SCANNER_ERROR);
-
-            free(str);
-            token.type = TOKEN_ERROR;
-            return token;
-          }
+        if (next == '$') {
+          str[len] = '$';
+          len++;
+          currentChar = next_char(input);
+          continue;
         }
+
+        // $variable
+        if (isalpha(next) || next == '_') {
+          interpVariable = true;
+          interpStart = true;
+
+          put_back(next, input);
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+
+          free(str);
+          return token;
+        }
+
+        // expression inside ${
+        if (next == '{') {
+          interpStart = true;
+          interpExprDepth++;
+
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+
+          free(str);
+          return token;
+        }
+
+        fprintf(stderr, "Scanner error: %d, Invalid interpolate character\n",
+                SCANNER_ERROR);
+
+        free(str);
+        token.type = TOKEN_ERROR;
+        return token;
       }
 
       if (currentChar == '"') {
@@ -1029,109 +1024,104 @@ static Token scan_string(FILE *input, bool interp) {
         return token;
       }
 
-      if (isInterp) {
-        if (currentChar == '$') {
-          int next = next_char(input);
-
-          if (next == '$') {
-            str[len] = '$';
-            len++;
-            currentChar = next_char(input);
-            continue;
-          }
-
-          // $variable
-          else if (isalpha(next) || next == '_') {
-            interpVariable = true;
-            interpStart = true;
-
-            put_back(next, input);
-            str[len] = '\0';
-            token.type = TOKEN_STRING;
-            token.value.string = strdup(str);
-
-            free(str);
-            return token;
-          }
-
-          // expression inside ${
-          else if (next == '{') {
-            interpStart = true;
-            interpExprDepth++;
-
-            str[len] = '\0';
-            token.type = TOKEN_STRING;
-            token.value.string = strdup(str);
-
-            free(str);
-            return token;
-          }
-
-          else {
-            fprintf(stderr,
-                    "Scanner error: %d, Invalid interpolate character\n",
-                    SCANNER_ERROR);
-
-            free(str);
-            token.type = TOKEN_ERROR;
-            return token;
-          }
-        }
-      }
-
-      // Single-line string can contain escape characters as two chars
-      if (currentChar == '\\') {
-        // put_back not needed
+      if (isInterp && currentChar == '$') {
         int next = next_char(input);
 
-        if (next == 'n') {
-          str[len] = '\n';
+        if (next == '$') {
+          str[len] = '$';
+          len++;
+          currentChar = next_char(input);
+          continue;
         }
 
-        else if (next == '\\') {
-          str[len] = '\\';
-        }
+        // $variable
+        if (isalpha(next) || next == '_') {
+          interpVariable = true;
+          interpStart = true;
 
-        else if (next == '"') {
-          str[len] = '\"';
-        }
+          put_back(next, input);
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
 
-        else if (next == 't') {
-          str[len] = '\t';
-        }
-
-        else if (next == 'r') {
-          str[len] = '\r';
-        }
-
-        else {
-          fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
-                  SCANNER_ERROR);
           free(str);
           return token;
         }
-        len++;
-      }
 
-      // end of string
-      else if (currentChar == '"') {
-        str[len] = '\0';
-        token.type = TOKEN_STRING;
-        token.value.string = strdup(str);
+        // expression inside ${
+        if (next == '{') {
+          interpStart = true;
+          interpExprDepth++;
+
+          str[len] = '\0';
+          token.type = TOKEN_STRING;
+          token.value.string = strdup(str);
+
+          free(str);
+          return token;
+        }
+
+        fprintf(stderr, "Scanner error: %d, Invalid interpolate character\n",
+                SCANNER_ERROR);
 
         free(str);
-        scanner_stack_pop(&interpStack);
+        token.type = TOKEN_ERROR;
         return token;
       }
-
-      // Add char to array
-      else {
-        str[len] = (char)currentChar;
-        len++;
-      }
     }
-    currentChar = next_char(input);
+
+    // Single-line string can contain escape characters as two chars
+    if (currentChar == '\\') {
+      // put_back not needed
+      int next = next_char(input);
+
+      if (next == 'n') {
+        str[len] = '\n';
+      }
+
+      else if (next == '\\') {
+        str[len] = '\\';
+      }
+
+      else if (next == '"') {
+        str[len] = '\"';
+      }
+
+      else if (next == 't') {
+        str[len] = '\t';
+      }
+
+      else if (next == 'r') {
+        str[len] = '\r';
+      }
+
+      else {
+        fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
+                SCANNER_ERROR);
+        free(str);
+        return token;
+      }
+      len++;
+    }
+
+    // end of string
+    else if (currentChar == '"') {
+      str[len] = '\0';
+      token.type = TOKEN_STRING;
+      token.value.string = strdup(str);
+
+      free(str);
+      scanner_stack_pop(&interpStack);
+      return token;
+    }
+
+    // Add char to array
+    else {
+      str[len] = (char)currentChar;
+      len++;
+    }
   }
+  currentChar = next_char(input);
 }
 
 /**
@@ -1180,12 +1170,14 @@ static bool number_token_end(int currentChar) {
  */
 static TokenType resolve_indent(int spaces) {
   int currentTop = *scanner_stack_top(&indentStack);
-  int topIndex = scanner_stack_size(&indentStack) - 1;
+  int topIndex = (int)scanner_stack_size(&indentStack) - 1;
 
   if (spaces > currentTop) {
     scanner_stack_push(&indentStack, spaces);
     return TOKEN_INDENT;
-  } else if (spaces < currentTop) {
+  }
+
+  if (spaces < currentTop) {
     int index = find_number_in_stack(&indentStack, spaces);
 
     if (index == -1) {
@@ -1204,10 +1196,10 @@ static TokenType resolve_indent(int spaces) {
     }
 
     return TOKEN_DEDENT;
-  } else {
-    // Same level
-    return TOKEN_SKIP;
   }
+
+  // Same level
+  return TOKEN_SKIP;
 }
 
 /**
@@ -1304,7 +1296,7 @@ void scanner_destroy(void) {
  * @param[out] Token to write the resulting type to
  */
 static void handle_eof(Token *token) {
-  int interpStackSize = scanner_stack_size(&interpStack);
+  int interpStackSize = (int)scanner_stack_size(&interpStack);
   if (interpStackSize != 0) {
     scanner_destroy();
     fprintf(stderr, "Scanner error: %d, tab at the start of a line\n",
@@ -1313,7 +1305,7 @@ static void handle_eof(Token *token) {
     return;
   }
 
-  int open_levels = scanner_stack_size(&indentStack) - 1;
+  int open_levels = (int)scanner_stack_size(&indentStack) - 1;
 
   if (open_levels > 0) {
     while (scanner_stack_size(&indentStack) > 1) {
@@ -1359,7 +1351,7 @@ static void put_back(int currentChar, FILE *input) {
  * @param state - state of stackState
  */
 static bool is_interp_state(int state) {
-  return state == enInterpSingleLine || state == enInterpMultiLine;
+  return (bool)(state == enInterpSingleLine || state == enInterpMultiLine);
 }
 
 /**
@@ -1367,5 +1359,5 @@ static bool is_interp_state(int state) {
  * @param state - state of stackState
  */
 static bool is_multiline_state(int state) {
-  return state == enSimpleMultiLine || state == enInterpMultiLine;
+  return (bool)(state == enSimpleMultiLine || state == enInterpMultiLine);
 }

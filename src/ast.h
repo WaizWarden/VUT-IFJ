@@ -52,7 +52,7 @@ typedef enum {
 typedef enum {
   OP_UNARY_MINUS,
   OP_UNARY_NOT,
-  OP_UNARY_INT2DOUBLE
+  OP_UNARY_INT2DOUBLE,
 } UnaryOperation;
 
 typedef struct AstNode {

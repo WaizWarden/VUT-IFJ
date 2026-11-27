@@ -2,6 +2,8 @@
 
 **Implemented extensions:** BOOLTHEN, CONTROL, VALMEM, INTERPOLATEDS.
 
+**Github repository link:** [https://github.com/WaizWarden/VUT-IFJ](https://github.com/WaizWarden/VUT-IFJ)
+
 ## Team distribution
 - **xjuricl01** – project coordination, lexical analysis, fixes in semantic analysis
 - **xoramst00** – symbol table, code generator (main developer)
