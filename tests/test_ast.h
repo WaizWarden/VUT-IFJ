@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_ast.h
  * @author  xhorakj01
  * @brief   AST smoke test header

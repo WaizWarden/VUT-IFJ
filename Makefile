@@ -1,7 +1,9 @@
 #########################
 #
+# IFJ26 compiler
+#
 # File: Makefile
-# Author: xjurilu00, xoramst00, AI návrh architektury + valgrind cíl (chatGPT)
+# Author: xjuricl01, xoramst00, AI návrh architektury + valgrind cíl (chatGPT)
 # Brief: Project makefile
 #
 #########################

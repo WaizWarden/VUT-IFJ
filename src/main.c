@@ -1,3 +1,11 @@
+/**
+ * IFJ26 compiler
+ *
+ * @file    main.c
+ * @author  xhorakj01, xjuricl01, xoramst00
+ * @brief   Main compiler entry point
+ */
+
 #include "ast.h"
 #include "codegen.h"
 #include "parser.h"

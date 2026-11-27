@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    semantic.h
  * @author  xjuricl01
  * @brief   Implementation of semantic analysis

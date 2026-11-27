@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    stack.c
  * @author  xhorakj01
  * @brief   Stack using dynamic array

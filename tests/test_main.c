@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_main.c
  * @author  xhorakj01
  * @brief   Entry point for unit tests, runs all test suites

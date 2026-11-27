@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_semantic.c
  * @author  xsirmat00
  * @brief   Independent unit tests for the semantic analyzer

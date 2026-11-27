@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_precedence.c
  * @author  xhorakj01
  * @brief   Tests for precedence analysis of expressions

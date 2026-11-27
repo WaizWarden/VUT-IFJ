@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    codegen.h
  * @author  xoramst00
  * @brief   Generator definition of final code IFJcode26

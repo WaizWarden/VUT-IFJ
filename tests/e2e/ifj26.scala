@@ -1,3 +1,5 @@
+// IFJ26 compiler
+
 package ifj26
 
 // Keep CR here: numeric and Boolean READ reject it rather than trimming it.

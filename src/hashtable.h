@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    hashtable.h
  * @author  xoramst00
  * @brief   ADT Hash Table
