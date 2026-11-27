@@ -37,7 +37,6 @@ BOOLTHEN - CONTROL - VALMEM - INTERPOLATEDS
 
 # Block diagram
 
-<img src="./documentation/blockDiagram.png" style="width: 40rem; text-align: center;" />
 
 # Lexical Analysis
 Lexical analysis is the process of reading human-readable code and convets it to a sequence that a parser can work with.
@@ -50,11 +49,11 @@ In the process, it removes unnecessary parts of the code, such as comments and w
 
 ## FSM of scanner
 
-<img src="./documentation/fsmDedents.png"
+<img src="./documentation/img/fsmDedents.png"
      style="width: 100%; height: auto;" />
   
 <div class="landscape" style="text-align: center;">
-  <img src="./documentation/fsm.png"
+  <img src="./documentation/img/fsm.png"
        style="height: 19.8cm; width: auto; max-width: 100%;" />
 </div>
 

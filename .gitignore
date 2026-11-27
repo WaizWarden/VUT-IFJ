@@ -4,6 +4,7 @@ Output
 result/
 xjuricl01.zip
 *.log
+documentation/dokumentace.pdf
 
 # Prerequisites
 *.d
