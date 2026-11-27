@@ -911,9 +911,17 @@ static Token scan_string(FILE *input, bool interp) {
 
     stackState state;
     if (interp) {
-      state = multiLineString ? enInterpMultiLine : enInterpSingleLine;
+      if (multiLineString) {
+        state = enInterpMultiLine;
+      } else {
+        state = enInterpSingleLine;
+      }
     } else {
-      state = multiLineString ? enSimpleMultiLine : enSimpleSingleLine;
+      if (multiLineString) {
+        state = enSimpleMultiLine;
+      } else {
+        state = enSimpleSingleLine;
+      }
     }
     scanner_stack_push(&interpStack, state);
   }
