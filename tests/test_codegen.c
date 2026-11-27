@@ -16,6 +16,7 @@
 #include <string.h>
 #include <unistd.h>
 
+// NOLINTBEGIN
 static char *capture_expression(void (*generate)(void)) {
   // Temporarily redirect stdout so one generator call can be checked as text
   fflush(stdout);
@@ -470,3 +471,5 @@ void test_codegen(void) {
   test_valmem_chained_floor_to_int();
   test_normal_boolean_program();
 }
+
+// NOLINTEND
