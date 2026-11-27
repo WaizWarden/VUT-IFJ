@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "precedence.h"
 #include "stack.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -711,6 +712,60 @@ static AstNode *parse_statement(void) {
 }
 
 /**
+ * @brief Checks whether an if expression ends with an indented
+ * block as its else branch
+ *
+ * @param node AST node to inspect
+ * @return true when the final else branch is an indented block
+ *
+ */
+static bool does_expr_ends_with_block(const AstNode *node) {
+  if (node == NULL || node->type != AST_IF) {
+    return false;
+  }
+
+  const AstNode *elBlock = node->as.ifStatement.elseBlock;
+  if (elBlock == NULL) {
+    return false;
+  }
+
+  switch (elBlock->type) {
+  case AST_BLOCK:
+    return true;
+    break;
+  case AST_IF:
+    return does_expr_ends_with_block(elBlock);
+  default:
+    return false;
+  }
+
+  return false;
+}
+
+/**
+ * @brief Checks whether a statement ends with a multiline if expression
+ *
+ * @param node AST statement node
+ * @return true when the statement ends with a block-form if expression
+ */
+static bool does_statement_end_with_block(const AstNode *node) {
+  if (node == NULL) {
+    return false;
+  }
+
+  switch (node->type) {
+  case AST_VAR_DECL:
+    return does_expr_ends_with_block(node->as.varDecl.initExpr);
+  case AST_ASSIGN:
+    return does_expr_ends_with_block(node->as.assign.value);
+  case AST_RETURN:
+    return does_expr_ends_with_block(node->as.ret.expr);
+  default:
+    return false;
+  }
+}
+
+/**
  * @brief Returns the AstNode of block
  *
  * @return AstNode*
@@ -748,7 +803,8 @@ static AstNode *parse_block(void) {
     stmts[count++] = statement;
     if (statement->type != AST_IF && statement->type != AST_WHILE &&
         statement->type != AST_FOR && pToken.type != TOKEN_NEWLINE &&
-        pToken.type != TOKEN_SEMICOLON && pToken.type != TOKEN_DEDENT) {
+        pToken.type != TOKEN_SEMICOLON && pToken.type != TOKEN_DEDENT &&
+        !does_statement_end_with_block(statement)) {
       exit(2);
     }
   }
