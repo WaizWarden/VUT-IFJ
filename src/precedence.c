@@ -208,7 +208,7 @@ AstNode *precedence_read_string(FILE *input, Token *currentToken) {
     }
     // End of the current token (TOKEN_INTERP_END)
 
-    AstNode **arguments = malloc(sizeof(AstNode *));
+    AstNode **arguments = (AstNode **)malloc(sizeof(*arguments));
     if (arguments == NULL) {
       ast_free(node);
       exit(99);
