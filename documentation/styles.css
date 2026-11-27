@@ -10,6 +10,10 @@
   box-sizing: border-box;
 }
 
+header#title-block-header .subtitle + .author {
+  font-weight: 700;
+}
+
 html {
   color: var(--ink);
   font-family: "Noto Sans", "DejaVu Sans", sans-serif;
@@ -61,7 +65,7 @@ body {
   }
 
   @bottom-left {
-    content: none;
+    content: "github.com/WaizWarden/VUT-IFJ";
   }
 
   @bottom-right {
