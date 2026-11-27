@@ -12,10 +12,13 @@ toc-depth: 2
 number-sections: true
 metadata:
   title: "IFJ26 Compiler"
-  subtitle: "Project documentation | Hash-table variant"
+  subtitle: "Project documentation | Hash-table (TRP-izp) variant"
   author:
-    - "xjuricl01 (team lead, 33%)"
-    - "xoramst00 (33%)"
-    - "xhorakj01 (34%)"
-    - "xsirmat00 (0%)"
+    - "Lukáš Juřica - 281807 - xjuricl01 (team lead, 33%)"
+    - "Štěpán Oram - 282409 - xoramst00 (33%)"
+    - "Jakub Horák - 281850 - xhorakj01 (34%)"
+    - "Matěj Šír - 282115 - xsirmat00 (0%)"
+
+  abstract-title: "Implemented extensions"
+  abstract: "BOOLTHEN, CONTROL, VALMEM, INTERPOLATEDS"
   lang: en-US
