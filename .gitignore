@@ -5,10 +5,14 @@ result/
 tests/e2e/tmp/*
 xjuricl01.zip
 *.log
+<<<<<<< HEAD
 *.pdf
 
 .bsp
 .scala-build
+=======
+documentation/dokumentace.pdf
+>>>>>>> docs/scanner
 
 # Prerequisites
 *.d
