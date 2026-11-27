@@ -1076,60 +1076,60 @@ static Token scan_string(FILE *input, bool interp) {
         token.type = TOKEN_ERROR;
         return token;
       }
-    }
 
-    // Single-line string can contain escape characters as two chars
-    if (currentChar == '\\') {
-      // put_back not needed
-      int next = next_char(input);
+      // Single-line string can contain escape characters as two chars
+      if (currentChar == '\\') {
+        // put_back not needed
+        int next = next_char(input);
 
-      if (next == 'n') {
-        str[len] = '\n';
+        if (next == 'n') {
+          str[len] = '\n';
+        }
+
+        else if (next == '\\') {
+          str[len] = '\\';
+        }
+
+        else if (next == '"') {
+          str[len] = '\"';
+        }
+
+        else if (next == 't') {
+          str[len] = '\t';
+        }
+
+        else if (next == 'r') {
+          str[len] = '\r';
+        }
+
+        else {
+          fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
+                  SCANNER_ERROR);
+          free(str);
+          return token;
+        }
+        len++;
       }
 
-      else if (next == '\\') {
-        str[len] = '\\';
-      }
+      // end of string
+      else if (currentChar == '"') {
+        str[len] = '\0';
+        token.type = TOKEN_STRING;
+        token.value.string = strdup(str);
 
-      else if (next == '"') {
-        str[len] = '\"';
-      }
-
-      else if (next == 't') {
-        str[len] = '\t';
-      }
-
-      else if (next == 'r') {
-        str[len] = '\r';
-      }
-
-      else {
-        fprintf(stderr, "Scanner error: %d, Invalid escape char \n",
-                SCANNER_ERROR);
         free(str);
+        scanner_stack_pop(&interpStack);
         return token;
       }
-      len++;
-    }
 
-    // end of string
-    else if (currentChar == '"') {
-      str[len] = '\0';
-      token.type = TOKEN_STRING;
-      token.value.string = strdup(str);
-
-      free(str);
-      scanner_stack_pop(&interpStack);
-      return token;
+      // Add char to array
+      else {
+        str[len] = (char)currentChar;
+        len++;
+      }
     }
-
-    // Add char to array
-    else {
-      str[len] = (char)currentChar;
-      len++;
-    }
+    currentChar = next_char(input);
   }
-  currentChar = next_char(input);
 }
 
 /**
