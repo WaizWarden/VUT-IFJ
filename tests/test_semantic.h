@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_semantic.h
  * @author  xsirmat00
  * @brief   Header file for the semantic analyzer unit tests.

@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_stack.c
  * @author  xhorakj01
  * @brief   Tests for stack

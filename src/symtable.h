@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    symtable.h
  * @author  xoramst00
  * @brief   Symbol table declaration

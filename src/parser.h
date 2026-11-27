@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    parser.h
  * @author  xhorakj01
  * @brief   Parser header file.

@@ -1,4 +1,6 @@
 /**
+ * IFJ26 compiler
+ *
  * @file    test_ast.c
  * @author  xhorakj01
  * @brief   AST smoke test - build, print and free a tree of all node types
