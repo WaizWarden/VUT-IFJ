@@ -21,3 +21,14 @@ th, td {
     content: "https://github.com/WaizWarden/VUT-IFJ";
   }
 }
+
+@page landscape {
+  size: A4 landscape;
+  margin-top: 0.5cm;
+}
+
+.landscape {
+  page: landscape;
+  page-break-before: always;
+  page-break-after: always;
+}

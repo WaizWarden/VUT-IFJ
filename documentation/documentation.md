@@ -50,6 +50,37 @@ In the process, it removes unnecessary parts of the code, such as comments and w
 
 ## FSM of scanner
 
+<img src="./documentation/fsmDedents.png"
+     style="width: 100%; height: auto;" />
+  
+<div class="landscape" style="text-align: center;">
+  <img src="./documentation/fsm.png"
+       style="height: 19.8cm; width: auto; max-width: 100%;" />
+</div>
+
+### notes
+- Transitions not shown in the diagram lead to an error
+
+- END = {+ - * / = < > ! ( ) ; , whitespace | & } EOF}
+- T_DOUBLE and T_INT are complete when the next character belongs to END group, the character is return to the input
+
+- To determine if token is T_KEYWORD or T_IDENTIFER, we check it against array of keywords
+
+- If scanner gets to end of file (T_EOF in fsm), he will first return all pendingDedents
+- Every time NEW_LINE token is returned, lineStart is set to true (for indent calculation)
+
+- Interpolation extension
+
+- At start, flags are checked first 
+	- interpStart -> T_INTERP_START
+	- interpEnd -> T_INTERP_END
+	- interpResume -> scan rest of the string
+
+- When the scanner finds a letter or _ after $, it sets interpVariable = true and interpStart = true
+- When the scanner finds { after $, it sets interpStart = true and interpExprDepth++.
+- When an identifier ends and interpVariable is true, it sets interpVariable = false, interpEnd = true and interpResume = true.
+
+- Multi-line interpolated strings works the same way (they set the same flags)
 
 
 # Syntax Analysis
